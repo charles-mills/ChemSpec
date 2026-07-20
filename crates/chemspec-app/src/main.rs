@@ -1,9 +1,14 @@
+#![cfg_attr(
+    all(target_os = "windows", not(debug_assertions)),
+    windows_subsystem = "windows"
+)]
+
 //! `ChemSpec` application shell and reaction-builder entry (`U-101`, `U-106`–`U-112`).
 //!
 //! Opens on the Stage 1 builder: the learner's question, composed from two
 //! reactant drafts over the full periodic table. Chemistry is supplied only
-//! through the catalogue fast path or a staged dynamic claim whose static and
-//! animated capabilities cross separate deterministic validation boundaries.
+//! through a reference-data fast path or a staged dynamic claim. Both static
+//! and animated capabilities cross the same deterministic validation boundary.
 
 mod animated_clip;
 mod blocking;
@@ -27,13 +32,10 @@ mod structural_3d;
 mod structural_physics;
 mod theme;
 
-use std::{
-    ops::Deref,
-    sync::{
-        Arc,
-        atomic::{AtomicBool, Ordering},
-        mpsc::{self, Sender},
-    },
+use std::sync::{
+    Arc,
+    atomic::{AtomicBool, Ordering},
+    mpsc::{self, Sender},
 };
 
 // std::time::Instant panics on wasm32; web-time is std's Instant on native
@@ -43,27 +45,28 @@ use web_time::Instant;
 use agent::{
     ClaimDisposition, ClaimMode, CodexProgressEvent, CodexProgressStage, CodexProvider,
     CodexProviderConfig, DynamicCachePresentation, DynamicPresentationOutcome, LatencyMilestones,
-    MacroscopicProcess as AgentMacroscopicProcess, OutcomeSpecies, OxideAppearanceRequest,
-    ReactantInput, ReactionBuildRequest, RequestIdentityResolution, TrustTier,
+    MacroscopicProcess as AgentMacroscopicProcess, OutcomeProvenance, OutcomeSpecies,
+    OxideAppearanceRequest, ReactantInput, ReactionBuildRequest, RequestIdentityResolution,
     ValidatedOxideAppearance, ValidatedStaticOutcome, enrich_static_outcome,
     load_oxide_appearance_cache, resolve_request_identities_with_catalogue,
     reviewed_species_registry, store_dynamic_cache, store_oxide_appearance_cache,
 };
+use agent::{CompiledClaimOutcome, ProviderClaim, compile_claim_outcome};
 #[cfg(test)]
-use agent::{CompiledClaimOutcome, ProviderClaim, ReactionClaim};
+use agent::ReactionClaim;
 use chem_domain::{ContentDigest, RepresentationKind};
 use chem_presentation::{
-    EducationalPlan, EducationalSceneKind, EffectProfile, MacroscopicColourAuthority,
-    MacroscopicMaterial, MacroscopicMaterialRole, MacroscopicProcess, MacroscopicReaction,
-    MacroscopicStage, PresentationProfile, ScenePlan, SurfaceOxideColour, TimelinePosition,
-    VisualColour, compile_educational_plan, compile_phase_driven_profile, compile_real_world_plan,
-    complete_generic_visual_profile,
+    EducationalPlan, EducationalSceneKind, EffectProfile, ExplosiveMetalWaterVariant,
+    MacroscopicColourAuthority, MacroscopicMaterial, MacroscopicMaterialRole, MacroscopicProcess,
+    MacroscopicReaction, MacroscopicStage, PresentationProfile, ScenePlan, SurfaceOxideColour,
+    TimelinePosition, VisualColour, compile_educational_plan, compile_phase_driven_profile,
+    compile_real_world_plan, complete_generic_visual_profile,
 };
 use iced::widget::{
     button, canvas, column, container, mouse_area, responsive, row, rule, scrollable, slider,
     space, stack, text, tooltip,
 };
-use iced::{Center, Element, Fill, FillPortion, Length, Size, Subscription, Task, Theme};
+use iced::{Center, Element, Fill, FillPortion, Length, Padding, Size, Subscription, Task, Theme};
 
 #[cfg(test)]
 use dynamic_reaction::ClaimStageResult as DynamicClaimStageResult;
@@ -291,7 +294,7 @@ fn product_properties_view(
         ]
         .align_y(Center),
         rule::horizontal(1).style(theme::soft_rule),
-        text("Properties are compiled locally from the trusted final frame and bundled element metadata.")
+        text("Properties are compiled locally from the validated final frame and bundled element metadata.")
             .size(type_scale::CAPTION)
             .color(color::TEXT_SOFT),
     ]
@@ -390,7 +393,7 @@ fn product_properties_view(
     content = content.push(
         container(
             row![
-                text("TRUST BOUNDARY")
+                text("VALIDATION BOUNDARY")
                     .size(type_scale::MICRO)
                     .color(color::SUCCESS),
                 space().width(Fill),
@@ -473,6 +476,51 @@ const fn macroscopic_effect_label(effect: EffectProfile) -> &'static str {
 const DESIGN_SIZE: Size = Size::new(1_440.0, 900.0);
 /// Upper bound on the adaptive zoom so very large monitors stay reasonable.
 const MAX_UI_ZOOM: f32 = 2.0;
+const BUILDER_TOOLBAR_ICON_SIZE: f32 = 20.0;
+const APP_ICON_SIZE: u32 = 128;
+const APP_ICON_RGBA: &[u8] = include_bytes!("../assets/app-icon/128x128.rgba");
+
+fn chromeless_page_padding(normal: f32, macos_top_extra: f32) -> Padding {
+    if cfg!(target_os = "macos") {
+        Padding {
+            top: macos_top_extra + normal,
+            right: normal,
+            bottom: normal,
+            left: normal,
+        }
+    } else {
+        Padding::from(normal)
+    }
+}
+
+const fn builder_toolbar_panel_top(page_top: f32) -> f32 {
+    page_top + BUILDER_TOOLBAR_ICON_SIZE + 2.0 * spacing::XS + spacing::XXS
+}
+
+fn window_settings() -> iced::window::Settings {
+    let settings = iced::window::Settings {
+        size: DESIGN_SIZE,
+        min_size: Some(Size::new(560.0, 760.0)),
+        position: iced::window::Position::Centered,
+        icon: Some(
+            iced::window::icon::from_rgba(APP_ICON_RGBA.to_vec(), APP_ICON_SIZE, APP_ICON_SIZE)
+                .expect("embedded app icon must contain 128x128 RGBA pixels"),
+        ),
+        ..iced::window::Settings::default()
+    };
+
+    #[cfg(target_os = "macos")]
+    let settings = iced::window::Settings {
+        platform_specific: iced::window::settings::PlatformSpecific {
+            title_hidden: true,
+            titlebar_transparent: true,
+            fullsize_content_view: true,
+        },
+        ..settings
+    };
+
+    settings
+}
 
 fn main() -> iced::Result {
     #[cfg(target_arch = "wasm32")]
@@ -505,12 +553,7 @@ fn main() -> iced::Result {
         .font(fonts::INTER_BOLD_BYTES)
         .default_font(fonts::REGULAR)
         .scale_factor(|app| app.ui_zoom)
-        .window(iced::window::Settings {
-            size: DESIGN_SIZE,
-            min_size: Some(Size::new(560.0, 760.0)),
-            position: iced::window::Position::Centered,
-            ..iced::window::Settings::default()
-        })
+        .window(window_settings())
         .run()
 }
 
@@ -636,53 +679,26 @@ fn dynamic_presentation_profile(
 fn dynamic_macroscopic_reaction(
     outcome: &ValidatedStaticOutcome,
 ) -> Result<MacroscopicReaction, String> {
-    let catalogue = chemistry::trusted_catalogue().ok();
-    let material = |species: &OutcomeSpecies, role| {
-        let reviewed_colour = match species {
-            OutcomeSpecies::Resolved(species) => species.structure.as_ref().and_then(|structure| {
-                catalogue
-                    .and_then(|catalogue| catalogue.macroscopic_material(structure.id(), None))
-                    .and_then(|material| material.colour)
-            }),
-            OutcomeSpecies::FormulaOnly { .. } => None,
-        };
-        let colour = reviewed_colour
-            .or_else(|| {
-                outcome
-                    .macroscopic_colour(species)
-                    .map(agent::MacroscopicColour::srgb)
-            })
-            .map(|[red, green, blue]| VisualColour { red, green, blue });
-        Some(MacroscopicMaterial {
-            binding: species.id().to_string(),
-            semantic_identity: species.display_name().to_owned(),
-            structure_id: match species {
-                OutcomeSpecies::Resolved(species) => species
-                    .structure
-                    .as_ref()
-                    .map(|structure| structure.id().to_string())?,
-                OutcomeSpecies::FormulaOnly { .. } => return None,
-            },
-            formula: match species {
-                OutcomeSpecies::Resolved(species) => species.formula_text.clone(),
-                OutcomeSpecies::FormulaOnly { formula, .. } => formula.clone(),
-            },
-            role,
-            phase: outcome.macroscopic_phase(species),
-            representation: species.representation()?,
-            colour,
-        })
-    };
+    let catalogue = chemistry::reference_catalogue().ok();
     let materials = outcome
         .reactants()
         .iter()
-        .filter_map(|species| material(species, MacroscopicMaterialRole::Reactant))
-        .chain(
-            outcome
-                .products()
-                .iter()
-                .filter_map(|species| material(species, MacroscopicMaterialRole::Product)),
-        )
+        .filter_map(|species| {
+            dynamic_macroscopic_material(
+                outcome,
+                catalogue,
+                species,
+                MacroscopicMaterialRole::Reactant,
+            )
+        })
+        .chain(outcome.products().iter().filter_map(|species| {
+            dynamic_macroscopic_material(
+                outcome,
+                catalogue,
+                species,
+                MacroscopicMaterialRole::Product,
+            )
+        }))
         .collect::<Vec<_>>();
     if materials.len() != outcome.reactants().len() + outcome.products().len() {
         return Err("validated dynamic species lack renderer-readable structures".to_owned());
@@ -696,6 +712,19 @@ fn dynamic_macroscopic_reaction(
             MacroscopicProcess::GasEvolutionSolidLiquid
         }
         AgentMacroscopicProcess::MetalDisplacement => MacroscopicProcess::MetalDisplacement,
+        AgentMacroscopicProcess::ExplosiveMetalWater(variant) => {
+            MacroscopicProcess::ExplosiveMetalWater(match variant {
+                chem_catalogue::ExplosiveWaterContactVariantRecord::Rubidium => {
+                    ExplosiveMetalWaterVariant::Rubidium
+                }
+                chem_catalogue::ExplosiveWaterContactVariantRecord::Caesium => {
+                    ExplosiveMetalWaterVariant::Caesium
+                }
+                chem_catalogue::ExplosiveWaterContactVariantRecord::Francium => {
+                    ExplosiveMetalWaterVariant::Francium
+                }
+            })
+        }
         AgentMacroscopicProcess::SolidSolidSynthesis => MacroscopicProcess::SolidSolidSynthesis,
         AgentMacroscopicProcess::SolidGasSynthesis => MacroscopicProcess::SolidGasSynthesis,
         AgentMacroscopicProcess::GasGasSynthesis => MacroscopicProcess::GasGasSynthesis,
@@ -713,27 +742,147 @@ fn dynamic_macroscopic_reaction(
         ),
         equation: outcome.equation().to_owned(),
         materials,
-        intensity: match process {
-            Some(
-                MacroscopicProcess::CompleteCombustion | MacroscopicProcess::IncompleteCombustion,
-            ) => chem_presentation::EffectIntensity::Strong,
-            Some(
-                MacroscopicProcess::AqueousPrecipitation
-                | MacroscopicProcess::GasEvolutionLiquidLiquid
-                | MacroscopicProcess::GasEvolutionSolidLiquid
-                | MacroscopicProcess::MetalDisplacement
-                | MacroscopicProcess::SolidSolidSynthesis
-                | MacroscopicProcess::SolidGasSynthesis
-                | MacroscopicProcess::GasGasSynthesis
-                | MacroscopicProcess::SolventEvaporationCrystallization
-                | MacroscopicProcess::SurfaceOxidation,
-            )
-            | None => chem_presentation::EffectIntensity::Moderate,
-        },
+        intensity: chemistry::macroscopic_process_intensity(process),
         process,
         fuel_carbon_count: outcome.combustion_fuel_carbon_count(),
         surface_oxide_colour: None,
     })
+}
+
+fn dynamic_macroscopic_material(
+    outcome: &ValidatedStaticOutcome,
+    catalogue: Option<&chem_catalogue::ReferenceCatalogue>,
+    species: &OutcomeSpecies,
+    role: MacroscopicMaterialRole,
+) -> Option<MacroscopicMaterial> {
+    let OutcomeSpecies::Resolved(resolved) = species else {
+        return None;
+    };
+    let structure = resolved.structure.as_ref()?;
+    let reviewed_material =
+        catalogue.and_then(|catalogue| catalogue.macroscopic_material(structure.id(), None));
+    let colour = reviewed_material
+        .and_then(|material| material.colour)
+        .or_else(|| {
+            outcome
+                .macroscopic_colour(species)
+                .map(agent::MacroscopicColour::srgb)
+        })
+        .map(|[red, green, blue]| VisualColour { red, green, blue });
+    Some(MacroscopicMaterial {
+        binding: species.id().to_string(),
+        semantic_identity: species.display_name().to_owned(),
+        structure_id: structure.id().to_string(),
+        formula: resolved.formula_text.clone(),
+        role,
+        // The reaction-aware phase stays authoritative (dissolved acid reads
+        // aqueous, not the bottled standard state); the reviewed record only
+        // fills in what the outcome leaves unknown.
+        phase: match outcome.macroscopic_phase(species) {
+            chem_domain::Phase::Unknown => reviewed_material
+                .map_or(chem_domain::Phase::Unknown, |material| material.phase),
+            phase => phase,
+        },
+        representation: species.representation()?,
+        colour,
+        explosive_water_contact: reviewed_material
+            .and_then(|material| material.water_contact)
+            .map(chemistry::explosive_metal_water_variant),
+    })
+}
+
+/// Offline hero-clip export: the presentation is stepped deterministically
+/// at 30 fps, each frame screenshotted and streamed into ffmpeg. Playback
+/// stays paused; only explicit seeks advance the playhead, so the clip is a
+/// pure function of the plan.
+struct HeroExport {
+    output: std::path::PathBuf,
+    frame_index: u64,
+    total_frames: u64,
+    capture_in_flight: bool,
+    encoder: Option<std::process::Child>,
+    fallback_dir: Option<std::path::PathBuf>,
+}
+
+impl std::fmt::Debug for HeroExport {
+    fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        formatter
+            .debug_struct("HeroExport")
+            .field("output", &self.output)
+            .field("frame_index", &self.frame_index)
+            .field("total_frames", &self.total_frames)
+            .finish_non_exhaustive()
+    }
+}
+
+/// Closes the encoder (or prints assembly instructions for raw frames) and
+/// ends the process: export is a headless CLI mode.
+fn finish_hero_export(mut export: HeroExport) -> ! {
+    if let Some(mut child) = export.encoder.take() {
+        drop(child.stdin.take());
+        match child.wait() {
+            Ok(status) if status.success() => {
+                eprintln!("hero clip written to {}", export.output.display());
+            }
+            other => eprintln!("ffmpeg did not finish cleanly: {other:?}"),
+        }
+    } else if let Some(dir) = &export.fallback_dir {
+        eprintln!(
+            "assemble with: ffmpeg -f image2 -framerate 30 -i {}/frame-%05d.ppm -vf scale=iw/2:-2,format=yuv420p {}",
+            dir.display(),
+            export.output.display()
+        );
+    }
+    std::process::exit(0);
+}
+
+/// Hero clip export rides the 3D smoke boot: start at zero, paused, and let
+/// the export loop drive the playhead frame by frame.
+fn arm_hero_export(app: &mut App) {
+    let export_output = std::env::args().find_map(|argument| {
+        argument
+            .strip_prefix("--export-hero=")
+            .map(std::path::PathBuf::from)
+    });
+    if let Some(output) = export_output
+        && let Some(animation) = &mut app.structural_animation
+    {
+        animation.playing = false;
+        animation.real_world_playhead_ms = 0;
+        // A short hold at the end keeps the arrived hero frame on screen.
+        let duration_ms = animation.real_world_plan.timeline.duration_ms() + 1_500;
+        app.hero_export = Some(HeroExport {
+            output,
+            frame_index: 0,
+            total_frames: duration_ms * 30 / 1_000 + 1,
+            capture_in_flight: false,
+            encoder: None,
+            fallback_dir: None,
+        });
+    }
+}
+
+/// Playhead for a 3D smoke launch: `--smoke-playhead-ms=` exact moment, else
+/// `--smoke-playhead-frac=` fraction of the timeline (so scripts can seek the
+/// same relative moment across scenes whose durations differ), else the
+/// default two-thirds seek.
+fn smoke_playhead(duration_ms: u64) -> u64 {
+    let exact = std::env::args().find_map(|argument| {
+        argument
+            .strip_prefix("--smoke-playhead-ms=")
+            .and_then(|value| value.parse::<u64>().ok())
+    });
+    #[allow(clippy::cast_precision_loss, clippy::cast_possible_truncation, clippy::cast_sign_loss)]
+    let fraction = std::env::args().find_map(|argument| {
+        argument
+            .strip_prefix("--smoke-playhead-frac=")
+            .and_then(|value| value.parse::<f64>().ok())
+            .map(|fraction| (duration_ms as f64 * fraction.clamp(0.0, 1.0)).round() as u64)
+    });
+    exact
+        .or(fraction)
+        .unwrap_or_else(|| duration_ms.saturating_mul(2) / 3)
+        .min(duration_ms)
 }
 
 fn launch_state() -> App {
@@ -753,24 +902,37 @@ fn launch_state() -> App {
             app.enter_screen(Screen::Builder);
             return app;
         }
-        if let Some(request) = smoke_request {
-            match request {
-                Ok(request) => app.select_request(request),
+        let smoke_dynamic = std::env::args()
+            .find_map(|argument| argument.strip_prefix("--smoke-dynamic=").map(ToOwned::to_owned));
+        if let Some(fixture) = smoke_dynamic {
+            match smoke_dynamic_presentation(&fixture) {
+                // Installs the outcome and opens the structural animation.
+                Ok(presentation) => app.finish_dynamic_presentation(presentation),
                 Err(error) => {
                     app.enter_screen(Screen::Builder);
                     app.structural_error = Some(error);
                     return app;
                 }
             }
+        } else {
+            if let Some(request) = smoke_request {
+                match request {
+                    Ok(request) => app.select_request(request),
+                    Err(error) => {
+                        app.enter_screen(Screen::Builder);
+                        app.structural_error = Some(error);
+                        return app;
+                    }
+                }
+            }
+            app.open_structural_animation();
         }
-        app.open_structural_animation();
         let three_dimensional = smoke_mode == SmokeMode::Structural3d;
         if let Some(animation) = &mut app.structural_animation {
             animation.frame_index = 1.min(animation.frames.frames().len().saturating_sub(1));
             if three_dimensional && !smoke_from_start {
                 let plan = &animation.real_world_plan;
-                animation.real_world_playhead_ms =
-                    plan.timeline.duration_ms().saturating_mul(2) / 3;
+                animation.real_world_playhead_ms = smoke_playhead(plan.timeline.duration_ms());
                 if let Some(position) = plan.timeline.locate(animation.real_world_playhead_ms)
                     && let Some(frame_index) = animation
                         .frames
@@ -799,6 +961,9 @@ fn launch_state() -> App {
             }
             animation.playing = smoke_from_start;
         }
+        if three_dimensional {
+            arm_hero_export(&mut app);
+        }
         app.enter_screen(if three_dimensional {
             Screen::Structural3d
         } else {
@@ -818,6 +983,109 @@ fn launch_state() -> App {
         app.enter_screen(Screen::Builder);
     }
     app
+}
+
+/// Deterministic offline fixtures for scenes that only dynamic
+/// (provider-path) reactions reach, so their renderers can be frame-dump
+/// verified like the request-backed scenes:
+/// `--structural-3d-smoke --smoke-dynamic=<fixture>`.
+fn smoke_dynamic_presentation(fixture: &str) -> Result<DynamicPresentationOutcome, String> {
+    let catalogue = chemistry::reference_catalogue().map_err(ToString::to_string)?;
+    let identities =
+        reviewed_species_registry(catalogue).map_err(|error| format!("{error:?}"))?;
+    let request = |selected_context: Option<String>| ReactionBuildRequest {
+        reactants: vec![
+            ReactantInput {
+                display: "CH4".into(),
+                atomic_numbers: vec![6, 1, 1, 1, 1],
+                species_id: None,
+            },
+            ReactantInput {
+                display: "O2".into(),
+                atomic_numbers: vec![8, 8],
+                species_id: None,
+            },
+        ],
+        selected_context,
+    };
+    let compiled = match fixture {
+        "combustion-methane" => {
+            let claim = serde_json::json!({
+                "schema_version": 1,
+                "disposition": "reaction",
+                "products": [
+                    {"name":"carbon dioxide","formula":"CO2","phase":"gas","identity_hints":[]},
+                    {"name":"water","formula":"H2O","phase":"gas","identity_hints":[]}
+                ],
+                "required_context":"complete combustion in oxygen",
+                "observations":[
+                    {"predicate":"forms","subject":"carbon dioxide and water vapour","value":null}
+                ],
+                "sources":[],
+                "ambiguity":null
+            });
+            let claim = ProviderClaim::from_json(
+                &serde_json::to_vec(&claim).map_err(|error| error.to_string())?,
+                ClaimMode::Fast,
+            )
+            .map_err(|error| format!("{error:?}"))?;
+            compile_claim_outcome(&request(None), claim, &identities)
+        }
+        "combustion-methane-incomplete" => {
+            let request = request(Some("limited oxygen".to_owned()));
+            let claim = agent::solve_reaction_claim(&request, &identities)
+                .ok_or("limited-oxygen methane combustion does not solve")?;
+            compile_claim_outcome(&request, claim, &identities)
+        }
+        "displacement-zinc-copper" => {
+            let request = ReactionBuildRequest {
+                reactants: vec![
+                    ReactantInput {
+                        display: "Zn".into(),
+                        atomic_numbers: vec![30],
+                        species_id: None,
+                    },
+                    ReactantInput {
+                        display: "CuSO4".into(),
+                        atomic_numbers: vec![29, 16, 8, 8, 8, 8],
+                        species_id: None,
+                    },
+                ],
+                selected_context: None,
+            };
+            let claim = agent::solve_reaction_claim(&request, &identities)
+                .ok_or("zinc-copper displacement does not solve")?;
+            compile_claim_outcome(&request, claim, &identities)
+        }
+        "synthesis-iron-sulfur" => {
+            let request = ReactionBuildRequest {
+                reactants: vec![
+                    ReactantInput {
+                        display: "Fe".into(),
+                        atomic_numbers: vec![26],
+                        species_id: None,
+                    },
+                    ReactantInput {
+                        display: "S".into(),
+                        atomic_numbers: vec![16],
+                        species_id: None,
+                    },
+                ],
+                selected_context: None,
+            };
+            let claim = agent::solve_reaction_claim(&request, &identities)
+                .ok_or("iron-sulfur synthesis does not solve")?;
+            compile_claim_outcome(&request, claim, &identities)
+        }
+        _ => return Err(format!("unsupported dynamic smoke fixture `{fixture}`")),
+    };
+    let CompiledClaimOutcome::Static(outcome) =
+        compiled.map_err(|error| format!("{error:?}"))?
+    else {
+        return Err("dynamic smoke fixture must compile to a static outcome".to_owned());
+    };
+    let mut provider = agent::UnsupportedMechanismProvider;
+    enrich_static_outcome(outcome, catalogue, &mut provider).map_err(|error| format!("{error:?}"))
 }
 
 fn smoke_request_from_argument(
@@ -964,6 +1232,8 @@ enum Message {
     WindowResized(Size),
     DumpFrame,
     FrameCaptured(std::path::PathBuf, iced::window::Screenshot),
+    ExportFrame,
+    ExportCaptured(iced::window::Screenshot),
     Dynamic(dynamic_reaction::Message),
     /// Swallows clicks on the overlay panel so they miss the scrim.
     Noop,
@@ -1291,22 +1561,7 @@ fn screen_keyboard_message(
     }
 }
 
-#[derive(Debug, Clone)]
-enum RenderableFrames {
-    Catalogue(chem_kernel::SimulationFrames),
-    ReviewCandidate(chem_kernel::ValidatedReviewCandidateFrames),
-}
-
-impl Deref for RenderableFrames {
-    type Target = chem_kernel::SimulationFrames;
-
-    fn deref(&self) -> &Self::Target {
-        match self {
-            Self::Catalogue(frames) => frames,
-            Self::ReviewCandidate(frames) => frames,
-        }
-    }
-}
+type RenderableFrames = chem_kernel::SimulationFrames;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 enum BuilderOverlayKind {
@@ -1322,7 +1577,7 @@ struct StructuralAnimation {
     declaration: chem_domain::ReactionDeclaration,
     educational_plan: EducationalPlan,
     real_world_plan: ScenePlan,
-    product_preview: Option<composition_catalogue::TrustedCompositionPreview>,
+    product_preview: Option<composition_catalogue::ReferenceCompositionPreview>,
     educational_playhead_ms: u64,
     frame_index: usize,
     real_world_playhead_ms: u64,
@@ -1337,6 +1592,9 @@ struct StructuralAnimation {
     /// Paused with physics and camera at rest: the tick subscription stops
     /// so a static scene costs nothing. Any interaction clears it.
     settled: bool,
+    /// Wall-clock instant of the previous 3D tick: the playhead advances by
+    /// measured time so a slow frame drops visuals, not reaction pace.
+    last_structural_tick: Option<Instant>,
 }
 
 #[allow(clippy::struct_excessive_bools)]
@@ -1380,13 +1638,14 @@ struct App {
     ui_zoom: f32,
     /// Debug harness: dump one frame to this path, then keep running.
     dump_frame_path: Option<std::path::PathBuf>,
+    hero_export: Option<HeroExport>,
 }
 
 impl Default for App {
     fn default() -> Self {
         let codex_available = codex_available();
         let active_request = chemistry::ReactionRequest::DEFAULT;
-        let trusted_run = chemistry::run(active_request).ok();
+        let validated_run = chemistry::run(active_request).ok();
         Self {
             screen: Screen::ProviderSetup,
             keyboard_navigation_active: false,
@@ -1405,13 +1664,11 @@ impl Default for App {
             pending_requests: Vec::new(),
             oxygen_assessment: None,
             active_request,
-            validated_frames: trusted_run
-                .as_ref()
-                .map(|run| RenderableFrames::Catalogue(run.frames().clone())),
-            validated_macroscopic: trusted_run
+            validated_frames: validated_run.as_ref().map(|run| run.frames().clone()),
+            validated_macroscopic: validated_run
                 .as_ref()
                 .and_then(|run| run.macroscopic().cloned()),
-            validated_declaration: trusted_run.as_ref().map(|run| run.declaration().clone()),
+            validated_declaration: validated_run.as_ref().map(|run| run.declaration().clone()),
             dynamic: dynamic_reaction::State::default(),
             builder_panel: None,
             oxide_appearance_request: None,
@@ -1425,6 +1682,7 @@ impl Default for App {
             structural_shortcut_state: StructuralShortcutState::Inactive,
             ui_zoom: 1.0,
             dump_frame_path: None,
+            hero_export: None,
         }
     }
 }
@@ -1663,10 +1921,10 @@ impl App {
     }
 
     fn title(&self) -> String {
-        let base = self.smoke_mode.map_or_else(
-            || "ChemSpec — reaction builder".to_owned(),
-            |_| format!("ChemSpec Agent Smoke — {}", self.screen.smoke_title()),
-        );
+        let Some(_) = self.smoke_mode else {
+            return "ChemSpec".to_owned();
+        };
+        let base = format!("ChemSpec Agent Smoke — {}", self.screen.smoke_title());
         self.builder_accessibility_summary()
             .map_or(base.clone(), |summary| format!("{base} — {summary}"))
     }
@@ -1786,6 +2044,8 @@ impl App {
             message @ (Message::WindowResized(_)
             | Message::DumpFrame
             | Message::FrameCaptured(..)
+            | Message::ExportFrame
+            | Message::ExportCaptured(..)
             | Message::Noop
             | Message::KeyboardEvent { .. }
             | Message::PointerPressed
@@ -1845,6 +2105,100 @@ impl App {
         Task::none()
     }
 
+    /// One export step: seek the paused playhead to the frame's exact
+    /// moment and request a capture. Finishes (and exits the process) once
+    /// every frame has been written.
+    fn advance_hero_export(&mut self) -> Task<Message> {
+        let Some(export) = &mut self.hero_export else {
+            return Task::none();
+        };
+        if export.capture_in_flight {
+            return Task::none();
+        }
+        if export.frame_index >= export.total_frames {
+            let export = self.hero_export.take().expect("export state present");
+            finish_hero_export(export);
+        }
+        if let Some(animation) = &mut self.structural_animation {
+            let duration = animation.real_world_plan.timeline.duration_ms();
+            animation.real_world_playhead_ms = (export.frame_index * 1_000 / 30).min(duration);
+        }
+        export.capture_in_flight = true;
+        iced::window::latest()
+            .and_then(iced::window::screenshot)
+            .map(Message::ExportCaptured)
+    }
+
+    fn write_hero_export_frame(&mut self, shot: &iced::window::Screenshot) {
+        let Some(export) = &mut self.hero_export else {
+            return;
+        };
+        if export.encoder.is_none() && export.fallback_dir.is_none() {
+            let spawned = std::process::Command::new("ffmpeg")
+                .args([
+                    "-hide_banner",
+                    "-loglevel",
+                    "error",
+                    "-y",
+                    "-f",
+                    "rawvideo",
+                    "-pixel_format",
+                    "rgba",
+                    "-video_size",
+                    &format!("{}x{}", shot.size.width, shot.size.height),
+                    "-framerate",
+                    "30",
+                    "-i",
+                    "-",
+                    "-vf",
+                    "scale=iw/2:-2,format=yuv420p",
+                    "-movflags",
+                    "+faststart",
+                ])
+                .arg(&export.output)
+                .stdin(std::process::Stdio::piped())
+                .spawn();
+            match spawned {
+                Ok(child) => export.encoder = Some(child),
+                Err(error) => {
+                    // No encoder available: keep raw frames next to the
+                    // requested output and say how to assemble them.
+                    let dir = export.output.with_extension("frames");
+                    let _ = std::fs::create_dir_all(&dir);
+                    eprintln!(
+                        "ffmpeg unavailable ({error}); writing frames to {}",
+                        dir.display()
+                    );
+                    export.fallback_dir = Some(dir);
+                }
+            }
+        }
+        if let Some(child) = &mut export.encoder {
+            use std::io::Write as _;
+            if let Some(stdin) = child.stdin.as_mut() {
+                let _ = stdin.write_all(&shot.rgba);
+            }
+        } else if let Some(dir) = &export.fallback_dir {
+            let mut ppm =
+                format!("P6\n{} {}\n255\n", shot.size.width, shot.size.height).into_bytes();
+            for pixel in shot.rgba.chunks_exact(4) {
+                ppm.extend_from_slice(&pixel[..3]);
+            }
+            let _ = std::fs::write(
+                dir.join(format!("frame-{:05}.ppm", export.frame_index)),
+                ppm,
+            );
+        }
+        export.frame_index += 1;
+        export.capture_in_flight = false;
+        if export.frame_index.is_multiple_of(30) {
+            eprintln!(
+                "hero export: {}/{} frames",
+                export.frame_index, export.total_frames
+            );
+        }
+    }
+
     fn update_input_message(&mut self, message: Message) -> Task<Message> {
         match message {
             Message::WindowResized(size) => {
@@ -1858,6 +2212,8 @@ impl App {
                         .map(move |shot| Message::FrameCaptured(path.clone(), shot));
                 }
             }
+            Message::ExportFrame => return self.advance_hero_export(),
+            Message::ExportCaptured(shot) => self.write_hero_export_frame(&shot),
             Message::FrameCaptured(path, shot) => {
                 let mut ppm =
                     format!("P6\n{} {}\n255\n", shot.size.width, shot.size.height).into_bytes();
@@ -2176,7 +2532,23 @@ impl App {
                             animation.summary_elapsed_ms.saturating_add(33);
                     }
                 } else if self.screen == Screen::Structural3d {
-                    self.advance_real_world_playback(elapsed);
+                    let now = Instant::now();
+                    let measured =
+                        self.structural_animation
+                            .as_mut()
+                            .map_or(elapsed, |animation| {
+                                // The cap keeps a stall or resume from jumping
+                                // the playhead by more than one coarse step.
+                                let raw =
+                                    animation.last_structural_tick.map_or(frame_millis, |last| {
+                                        u32::try_from(now.duration_since(last).as_millis())
+                                            .unwrap_or(u32::MAX)
+                                            .clamp(1, 100)
+                                    });
+                                animation.last_structural_tick = Some(now);
+                                animation.playback_speed.scale_millis(raw)
+                            });
+                    self.advance_real_world_playback(measured);
                 } else {
                     if playing {
                         self.advance_educational_playback(elapsed);
@@ -2287,7 +2659,7 @@ impl App {
         if !self.local_mode() || !requires_dynamic {
             return false;
         }
-        let Ok(catalogue) = chemistry::trusted_catalogue() else {
+        let Ok(catalogue) = chemistry::reference_catalogue() else {
             return false;
         };
         let Ok(identities) = reviewed_species_registry(catalogue) else {
@@ -2340,10 +2712,9 @@ impl App {
         if self.dynamic.static_outcome.take().is_some()
             || self.dynamic.claim.take().is_some()
             || self.dynamic.presentation.take().is_some()
-            || matches!(
-                &self.validated_frames,
-                Some(RenderableFrames::ReviewCandidate(_))
-            )
+            || self.validated_frames.as_ref().is_some_and(|frames| {
+                frames.provenance() == chem_kernel::DerivationProvenance::Provisional
+            })
         {
             self.validated_frames = None;
             self.validated_declaration = None;
@@ -2484,7 +2855,7 @@ impl App {
         self.structural_error = None;
         let mode = ClaimMode::Fast;
         let mut config = CodexProviderConfig::from_environment();
-        let catalogue = match chemistry::trusted_catalogue() {
+        let catalogue = match chemistry::reference_catalogue() {
             Ok(catalogue) => catalogue.clone(),
             Err(error) => {
                 self.dynamic.build = DynamicBuildState::Failed(error.to_owned().into());
@@ -2568,7 +2939,7 @@ impl App {
         let mut config = CodexProviderConfig::from_environment();
         config.cancellation = Some(cancellation);
         config.progress = Some(progress);
-        let catalogue = match chemistry::trusted_catalogue() {
+        let catalogue = match chemistry::reference_catalogue() {
             Ok(catalogue) => catalogue.clone(),
             Err(error) => {
                 return Task::done(Message::Dynamic(
@@ -2671,12 +3042,8 @@ impl App {
 
         self.validated_declaration = Some(presentation.static_outcome().declaration().clone());
         self.validated_frames = match &presentation {
-            DynamicPresentationOutcome::ReviewedFamily(outcome) => {
-                Some(RenderableFrames::Catalogue(outcome.frames().clone()))
-            }
-            DynamicPresentationOutcome::Escalated(outcome) => {
-                Some(RenderableFrames::ReviewCandidate(outcome.frames().clone()))
-            }
+            DynamicPresentationOutcome::ReviewedFamily(outcome) => Some(outcome.frames().clone()),
+            DynamicPresentationOutcome::Escalated(outcome) => Some(outcome.frames().clone()),
             DynamicPresentationOutcome::Static { .. } => None,
         };
         let animated = self.validated_frames.is_some();
@@ -2722,19 +3089,17 @@ impl App {
         })
     }
 
-    // The offline fixture crosses the same trusted language/kernel boundary
-    // that live provider output must cross later.
+    // The offline fixture crosses the same language/kernel boundary that live
+    // provider output must cross later.
     fn select_request(&mut self, request: chemistry::ReactionRequest) {
         self.cancel_oxide_appearance_enrichment();
         self.active_request = request;
-        let trusted_run = chemistry::run(request).ok();
-        self.validated_frames = trusted_run
-            .as_ref()
-            .map(|run| RenderableFrames::Catalogue(run.frames().clone()));
-        self.validated_macroscopic = trusted_run
+        let validated_run = chemistry::run(request).ok();
+        self.validated_frames = validated_run.as_ref().map(|run| run.frames().clone());
+        self.validated_macroscopic = validated_run
             .as_ref()
             .and_then(|run| run.macroscopic().cloned());
-        self.validated_declaration = trusted_run.as_ref().map(|run| run.declaration().clone());
+        self.validated_declaration = validated_run.as_ref().map(|run| run.declaration().clone());
         self.dynamic.claim = None;
         self.dynamic.static_outcome = None;
         self.dynamic.presentation = None;
@@ -2754,7 +3119,7 @@ impl App {
             material.role == MacroscopicMaterialRole::Product
                 && material.representation == RepresentationKind::Ionic
         })?;
-        let catalogue_digest = chemistry::trusted_catalogue().ok()?.digest();
+        let catalogue_digest = chemistry::reference_catalogue().ok()?.digest();
         Some(OxideAppearanceRequest::new(
             product.binding.clone(),
             product.structure_id.clone(),
@@ -2780,7 +3145,7 @@ impl App {
         if self.provider != Some(AppMode::CodexBinary) {
             self.oxide_appearance_error = Some(
                 "A reviewed oxide colour is not available. Runtime colour research requires \
-                 Codex mode; the surface keeps its original metal colour until trusted appearance \
+                 Codex mode; the surface keeps its original metal colour until validated appearance \
                  data is available."
                     .to_owned(),
             );
@@ -2915,6 +3280,11 @@ impl App {
         } else {
             Subscription::none()
         };
+        let hero_export = if self.hero_export.is_some() {
+            iced::time::every(std::time::Duration::from_millis(25)).map(|_| Message::ExportFrame)
+        } else {
+            Subscription::none()
+        };
         let screen = if self.screen == Screen::Builder {
             Subscription::batch([
                 periodic_table::subscription(&self.periodic_table).map(Message::PeriodicTable),
@@ -2984,6 +3354,7 @@ impl App {
         Subscription::batch([
             resize,
             frame_dump,
+            hero_export,
             screen,
             dynamic_build,
             dynamic_theatre,
@@ -3353,6 +3724,7 @@ impl App {
                 camera: structural_2d::default_camera(),
                 home_timeline,
                 settled: false,
+                last_structural_tick: None,
             })
         })();
         match result {
@@ -3539,7 +3911,7 @@ impl App {
     #[allow(clippy::too_many_lines, clippy::cast_precision_loss)]
     fn structural_2d_view(&self, size: Size) -> Element<'_, Message> {
         let Some(animation) = &self.structural_animation else {
-            return Self::structural_unavailable_view("Trusted frames are unavailable");
+            return Self::structural_unavailable_view("Validated frames are unavailable");
         };
         let Some(timeline_position) = animation
             .educational_plan
@@ -3590,6 +3962,16 @@ impl App {
                     .iter()
                     .find(|candidate| candidate.trace().state_digest == operation.after)?;
                 Some((before, after))
+            })
+            .collect::<Vec<_>>();
+        let proton_transfers = educational_scene
+            .cues
+            .iter()
+            .filter_map(|cue| match cue {
+                chem_presentation::EducationalCue::InterpretProtonTransfer { transfer } => {
+                    Some(transfer)
+                }
+                _ => None,
             })
             .collect::<Vec<_>>();
         let scene_progress = if educational_scene.duration_ms == 0 {
@@ -3683,6 +4065,7 @@ impl App {
                 before_frame,
                 frame,
                 &operation_transitions,
+                &proton_transfers,
                 scene_progress,
                 explanation,
                 &context_labels,
@@ -3792,7 +4175,7 @@ impl App {
                 .height(Fill),
         )
         .style(theme::app_background)
-        .padding(spacing::SM)
+        .padding(chromeless_page_padding(spacing::SM, spacing::LG))
         .width(Fill)
         .height(Fill)
         .into()
@@ -3812,7 +4195,7 @@ impl App {
             .spacing(spacing::SM),
         )
         .style(theme::app_background)
-        .padding(spacing::MD)
+        .padding(chromeless_page_padding(spacing::MD, spacing::LG))
         .width(Fill)
         .height(Fill)
         .into()
@@ -4000,40 +4383,31 @@ impl App {
                 };
             annotation = annotation.push(appearance_status);
         }
-        let scene_view =
-            iced::widget::Shader::new(structural_3d::Scene::new(real_world_plan, moment))
-                .width(Fill)
-                .height(Fill);
-        let model_disclosure = if compact {
-            "VIRTUAL MODEL · NOT A LAB PROCEDURE"
-        } else {
-            "VIRTUAL MODEL · NOT A LAB PROCEDURE · TIMING, SCALE & MOTION ARE ILLUSTRATIVE"
-        };
+        let scene_view = iced::widget::Shader::new(structural_3d::Scene::new(
+            real_world_plan,
+            moment,
+            // Pause-orbit: the paused bench invites a look around; playback
+            // returns the camera to the director.
+            !animation.playing,
+        ))
+        .width(Fill)
+        .height(Fill);
         let inset_caption: Element<'_, Message> = space().width(Length::Shrink).into();
+        let annotation_panel: Element<'_, Message> = if at_end {
+            space().width(Length::Shrink).into()
+        } else {
+            container(annotation)
+                .style(theme::media_bar)
+                .padding([spacing::SM, spacing::MD])
+                .width(if compact { Fill } else { Length::Fixed(440.0) })
+                .into()
+        };
         let annotation_layer = container(
             column![
-                row![
-                    space().width(Fill),
-                    container(
-                        text(model_disclosure)
-                            .size(type_scale::MICRO)
-                            .color(color::TEXT_SOFT),
-                    )
-                    .style(theme::media_bar)
-                    .padding([spacing::XXS, spacing::XS]),
-                ]
-                .width(Fill),
                 space().height(Fill),
-                row![
-                    container(annotation)
-                        .style(theme::media_bar)
-                        .padding([spacing::SM, spacing::MD])
-                        .width(if compact { Fill } else { Length::Fixed(440.0) }),
-                    space().width(Fill),
-                    inset_caption,
-                ]
-                .align_y(iced::Bottom)
-                .width(Fill),
+                row![annotation_panel, space().width(Fill), inset_caption,]
+                    .align_y(iced::Bottom)
+                    .width(Fill),
             ]
             .height(Fill),
         )
@@ -4116,22 +4490,21 @@ impl App {
                 .height(Fill),
         )
         .style(theme::app_background)
-        .padding(spacing::SM)
+        .padding(chromeless_page_padding(spacing::SM, spacing::LG))
         .width(Fill)
         .height(Fill)
         .into()
     }
 
-    /// Trust-tier chip for the current dynamic outcome.
-    fn dynamic_trust_label(&self) -> &'static str {
-        self.dynamic
-            .static_outcome
-            .as_ref()
-            .map_or("", |outcome| match outcome.trust_tier() {
-                TrustTier::Reviewed => "REVIEWED",
-                TrustTier::Derived => "DERIVED",
-                TrustTier::ModelAsserted => "MODEL ASSERTED",
-            })
+    /// Provenance chip for the current dynamic outcome.
+    fn dynamic_provenance_label(&self) -> &'static str {
+        self.dynamic.static_outcome.as_ref().map_or("", |outcome| {
+            match outcome.claim_provenance() {
+                OutcomeProvenance::Reviewed => "REVIEWED",
+                OutcomeProvenance::Derived => "DERIVED",
+                OutcomeProvenance::ModelAsserted => "MODEL ASSERTED",
+            }
+        })
     }
 
     #[allow(clippy::too_many_lines)]
@@ -4676,7 +5049,7 @@ impl App {
         let dice = Self::toolbar_tooltip(
             button(icons::dice(
                 spin_ticks.map_or(0, |ticks| usize::try_from(ticks / 5).unwrap_or(0)),
-                20.0,
+                BUILDER_TOOLBAR_ICON_SIZE,
                 if spin_ticks.is_some() {
                     color::ACCENT
                 } else {
@@ -4701,7 +5074,7 @@ impl App {
             color::FAINT
         };
         let conditions = Self::toolbar_tooltip(
-            button(icons::atom(20.0, conditions_color))
+            button(icons::atom(BUILDER_TOOLBAR_ICON_SIZE, conditions_color))
                 .on_press_maybe(
                     conditions_enabled
                         .then_some(Message::BuilderPanelToggled(BuilderPanel::Conditions)),
@@ -4722,7 +5095,7 @@ impl App {
         let sketch_selected = self.builder_panel == Some(BuilderPanel::Sketch);
         let sketch = Self::toolbar_tooltip(
             button(icons::pencil(
-                20.0,
+                BUILDER_TOOLBAR_ICON_SIZE,
                 if sketch_selected {
                     color::CANVAS
                 } else {
@@ -4742,7 +5115,7 @@ impl App {
         let help_selected = self.builder_panel == Some(BuilderPanel::Help);
         let help = Self::toolbar_tooltip(
             button(icons::help(
-                20.0,
+                BUILDER_TOOLBAR_ICON_SIZE,
                 if help_selected {
                     color::CANVAS
                 } else {
@@ -4760,7 +5133,7 @@ impl App {
         );
 
         let settings = Self::toolbar_tooltip(
-            button(icons::settings(20.0, color::TEXT_SOFT))
+            button(icons::settings(BUILDER_TOOLBAR_ICON_SIZE, color::TEXT_SOFT))
                 .on_press(Message::SettingsOpened)
                 .padding(spacing::XS)
                 .style(theme::secondary_button),
@@ -4904,7 +5277,7 @@ impl App {
     #[allow(clippy::too_many_lines)]
     fn product_summary_view(&self, size: Size) -> Element<'_, Message> {
         let Some(animation) = &self.structural_animation else {
-            return Self::structural_unavailable_view("Trusted product frames are unavailable");
+            return Self::structural_unavailable_view("Validated product frames are unavailable");
         };
         let Some(summary) = product_summary::SummaryData::from_frames(&animation.frames) else {
             return Self::structural_unavailable_view(
@@ -5045,7 +5418,7 @@ impl App {
                         }
                     ),
                     space().width(Fill),
-                    text("SOURCE · CURRENT .CHEMS + TRUSTED FRAME + ELEMENT CATALOGUE")
+                    text("SOURCE · CURRENT .CHEMS + VALIDATED FRAME + ELEMENT REFERENCE")
                         .size(type_scale::MICRO)
                         .color(color::ACCENT),
                 ]
@@ -5055,7 +5428,7 @@ impl App {
             .height(Fill),
         )
         .style(theme::app_background)
-        .padding(spacing::SM)
+        .padding(chromeless_page_padding(spacing::SM, spacing::LG))
         .width(Fill)
         .height(Fill)
         .into()
@@ -5088,9 +5461,11 @@ impl App {
             .spacing(spacing::XS)
             .width(Fill)
             .height(Fill);
+        let page_padding =
+            chromeless_page_padding(if compact { spacing::XS } else { spacing::SM }, spacing::XS);
         let application = container(stack![ambient_models, foreground].width(Fill).height(Fill))
             .style(theme::app_background)
-            .padding(if compact { spacing::XS } else { spacing::SM })
+            .padding(page_padding)
             .width(Fill)
             .height(Fill);
         let overlay = match self.builder_overlay_kind() {
@@ -5098,10 +5473,10 @@ impl App {
             BuilderOverlayKind::Toolbar => {
                 container(row![space().width(Fill), self.builder_toolbar_panel()].width(Fill))
                     .padding(iced::Padding {
-                        top: 52.0,
-                        right: if compact { spacing::XS } else { spacing::SM },
+                        top: builder_toolbar_panel_top(page_padding.top),
+                        right: page_padding.right,
                         bottom: 0.0,
-                        left: if compact { spacing::XS } else { spacing::SM },
+                        left: page_padding.left,
                     })
                     .width(Fill)
                     .height(Fill)
@@ -5124,6 +5499,7 @@ impl App {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::chemistry::{HeavyAlkaliMetal, ReactionRequest};
     use agent::{compile_claim_outcome, compile_claim_outcome_with_catalogue};
 
     type DraftCase = (&'static str, &'static [u8], &'static [u8]);
@@ -5174,10 +5550,13 @@ mod tests {
     // Independently authored UI fixtures. These deliberately do not use
     // ReactionRequest::participants(), so a wrong production mapping cannot
     // make the routing test prove itself.
-    const SUPPORTED_DRAFT_CASES: [DraftCase; 36] = [
+    const SUPPORTED_DRAFT_CASES: [DraftCase; 39] = [
         ("alkali-water-lithium", &[3], &[1, 1, 8]),
         ("alkali-water-sodium", &[11], &[1, 1, 8]),
         ("alkali-water-potassium", &[19], &[1, 1, 8]),
+        ("alkali-water-rubidium", &[37], &[1, 1, 8]),
+        ("alkali-water-caesium", &[55], &[1, 1, 8]),
+        ("alkali-water-francium", &[87], &[1, 1, 8]),
         (
             "silver-halide-precipitation-chloride",
             &[47, 7, 8, 8, 8],
@@ -5302,7 +5681,7 @@ mod tests {
     ];
 
     fn dynamic_lithium_static() -> ValidatedStaticOutcome {
-        let catalogue = chemistry::trusted_catalogue().expect("trusted catalogue");
+        let catalogue = chemistry::reference_catalogue().expect("reference catalogue");
         let identities = reviewed_species_registry(catalogue).expect("identities");
         let claim = serde_json::json!({
             "schema_version": 1,
@@ -5344,7 +5723,7 @@ mod tests {
     }
 
     fn dynamic_methane_static() -> ValidatedStaticOutcome {
-        let catalogue = chemistry::trusted_catalogue().expect("trusted catalogue");
+        let catalogue = chemistry::reference_catalogue().expect("reference catalogue");
         let identities = reviewed_species_registry(catalogue).expect("identities");
         let claim = serde_json::json!({
             "schema_version": 1,
@@ -5390,7 +5769,7 @@ mod tests {
     }
 
     fn dynamic_iron_oxide_presentation() -> DynamicPresentationOutcome {
-        let catalogue = chemistry::trusted_catalogue().expect("trusted catalogue");
+        let catalogue = chemistry::reference_catalogue().expect("reference catalogue");
         let identities = reviewed_species_registry(catalogue).expect("identities");
         let request = ReactionBuildRequest {
             reactants: vec![
@@ -5445,14 +5824,17 @@ mod tests {
             .expect("surface oxidation animation is derived")
     }
 
-    fn dynamic_incomplete_methane_static() -> ValidatedStaticOutcome {
-        let catalogue = chemistry::trusted_catalogue().expect("trusted catalogue");
+    fn dynamic_incomplete_combustion_static(
+        fuel: &str,
+        atomic_numbers: Vec<u8>,
+    ) -> ValidatedStaticOutcome {
+        let catalogue = chemistry::reference_catalogue().expect("reference catalogue");
         let identities = reviewed_species_registry(catalogue).expect("identities");
         let request = ReactionBuildRequest {
             reactants: [
                 ReactantInput {
-                    display: "CH4".into(),
-                    atomic_numbers: vec![6, 1, 1, 1, 1],
+                    display: fuel.into(),
+                    atomic_numbers,
                     species_id: None,
                 },
                 ReactantInput {
@@ -5474,8 +5856,12 @@ mod tests {
         outcome
     }
 
+    fn dynamic_incomplete_methane_static() -> ValidatedStaticOutcome {
+        dynamic_incomplete_combustion_static("CH4", vec![6, 1, 1, 1, 1])
+    }
+
     fn dynamic_copper_oxide_neutralisation_static() -> ValidatedStaticOutcome {
-        let catalogue = chemistry::trusted_catalogue().expect("catalogue");
+        let catalogue = chemistry::reference_catalogue().expect("catalogue");
         let identities = reviewed_species_registry(catalogue).expect("identities");
         let request = ReactionBuildRequest {
             reactants: vec![
@@ -5521,8 +5907,8 @@ mod tests {
     }
 
     #[test]
-    fn dynamic_trust_label_follows_claim_provenance_not_selected_mode() {
-        let catalogue = chemistry::trusted_catalogue().expect("trusted catalogue");
+    fn dynamic_provenance_label_follows_claim_provenance_not_selected_mode() {
+        let catalogue = chemistry::reference_catalogue().expect("reference catalogue");
         let identities = reviewed_species_registry(catalogue).expect("identities");
         let request = ReactionBuildRequest {
             reactants: vec![
@@ -5550,11 +5936,11 @@ mod tests {
             ..App::default()
         };
         app.dynamic.static_outcome = Some(derived);
-        assert_eq!(app.dynamic_trust_label(), "DERIVED");
+        assert_eq!(app.dynamic_provenance_label(), "DERIVED");
 
         app.provider = Some(AppMode::Local);
         app.dynamic.static_outcome = Some(dynamic_lithium_static());
-        assert_eq!(app.dynamic_trust_label(), "MODEL ASSERTED");
+        assert_eq!(app.dynamic_provenance_label(), "MODEL ASSERTED");
     }
 
     #[test]
@@ -5575,7 +5961,7 @@ mod tests {
 
     #[test]
     fn dynamic_combustion_compiles_phase_aware_flame_vapour_and_gas_reactants() {
-        let catalogue = chemistry::trusted_catalogue().expect("trusted catalogue");
+        let catalogue = chemistry::reference_catalogue().expect("reference catalogue");
         let mut provider = agent::UnsupportedMechanismProvider;
         let presentation =
             enrich_static_outcome(dynamic_methane_static(), catalogue, &mut provider)
@@ -5631,7 +6017,7 @@ mod tests {
 
     #[test]
     fn researched_uncatalogued_phases_reach_generic_animation_handoff() {
-        let catalogue = chemistry::trusted_catalogue().expect("trusted catalogue");
+        let catalogue = chemistry::reference_catalogue().expect("reference catalogue");
         let identities = reviewed_species_registry(catalogue).expect("identities");
         let request = ReactionBuildRequest {
             reactants: vec![
@@ -5692,7 +6078,7 @@ mod tests {
 
     #[test]
     fn carbon_monoxide_product_selects_incomplete_combustion_assembly() {
-        let catalogue = chemistry::trusted_catalogue().expect("trusted catalogue");
+        let catalogue = chemistry::reference_catalogue().expect("reference catalogue");
         let mut provider = agent::UnsupportedMechanismProvider;
         let incomplete = dynamic_incomplete_methane_static();
         let presentation = enrich_static_outcome(incomplete, catalogue, &mut provider)
@@ -5728,7 +6114,7 @@ mod tests {
 
     #[test]
     fn dynamic_neutralisation_selects_shared_assembly_and_copper_colour() {
-        let catalogue = chemistry::trusted_catalogue().expect("trusted catalogue");
+        let catalogue = chemistry::reference_catalogue().expect("reference catalogue");
         let mut provider = agent::UnsupportedMechanismProvider;
         let presentation = enrich_static_outcome(
             dynamic_copper_oxide_neutralisation_static(),
@@ -5776,7 +6162,7 @@ mod tests {
 
     #[test]
     fn generated_precipitations_select_shared_assembly_and_structural_colours() {
-        let catalogue = chemistry::trusted_catalogue().expect("trusted catalogue");
+        let catalogue = chemistry::reference_catalogue().expect("reference catalogue");
         let identities = reviewed_species_registry(catalogue).expect("identities");
         let cases = [
             (
@@ -5877,7 +6263,7 @@ mod tests {
 
     #[test]
     fn generated_gas_evolution_examples_select_supported_authored_variants() {
-        let catalogue = chemistry::trusted_catalogue().expect("trusted catalogue");
+        let catalogue = chemistry::reference_catalogue().expect("reference catalogue");
         let identities = reviewed_species_registry(catalogue).expect("identities");
         let cases = [
             (
@@ -6053,7 +6439,7 @@ mod tests {
 
     #[test]
     fn dynamic_metal_displacement_reaches_the_generic_authored_scene() {
-        let catalogue = chemistry::trusted_catalogue().expect("trusted catalogue");
+        let catalogue = chemistry::reference_catalogue().expect("reference catalogue");
         let identities = reviewed_species_registry(catalogue).expect("identities");
         let request = ReactionBuildRequest {
             reactants: vec![
@@ -6091,7 +6477,7 @@ mod tests {
                     (animated.static_outcome(), animated.frames())
                 }
                 DynamicPresentationOutcome::Escalated(animated) => {
-                    (animated.static_outcome(), &**animated.frames())
+                    (animated.static_outcome(), animated.frames())
                 }
                 DynamicPresentationOutcome::Static { diagnostic, .. } => {
                     panic!("displacement should animate: {diagnostic}")
@@ -6122,7 +6508,86 @@ mod tests {
                 && object.asset == chem_presentation::AssetProfile::MetalDisplacementAssembly
         }));
         let plan = compile_real_world_plan(frames, &profile).expect("scene plan compiles");
-        assert_eq!(plan.timeline.duration_ms(), 6_000);
+        assert_eq!(plan.timeline.duration_ms(), 9_600);
+    }
+
+    #[test]
+    fn catalogue_aware_dynamic_heavy_alkali_outcomes_reach_the_local_assembly() {
+        let catalogue = chemistry::reference_catalogue().expect("reference catalogue");
+        let identities = reviewed_species_registry(catalogue).expect("identities");
+        let cases = [
+            (
+                ReactionRequest::heavy_alkali_water(HeavyAlkaliMetal::Rubidium),
+                "RubidiumMetal",
+                "Rb",
+                37,
+            ),
+            (
+                ReactionRequest::heavy_alkali_water(HeavyAlkaliMetal::Caesium),
+                "CaesiumMetal",
+                "Cs",
+                55,
+            ),
+            (
+                ReactionRequest::heavy_alkali_water(HeavyAlkaliMetal::Francium),
+                "FranciumMetal",
+                "Fr",
+                87,
+            ),
+        ];
+        for (local_request, display, symbol, atomic_number) in cases {
+            let request = ReactionBuildRequest {
+                reactants: vec![
+                    ReactantInput {
+                        display: display.to_owned(),
+                        atomic_numbers: vec![atomic_number],
+                        species_id: None,
+                    },
+                    ReactantInput {
+                        display: "water".to_owned(),
+                        atomic_numbers: vec![1, 1, 8],
+                        species_id: None,
+                    },
+                ],
+                selected_context: None,
+            };
+            let claim = ProviderClaim::from_json(
+                &serde_json::to_vec(&serde_json::json!({
+                    "schema_version": 1,
+                    "disposition": "reaction",
+                    "products": [
+                        {"name":"aqueous hydroxide", "formula":format!("{symbol}OH"), "phase":"aqueous", "identity_hints":[]},
+                        {"name":"hydrogen", "formula":"H2", "phase":"gas", "identity_hints":[]}
+                    ],
+                    "required_context":"representative educational outcome",
+                    "observations": [],
+                    "sources": [],
+                    "ambiguity": null
+                }))
+                .expect("provider claim JSON"),
+                ClaimMode::Fast,
+            )
+            .expect("provider claim");
+            let CompiledClaimOutcome::Static(outcome) =
+                compile_claim_outcome_with_catalogue(&request, claim, &identities, catalogue)
+                    .expect("catalogue-aware dynamic outcome")
+            else {
+                panic!("heavy alkali water is a static outcome")
+            };
+            assert!(matches!(
+                outcome.macroscopic_process(),
+                Some(AgentMacroscopicProcess::ExplosiveMetalWater(_))
+            ));
+            let dynamic =
+                dynamic_macroscopic_reaction(&outcome).expect("typed material projection");
+            let local_run = chemistry::run(local_request).expect("local request validates");
+            let local = local_run.macroscopic().expect("local material projection");
+            assert_eq!(dynamic.process, local.process);
+            assert!(matches!(
+                dynamic.process,
+                Some(MacroscopicProcess::ExplosiveMetalWater(_))
+            ));
+        }
     }
 
     #[test]
@@ -6273,7 +6738,7 @@ mod tests {
 
     #[test]
     fn sodium_chloride_electrolysis_crosses_the_reviewed_identity_path() {
-        let catalogue = chemistry::trusted_catalogue().expect("catalogue");
+        let catalogue = chemistry::reference_catalogue().expect("catalogue");
         let identities = reviewed_species_registry(catalogue).expect("identities");
         let mut request = ReactionBuildRequest {
             reactants: vec![ReactantInput {
@@ -6332,6 +6797,12 @@ mod tests {
             .collect::<Vec<_>>();
         assert!(labels.iter().any(|text| text.starts_with("Anode:")));
         assert!(labels.iter().any(|text| text.starts_with("Cathode:")));
+        assert!(
+            labels
+                .iter()
+                .any(|text| text.starts_with("The applied potential")),
+            "electrolysis bond cleavage must explain its electrical energy source"
+        );
 
         let mut app = App {
             provider: Some(AppMode::Local),
@@ -6354,7 +6825,7 @@ mod tests {
     #[test]
     fn polyprotic_acids_neutralize_catalogue_carbonates_and_hydroxides() {
         type PolyproticCase = (&'static str, Vec<u8>, &'static str, Vec<u8>, &'static str);
-        let catalogue = chemistry::trusted_catalogue().expect("catalogue");
+        let catalogue = chemistry::reference_catalogue().expect("catalogue");
         let identities = agent::reviewed_species_registry(catalogue).expect("registry");
         let cases: [PolyproticCase; 5] = [
             // Monoprotic control: this already worked before the fix.
@@ -6479,7 +6950,7 @@ mod tests {
         // Fe + CuSO4 crashed mid-animation once (metallic acceptor with an
         // empty shell delta); the full derived pipeline must build and play
         // both timelines to completion.
-        let catalogue = chemistry::trusted_catalogue().expect("catalogue");
+        let catalogue = chemistry::reference_catalogue().expect("catalogue");
         let identities = agent::reviewed_species_registry(catalogue).expect("registry");
         let request = ReactionBuildRequest {
             reactants: vec![
@@ -6549,7 +7020,7 @@ mod tests {
         ));
         // Oxoacids parse in any casing and reach the local solver.
         let h2so4 = chemistry::atoms_from_name("h2so4").expect("h2so4 resolves");
-        let catalogue = chemistry::trusted_catalogue().expect("catalogue");
+        let catalogue = chemistry::reference_catalogue().expect("catalogue");
         let identities = agent::reviewed_species_registry(catalogue).expect("registry");
         let request = ReactionBuildRequest {
             reactants: vec![
@@ -6943,7 +7414,7 @@ mod tests {
     }
 
     #[test]
-    fn native_window_title_exposes_builder_state_without_changing_initial_smoke_title() {
+    fn smoke_window_title_exposes_builder_state_without_changing_initial_title() {
         let mut app = App {
             smoke_mode: Some(SmokeMode::Builder),
             screen: Screen::Builder,
@@ -6956,6 +7427,17 @@ mod tests {
         let title = app.title();
         assert!(title.starts_with("ChemSpec Agent Smoke — Builder"));
         assert!(title.contains("Reactants Rb + H₂; idle"));
+    }
+
+    #[test]
+    fn main_window_title_stays_static_across_app_state() {
+        let mut app = App::default();
+        assert_eq!(app.title(), "ChemSpec");
+
+        reactant_composer::replace_reactants(&mut app.reactant_composer, [vec![37], vec![1]]);
+        app.screen = Screen::Structural2d;
+
+        assert_eq!(app.title(), "ChemSpec");
     }
 
     #[test]
@@ -7323,7 +7805,7 @@ mod tests {
 
     #[test]
     fn selecting_identity_preserves_request_and_starts_the_same_build() {
-        let catalogue = chemistry::trusted_catalogue().expect("trusted catalogue");
+        let catalogue = chemistry::reference_catalogue().expect("reference catalogue");
         let identities = reviewed_species_registry(catalogue).expect("identities");
         let lithium = identities
             .records()
@@ -7437,6 +7919,24 @@ mod tests {
     }
 
     #[test]
+    fn window_keeps_native_decorations_and_an_opaque_surface() {
+        let settings = window_settings();
+        assert!(settings.decorations);
+        assert!(!settings.transparent);
+        assert_eq!(settings.size, DESIGN_SIZE);
+        assert_eq!(settings.min_size, Some(Size::new(560.0, 760.0)));
+    }
+
+    #[cfg(target_os = "macos")]
+    #[test]
+    fn macos_window_extends_content_behind_a_hidden_transparent_titlebar() {
+        let settings = window_settings();
+        assert!(settings.platform_specific.title_hidden);
+        assert!(settings.platform_specific.titlebar_transparent);
+        assert!(settings.platform_specific.fullsize_content_view);
+    }
+
+    #[test]
     fn smoke_arguments_select_a_unique_mode_and_window_title() {
         assert_eq!(
             SmokeMode::from_argument("--structural-2d-smoke"),
@@ -7481,7 +7981,7 @@ mod tests {
         );
 
         let mut app = App::default();
-        assert_eq!(app.title(), "ChemSpec — reaction builder");
+        assert_eq!(app.title(), "ChemSpec");
         app.smoke_mode = Some(SmokeMode::Structural2d);
         app.screen = Screen::Structural2d;
         assert_eq!(app.title(), "ChemSpec Agent Smoke — Structural 2D");
@@ -7576,6 +8076,418 @@ mod tests {
         }
     }
 
+    #[test]
+    fn acid_carbonate_cleavage_explains_carbon_dioxide_and_water_formation() {
+        for request in chemistry::ReactionRequest::ALL {
+            if !matches!(
+                request.family(),
+                chemistry::ReactionFamily::AcidCarbonateGasEvolution
+                    | chemistry::ReactionFamily::AcidBicarbonateGasEvolution
+            ) {
+                continue;
+            }
+            let run = chemistry::run(request).expect("pinned request validates");
+            let plan = compile_educational_plan(run.frames(), run.declaration().required_context())
+                .expect("educational plan compiles");
+            assert!(
+                plan.scenes
+                    .iter()
+                    .flat_map(|scene| &scene.cues)
+                    .any(|cue| matches!(
+                        cue,
+                        chem_presentation::EducationalCue::ShowExplanation { label }
+                            if label.text.contains("stable CO₂ and H₂O")
+                    )),
+                "{request:?} must explain the carbonate-specific driving products"
+            );
+        }
+    }
+
+    #[test]
+    fn educational_copy_is_scientific_concise_and_finishes_with_one_note() {
+        let mut labels = Vec::new();
+        for request in chemistry::ReactionRequest::ALL {
+            let run = chemistry::run(request).expect("pinned request validates");
+            let plan = compile_educational_plan(run.frames(), run.declaration().required_context())
+                .expect("educational plan compiles");
+            let summary = plan.scenes.last().expect("plan ends with a summary");
+            assert_eq!(summary.kind, EducationalSceneKind::Summary);
+            assert_eq!(
+                summary
+                    .cues
+                    .iter()
+                    .filter(|cue| matches!(
+                        cue,
+                        chem_presentation::EducationalCue::ShowContext { label }
+                            if label.kind
+                                == chem_presentation::ExplanationLabelKind::CompletionNote
+                                && label.text == "Reaction complete"
+                    ))
+                    .count(),
+                1,
+                "{request:?} must end with one completion note"
+            );
+            labels.extend(
+                plan.scenes
+                    .iter()
+                    .flat_map(|scene| &scene.cues)
+                    .filter_map(|cue| match cue {
+                        chem_presentation::EducationalCue::ShowContext { label } => {
+                            Some((label.title.clone(), label.text.clone()))
+                        }
+                        chem_presentation::EducationalCue::ShowExplanation { label } => {
+                            Some((String::new(), label.text.clone()))
+                        }
+                        _ => None,
+                    }),
+            );
+        }
+
+        let all_copy = labels
+            .iter()
+            .flat_map(|(title, text)| [title.as_str(), text.as_str()])
+            .collect::<Vec<_>>()
+            .join("\n");
+        for forbidden in [
+            "without sharing any electrons",
+            "PRODUCT ESTABLISHED",
+            "The same change happens",
+            "electron sea",
+            "strikes out on its own",
+            "A reactant is used up",
+            "This reactant is being used up",
+            "REACTANT CONSUMED",
+        ] {
+            assert!(
+                !all_copy.contains(forbidden),
+                "obsolete copy remains: {forbidden}"
+            );
+        }
+        for request in chemistry::ReactionRequest::ALL {
+            let run = chemistry::run(request).expect("pinned request validates");
+            let plan = compile_educational_plan(run.frames(), run.declaration().required_context())
+                .expect("educational plan compiles");
+            assert!(
+                plan.scenes
+                    .iter()
+                    .flat_map(|scene| &scene.cues)
+                    .all(|cue| !matches!(
+                        cue,
+                        chem_presentation::EducationalCue::ShowObservation {
+                            predicate: chem_catalogue::ObservationPredicate::Disappears,
+                            ..
+                        }
+                    )),
+                "{request:?} must not emit a reactant-consumption popup"
+            );
+        }
+        assert!(all_copy.contains("Ions drift apart"));
+        assert!(all_copy.contains("water molecules surround and stabilize"));
+        assert!(all_copy.contains("METALLIC BONDING CHANGES"));
+        assert!(all_copy.contains("positive metal ion cores and delocalised electrons"));
+    }
+
+    #[test]
+    fn every_neutralisation_ends_with_a_dynamic_spectator_ion_tip() {
+        let mut checked = 0;
+        for request in chemistry::ReactionRequest::ALL {
+            if !matches!(
+                request.family(),
+                chemistry::ReactionFamily::AcidBaseNeutralization
+            ) {
+                continue;
+            }
+            checked += 1;
+            let run = chemistry::run(request).expect("pinned neutralisation validates");
+            let plan = compile_educational_plan(run.frames(), run.declaration().required_context())
+                .expect("educational plan compiles");
+            let summary = plan.scenes.last().expect("plan ends with a summary");
+
+            let context = summary.cues.iter().find_map(|cue| match cue {
+                chem_presentation::EducationalCue::ShowContext { label }
+                    if label.title == "SPECTATOR IONS" =>
+                {
+                    Some(label)
+                }
+                _ => None,
+            });
+            let explanation = summary.cues.iter().find_map(|cue| match cue {
+                chem_presentation::EducationalCue::ShowExplanation { label }
+                    if label.text.contains("are spectator ions") =>
+                {
+                    Some(label)
+                }
+                _ => None,
+            });
+            let (context, explanation) = (
+                context.expect("neutralisation summary has spectator-ion context"),
+                explanation.expect("neutralisation summary has spectator-ion explanation"),
+            );
+            assert!(context.text.contains('⁺'), "{request:?}: {}", context.text);
+            assert!(context.text.contains('⁻'), "{request:?}: {}", context.text);
+            assert!(explanation.text.contains("In aqueous solution"));
+            assert!(explanation.text.contains("tend to remain separate"));
+            assert!(
+                explanation
+                    .text
+                    .contains("water is evaporated and crystallisation occurs")
+            );
+            assert!(explanation.text.ends_with("the ions form a salt."));
+            assert!(explanation.connector);
+            assert!(!explanation.target_atoms.is_empty());
+        }
+        assert_eq!(checked, 9);
+    }
+
+    #[test]
+    fn spectator_ion_tip_does_not_misclassify_acid_carbonate_gas_evolution() {
+        for request in chemistry::ReactionRequest::ALL {
+            if !matches!(
+                request.family(),
+                chemistry::ReactionFamily::AcidCarbonateGasEvolution
+                    | chemistry::ReactionFamily::AcidBicarbonateGasEvolution
+            ) {
+                continue;
+            }
+            let run = chemistry::run(request).expect("pinned gas evolution validates");
+            let plan = compile_educational_plan(run.frames(), run.declaration().required_context())
+                .expect("educational plan compiles");
+            assert!(
+                plan.scenes.iter().flat_map(|scene| &scene.cues).all(|cue| {
+                    !matches!(
+                        cue,
+                        chem_presentation::EducationalCue::ShowContext { label }
+                            if label.title == "SPECTATOR IONS"
+                    )
+                }),
+                "{request:?} is gas evolution, not salt-and-water neutralisation"
+            );
+        }
+    }
+
+    #[test]
+    fn proton_transfer_is_derived_across_every_reviewed_acid_base_family() {
+        let mut applicable = 0;
+        let mut inapplicable = 0;
+        for request in chemistry::ReactionRequest::ALL {
+            let run = chemistry::run(request).expect("pinned request validates");
+            let plan = compile_educational_plan(run.frames(), run.declaration().required_context())
+                .expect("educational plan compiles");
+            let proton_scenes = plan
+                .scenes
+                .iter()
+                .filter(|scene| {
+                    scene.cues.iter().any(|cue| {
+                        matches!(
+                            cue,
+                            chem_presentation::EducationalCue::InterpretProtonTransfer { .. }
+                        )
+                    })
+                })
+                .collect::<Vec<_>>();
+            let is_acid_base = matches!(
+                request.family(),
+                chemistry::ReactionFamily::AcidBaseNeutralization
+                    | chemistry::ReactionFamily::AcidBicarbonateGasEvolution
+                    | chemistry::ReactionFamily::AcidCarbonateGasEvolution
+            );
+            if is_acid_base {
+                applicable += 1;
+                assert!(
+                    !proton_scenes.is_empty(),
+                    "{request:?} must derive proton transfer from its validated operations"
+                );
+                for scene in &proton_scenes {
+                    let transfer = scene.cues.iter().find_map(|cue| match cue {
+                        chem_presentation::EducationalCue::InterpretProtonTransfer { transfer } => {
+                            Some(transfer)
+                        }
+                        _ => None,
+                    });
+                    let transfer = transfer.expect("proton scene carries typed interpretation");
+                    let hydrogen = run
+                        .frames()
+                        .frames()
+                        .iter()
+                        .find_map(|frame| {
+                            frame
+                                .atoms()
+                                .values()
+                                .find(|atom| atom.id.as_str() == transfer.hydrogen)
+                        })
+                        .expect("interpreted hydrogen belongs to trusted frames");
+                    assert_eq!(hydrogen.element.as_str(), "H");
+                    assert_ne!(transfer.donor, transfer.acceptor);
+                    assert!(scene.cues.iter().any(|cue| matches!(
+                        cue,
+                        chem_presentation::EducationalCue::ApplyOperations { operations }
+                            if operations.len() >= 2
+                    )));
+                }
+                assert!(
+                    proton_scenes
+                        .iter()
+                        .any(|scene| scene.cues.iter().any(|cue| matches!(
+                            cue,
+                            chem_presentation::EducationalCue::ShowContext { label }
+                                if label.title == "PROTON TRANSFER"
+                        )))
+                );
+                assert!(
+                    proton_scenes
+                        .iter()
+                        .any(|scene| scene.cues.iter().any(|cue| matches!(
+                            cue,
+                            chem_presentation::EducationalCue::ShowExplanation { label }
+                                if label.text.contains("two electrons")
+                                    && label.text.ends_with("This is a proton transfer.")
+                        )))
+                );
+                assert!(plan.scenes.iter().flat_map(|scene| &scene.cues).all(|cue| {
+                    !matches!(
+                        cue,
+                        chem_presentation::EducationalCue::ShowExplanation { label }
+                            if label.text.starts_with("An electron jumps")
+                    )
+                }));
+            } else {
+                inapplicable += 1;
+                assert!(
+                    proton_scenes.is_empty(),
+                    "{request:?} must retain its non-proton-transfer interpretation"
+                );
+            }
+        }
+        assert_eq!(applicable, 27);
+        assert_eq!(inapplicable, 12);
+    }
+
+    #[test]
+    fn dynamic_neutralisation_gets_proton_transfer_but_metal_water_redox_does_not() {
+        let catalogue = chemistry::reference_catalogue().expect("reference catalogue");
+        let mut provider = agent::UnsupportedMechanismProvider;
+        for (outcome, expected) in [
+            (dynamic_copper_oxide_neutralisation_static(), true),
+            (dynamic_lithium_static(), false),
+        ] {
+            let presentation = enrich_static_outcome(outcome, catalogue, &mut provider)
+                .expect("algorithmic presentation enrichment");
+            let (outcome, frames) = match &presentation {
+                DynamicPresentationOutcome::ReviewedFamily(animated) => {
+                    (animated.static_outcome(), animated.frames())
+                }
+                DynamicPresentationOutcome::Escalated(animated) => {
+                    (animated.static_outcome(), animated.frames())
+                }
+                DynamicPresentationOutcome::Static { diagnostic, .. } => {
+                    panic!("expected an animated result: {diagnostic}")
+                }
+            };
+            let plan = compile_educational_plan(frames, outcome.declaration().required_context())
+                .expect("educational plan");
+            let has_proton_transfer = plan.scenes.iter().flat_map(|scene| &scene.cues).any(|cue| {
+                matches!(
+                    cue,
+                    chem_presentation::EducationalCue::InterpretProtonTransfer { .. }
+                )
+            });
+            assert_eq!(has_proton_transfer, expected);
+        }
+    }
+
+    #[test]
+    fn stoichiometric_operation_instances_are_animated_but_narrated_once() {
+        let catalogue = chemistry::reference_catalogue().expect("reference catalogue");
+        let outcome = dynamic_incomplete_combustion_static("C2H6", vec![6, 6, 1, 1, 1, 1, 1, 1]);
+        assert_eq!(
+            outcome.equation(),
+            "5 O2 + 2 C2H6 → 6 H2O + 4 CO",
+            "test premise must retain the reported stoichiometry"
+        );
+        let mut provider = agent::UnsupportedMechanismProvider;
+        let presentation = enrich_static_outcome(outcome, catalogue, &mut provider)
+            .expect("algorithmic incomplete-combustion animation");
+        let (outcome, frames) = match &presentation {
+            DynamicPresentationOutcome::ReviewedFamily(animated) => {
+                (animated.static_outcome(), animated.frames())
+            }
+            DynamicPresentationOutcome::Escalated(animated) => {
+                (animated.static_outcome(), animated.frames())
+            }
+            DynamicPresentationOutcome::Static { diagnostic, .. } => {
+                panic!("incomplete combustion should animate: {diagnostic}")
+            }
+        };
+        let triple_formations = frames
+            .frames()
+            .iter()
+            .filter(|frame| {
+                frame.active_operation().is_some_and(|operation| {
+                    matches!(
+                        operation.operation.view(),
+                        chem_domain::StructuralOperationView::FormCovalent { order, .. }
+                            if order.order() == 3
+                    )
+                })
+            })
+            .count();
+        assert_eq!(
+            triple_formations, 4,
+            "all four CO molecules need a C≡O bond"
+        );
+
+        let plan = compile_educational_plan(frames, outcome.declaration().required_context())
+            .expect("educational plan");
+        let narrated_triple_formations = plan
+            .scenes
+            .iter()
+            .flat_map(|scene| &scene.cues)
+            .filter(|cue| {
+                matches!(
+                    cue,
+                    chem_presentation::EducationalCue::ShowContext { label }
+                        if label.text.contains("triple bond forms")
+                )
+            })
+            .count();
+        assert_eq!(
+            narrated_triple_formations, 1,
+            "equivalent coefficient instances are one teaching idea"
+        );
+
+        let assignment_frames = frames
+            .frames()
+            .iter()
+            .filter(|frame| {
+                frame.active_operation().is_some_and(|operation| {
+                    matches!(
+                        operation.operation.view(),
+                        chem_domain::StructuralOperationView::AssignProduct { .. }
+                    )
+                })
+            })
+            .map(|frame| frame.trace().state_digest)
+            .collect::<std::collections::BTreeSet<_>>();
+        for scene in &plan.scenes {
+            let assigns_product = scene.cues.iter().any(|cue| match cue {
+                chem_presentation::EducationalCue::ApplyOperations { operations } => operations
+                    .iter()
+                    .any(|operation| assignment_frames.contains(&operation.after)),
+                _ => false,
+            });
+            if assigns_product {
+                assert!(
+                    !scene.cues.iter().any(|cue| matches!(
+                        cue,
+                        chem_presentation::EducationalCue::ShowExplanation { .. }
+                            | chem_presentation::EducationalCue::ShowContext { .. }
+                    )),
+                    "product assignment must not create an explanatory card"
+                );
+            }
+        }
+    }
+
     fn normalize_copy(copy: &str) -> String {
         copy.split_whitespace()
             .collect::<Vec<_>>()
@@ -7588,11 +8500,18 @@ mod tests {
         let mut observed_reactions = 0;
         for request in chemistry::ReactionRequest::ALL {
             let run = chemistry::run(request).expect("pinned request validates");
-            let has_observations = run
+            let has_presented_observations = run
                 .frames()
                 .frames()
                 .iter()
-                .any(|frame| !frame.observations().is_empty());
+                .flat_map(chem_kernel::SimulationFrame::observations)
+                .any(|observation| {
+                    matches!(
+                        observation.predicate,
+                        chem_catalogue::ObservationPredicate::Evolves
+                            | chem_catalogue::ObservationPredicate::Colour
+                    )
+                });
             let plan = compile_educational_plan(run.frames(), run.declaration().required_context())
                 .expect("educational plan compiles");
             let observation_scenes = plan
@@ -7600,7 +8519,7 @@ mod tests {
                 .iter()
                 .filter(|scene| scene.kind == EducationalSceneKind::ObservationConnection)
                 .collect::<Vec<_>>();
-            if !has_observations {
+            if !has_presented_observations {
                 assert!(
                     observation_scenes.is_empty(),
                     "{request:?} invented an observation scene"
@@ -7610,7 +8529,7 @@ mod tests {
             observed_reactions += 1;
             assert!(
                 !observation_scenes.is_empty(),
-                "{request:?} has observations but no observation scene"
+                "{request:?} has presentable observations but no observation scene"
             );
             for scene in &observation_scenes {
                 assert!(
@@ -7626,8 +8545,8 @@ mod tests {
                         chem_presentation::EducationalCue::ShowExplanation { label }
                             if label.kind
                                 == chem_presentation::ExplanationLabelKind::ObservationExplanation
-                                // A leader line exists exactly when there are
-                                // atoms to point at (disappearances have none).
+                                // Presented molecular observations point back
+                                // to the atoms that establish the visible event.
                                 && label.connector != label.target_atoms.is_empty()
                     )),
                     "{request:?} observation scene lacks a coherent explanation card"
@@ -7948,12 +8867,12 @@ mod tests {
         let animation = app
             .structural_animation
             .as_ref()
-            .expect("trusted educational animation compiles");
+            .expect("reference educational animation compiles");
         assert_eq!(
             animation.declaration.digest(),
             app.validated_declaration
                 .as_ref()
-                .expect("trusted declaration is retained")
+                .expect("reference declaration is retained")
                 .digest()
         );
         assert!(!animation.real_world_plan.timeline.beats.is_empty());
@@ -8028,14 +8947,14 @@ mod tests {
             let digest = animation
                 .frames
                 .digest()
-                .expect("trusted frames have a digest");
+                .expect("validated frames have a digest");
             assert_eq!(animation.educational_plan.id, digest);
             assert_eq!(animation.real_world_plan.reaction, digest);
             assert_eq!(
                 animation.declaration.digest(),
                 app.validated_declaration
                     .as_ref()
-                    .expect("trusted declaration is retained")
+                    .expect("reference declaration is retained")
                     .digest()
             );
 
@@ -8280,7 +9199,7 @@ mod tests {
 
     #[test]
     fn validated_equations_switch_labels_without_changing_the_declaration() {
-        let run = chemistry::run(chemistry::ReactionRequest::DEFAULT).expect("trusted run");
+        let run = chemistry::run(chemistry::ReactionRequest::DEFAULT).expect("validated run");
         let digest = run.declaration().digest();
         let formulae =
             nomenclature::display_declaration(run.declaration(), ChemicalLabels::Formulae);
@@ -8338,7 +9257,7 @@ mod tests {
         let animation = app
             .structural_animation
             .as_ref()
-            .expect("guided animation compiles from the trusted frames");
+            .expect("guided animation compiles from the validated frames");
         assert!(animation.playing);
         assert!(!reactant_composer::submit_available(&app.reactant_composer));
         assert!(reactant_composer::prompt_reveal(&app.reactant_composer) > 0.0);

@@ -1,9 +1,10 @@
 use std::{fs, path::PathBuf, str::FromStr};
 
 use chem_catalogue::{
-    CatalogueEnvelope, CatalogueErrorCode, CatalogueTrustPolicy, MacroscopicMaterialContextRecord,
-    MacroscopicMaterialRecord, ObservationCompatibilityRecord, ObservationPredicate,
-    PublicationKind, ReviewStatus, ReviewerRecord, TrustedCatalogue, ValidatedCatalogueBundle,
+    CatalogueEnvelope, CatalogueErrorCode, ExplosiveWaterContactVariantRecord,
+    MacroscopicMaterialContextRecord, MacroscopicMaterialRecord, ObservationCompatibilityRecord,
+    ObservationPredicate, PublicationKind, ReferenceCatalogue, ReferenceIntegrityPolicy,
+    ReviewStatus, ReviewerRecord, ValidatedCatalogueBundle, WaterContactBehaviourRecord,
 };
 use chem_domain::{
     ContentDigest, Phase, PremiseId, ReactionRuleId, RepresentationKind, StructureId,
@@ -19,20 +20,20 @@ fn fixture_bytes() -> Vec<u8> {
         .expect("lithium fixture should be readable")
 }
 
-fn trusted_catalogue_bytes() -> Vec<u8> {
-    fs::read(workspace_root().join("catalogue/trusted/core-chemistry/catalogue.json"))
-        .expect("trusted generalized catalogue should be readable")
+fn reference_catalogue_bytes() -> Vec<u8> {
+    fs::read(workspace_root().join("catalogue/reference/core-chemistry/catalogue.json"))
+        .expect("reference catalogue should be readable")
 }
 
-fn trusted_review_bytes() -> Vec<u8> {
+fn reference_review_bytes() -> Vec<u8> {
     fs::read(workspace_root().join("catalogue/reviews/core-chemistry.review.json"))
-        .expect("trusted generalized catalogue review should be readable")
+        .expect("reference catalogue review should be readable")
 }
 
-fn trust_policy() -> CatalogueTrustPolicy {
-    let envelope: CatalogueEnvelope = serde_json::from_slice(&trusted_catalogue_bytes()).unwrap();
-    let review: Value = serde_json::from_slice(&trusted_review_bytes()).unwrap();
-    CatalogueTrustPolicy::new(envelope.digest, ContentDigest::of_json(&review).unwrap())
+fn integrity_policy() -> ReferenceIntegrityPolicy {
+    let envelope: CatalogueEnvelope = serde_json::from_slice(&reference_catalogue_bytes()).unwrap();
+    let review: Value = serde_json::from_slice(&reference_review_bytes()).unwrap();
+    ReferenceIntegrityPolicy::new(envelope.digest, ContentDigest::of_json(&review).unwrap())
 }
 
 fn envelope() -> CatalogueEnvelope {
@@ -132,46 +133,53 @@ fn canonical_fixture_matches_schema_digest_and_closed_domain() {
 }
 
 #[test]
-fn built_in_catalogue_requires_the_exact_host_pinned_review() {
-    let catalogue_bytes = trusted_catalogue_bytes();
-    let review_bytes = trusted_review_bytes();
-    let policy = trust_policy();
-    let trusted = TrustedCatalogue::from_canonical_json(&catalogue_bytes, &review_bytes, policy)
-        .expect("the exact host-pinned catalogue and review should load");
-    assert_eq!(trusted.document().elements.len(), 118);
-    assert_eq!(trusted.document().generalized_rules.len(), 75);
+fn built_in_reference_data_verifies_its_packaged_review_identity() {
+    let catalogue_bytes = reference_catalogue_bytes();
+    let review_bytes = reference_review_bytes();
+    let policy = integrity_policy();
+    let reference =
+        ReferenceCatalogue::from_canonical_json(&catalogue_bytes, &review_bytes, policy)
+            .expect("the packaged catalogue and review should load");
+    assert_eq!(reference.document().elements.len(), 118);
+    assert_eq!(reference.document().generalized_rules.len(), 75);
 
-    let wrong_catalogue_policy = CatalogueTrustPolicy::new(
+    let wrong_catalogue_policy = ReferenceIntegrityPolicy::new(
         ContentDigest::sha256(b"different catalogue"),
         policy.review_digest(),
     );
-    let wrong_catalogue = TrustedCatalogue::from_canonical_json(
+    let wrong_catalogue = ReferenceCatalogue::from_canonical_json(
         &catalogue_bytes,
         &review_bytes,
         wrong_catalogue_policy,
     )
     .unwrap_err();
-    assert_eq!(wrong_catalogue.code(), CatalogueErrorCode::TrustMismatch);
+    assert_eq!(
+        wrong_catalogue.code(),
+        CatalogueErrorCode::IntegrityMismatch
+    );
     assert_eq!(wrong_catalogue.diagnostic_code(), "CHEMS-C025");
 
-    let wrong_review_policy = CatalogueTrustPolicy::new(
+    let wrong_review_policy = ReferenceIntegrityPolicy::new(
         policy.catalogue_digest(),
         ContentDigest::sha256(b"different review"),
     );
-    let wrong_review =
-        TrustedCatalogue::from_canonical_json(&catalogue_bytes, &review_bytes, wrong_review_policy)
-            .unwrap_err();
-    assert_eq!(wrong_review.code(), CatalogueErrorCode::TrustMismatch);
+    let wrong_review = ReferenceCatalogue::from_canonical_json(
+        &catalogue_bytes,
+        &review_bytes,
+        wrong_review_policy,
+    )
+    .unwrap_err();
+    assert_eq!(wrong_review.code(), CatalogueErrorCode::IntegrityMismatch);
     assert_eq!(wrong_review.diagnostic_code(), "CHEMS-C025");
 
     let mut incomplete_review: Value = serde_json::from_slice(&review_bytes).unwrap();
     incomplete_review["premises"].as_array_mut().unwrap().pop();
     let incomplete_bytes = serde_json::to_vec(&incomplete_review).unwrap();
-    let incomplete_policy = CatalogueTrustPolicy::new(
+    let incomplete_policy = ReferenceIntegrityPolicy::new(
         policy.catalogue_digest(),
         ContentDigest::of_json(&incomplete_review).unwrap(),
     );
-    let incomplete_review = TrustedCatalogue::from_canonical_json(
+    let incomplete_review = ReferenceCatalogue::from_canonical_json(
         &catalogue_bytes,
         &incomplete_bytes,
         incomplete_policy,
@@ -179,7 +187,7 @@ fn built_in_catalogue_requires_the_exact_host_pinned_review() {
     .unwrap_err();
     assert_eq!(
         incomplete_review.code(),
-        CatalogueErrorCode::InvalidAttestation
+        CatalogueErrorCode::InvalidReviewAttestation
     );
     assert_eq!(incomplete_review.diagnostic_code(), "CHEMS-C026");
 }
@@ -200,6 +208,9 @@ fn optional_macroscopic_materials_are_backward_compatible_and_role_aware() {
             context: MacroscopicMaterialContextRecord::Standard,
             phase: Phase::Solid,
             colour: None,
+            water_contact: Some(WaterContactBehaviourRecord::Explosive {
+                variant: ExplosiveWaterContactVariantRecord::Rubidium,
+            }),
             premise_ids: [premise.clone()].into_iter().collect(),
         },
         MacroscopicMaterialRecord {
@@ -210,6 +221,7 @@ fn optional_macroscopic_materials_are_backward_compatible_and_role_aware() {
             },
             phase: Phase::Solid,
             colour: Some([186, 198, 204]),
+            water_contact: None,
             premise_ids: [premise].into_iter().collect(),
         },
     ]);
@@ -227,9 +239,13 @@ fn optional_macroscopic_materials_are_backward_compatible_and_role_aware() {
     );
     let enriched =
         ValidatedCatalogueBundle::validate(enriched).expect("reviewed phase records validate");
+    let standard = enriched.macroscopic_material(&lithium, None).unwrap();
+    assert_eq!(standard.phase, Phase::Solid);
     assert_eq!(
-        enriched.macroscopic_material(&lithium, None).unwrap().phase,
-        Phase::Solid
+        standard.water_contact,
+        Some(WaterContactBehaviourRecord::Explosive {
+            variant: ExplosiveWaterContactVariantRecord::Rubidium,
+        })
     );
     let contextual = enriched
         .macroscopic_material(&lithium, Some((&rule, "metal")))
@@ -256,6 +272,7 @@ fn invalid_macroscopic_role_is_rejected_with_a_typed_error() {
             },
             phase: Phase::Solid,
             colour: None,
+            water_contact: None,
             premise_ids: [PremiseId::from_str("premise.structure.lithium-metal").unwrap()]
                 .into_iter()
                 .collect(),
@@ -277,6 +294,7 @@ fn invalid_macroscopic_role_is_rejected_with_a_typed_error() {
             },
             phase: Phase::Solid,
             colour: None,
+            water_contact: None,
             premise_ids: [PremiseId::from_str("premise.structure.lithium-metal").unwrap()]
                 .into_iter()
                 .collect(),
@@ -295,6 +313,7 @@ fn invalid_macroscopic_role_is_rejected_with_a_typed_error() {
             context: MacroscopicMaterialContextRecord::Standard,
             phase: Phase::Solid,
             colour: None,
+            water_contact: None,
             premise_ids: [PremiseId::from_str("premise.structure.lithium-metal").unwrap()]
                 .into_iter()
                 .collect(),
@@ -309,6 +328,7 @@ fn invalid_macroscopic_role_is_rejected_with_a_typed_error() {
         context: MacroscopicMaterialContextRecord::Standard,
         phase: Phase::Solid,
         colour: None,
+        water_contact: None,
         premise_ids: [PremiseId::from_str("premise.structure.lithium-metal").unwrap()]
             .into_iter()
             .collect(),

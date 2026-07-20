@@ -1,4 +1,4 @@
-use chem_catalogue::TrustedCatalogue;
+use chem_catalogue::ReferenceCatalogue;
 
 use crate::{
     AgentError, EscalatedMechanismOutcome, FamilyMatchOutcome, MechanismEscalationOutcome,
@@ -41,7 +41,7 @@ impl DynamicPresentationOutcome {
 /// expanded or validated. Escalation failures settle into the static variant.
 pub fn enrich_static_outcome<P: MechanismProvider>(
     outcome: ValidatedStaticOutcome,
-    catalogue: &TrustedCatalogue,
+    catalogue: &ReferenceCatalogue,
     provider: &mut P,
 ) -> Result<DynamicPresentationOutcome, AgentError> {
     match match_reviewed_family(&outcome, catalogue)? {

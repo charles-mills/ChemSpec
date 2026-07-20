@@ -18,16 +18,26 @@ use std::sync::{Arc, Mutex, OnceLock};
 
 use glam::Vec3;
 
-const WIDTH: usize = 8;
-const HEIGHT: usize = 12;
-const DEPTH: usize = 8;
+const WIDTH: usize = 12;
+const HEIGHT: usize = 16;
+const DEPTH: usize = 12;
 const CELL_COUNT: usize = WIDTH * HEIGHT * DEPTH;
 const FIXED_DT: f32 = 1.0 / 18.0;
 const MAX_SIMULATION_SECONDS: f32 = 7.0;
 const PRESSURE_ITERATIONS: usize = 5;
+/// Structural regime values (stratification, layer height) quantize finely so
+/// the retained-layer interface rises smoothly.
 const CONTROL_QUANTIZATION: f32 = 32.0;
+/// Envelope-driven values quantize coarsely: reaction envelopes ramp every
+/// frame, and each distinct value is a cache key that forces a re-simulation
+/// from the last checkpoint. Gas noise masks 1/8 steps completely.
+const ENVELOPE_QUANTIZATION: f32 = 8.0;
 const CACHE_CAPACITY: usize = 64;
 const RIM_HEIGHT: f32 = 0.58;
+/// Solver-state snapshots taken every N steps so a scrub to time t resumes
+/// from the nearest checkpoint instead of re-simulating from zero.
+const CHECKPOINT_INTERVAL: usize = 24;
+const CHECKPOINT_CACHE_CAPACITY: usize = 32;
 
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub(crate) struct GasFlowControls {
@@ -132,20 +142,20 @@ impl GasFlowControls {
 
     fn quantized(self) -> Self {
         Self {
-            source_strength: quantize_control(self.source_strength),
-            turbulence: quantize_control(self.turbulence),
-            thermal_buoyancy: quantize_control(self.thermal_buoyancy),
-            density_weight: quantize_control(self.density_weight),
+            source_strength: quantize_envelope(self.source_strength),
+            turbulence: quantize_envelope(self.turbulence),
+            thermal_buoyancy: quantize_envelope(self.thermal_buoyancy),
+            density_weight: quantize_envelope(self.density_weight),
             stratification: quantize_control(self.stratification),
             layer_height: quantize_control(self.layer_height),
-            mixing_pressure: quantize_control(self.mixing_pressure),
-            volume_fill: quantize_control(self.volume_fill),
-            drag: quantize_control(self.drag),
-            retention: quantize_control(self.retention),
+            mixing_pressure: quantize_envelope(self.mixing_pressure),
+            volume_fill: quantize_envelope(self.volume_fill),
+            drag: quantize_envelope(self.drag),
+            retention: quantize_envelope(self.retention),
             wind: Vec3::new(
-                quantize_control(self.wind.x),
-                quantize_control(self.wind.y),
-                quantize_control(self.wind.z),
+                quantize_envelope(self.wind.x),
+                quantize_envelope(self.wind.y),
+                quantize_envelope(self.wind.z),
             ),
         }
     }
@@ -210,9 +220,25 @@ impl GasFluidVolume {
             return cached;
         }
 
-        let mut solver = Solver::new(seed, controls);
-        for step in 0..steps {
+        // Resuming from a checkpoint is byte-identical to a full run: the
+        // only state carried between steps is density, temperature, and
+        // velocity (pressure restarts from zero and every scratch cell is
+        // overwritten before it is read).
+        let checkpoint_key = |step: usize| GasCacheKey {
+            seed,
+            step: u16::try_from(step).expect("bounded gas step count fits u16"),
+            controls: controls.cache_components(),
+        };
+        let (mut solver, completed) = match nearest_checkpoint(seed, &controls, steps) {
+            Some((checkpoint_step, checkpoint)) => (Solver::resume(&checkpoint), checkpoint_step),
+            None => (Solver::new(seed, controls), 0),
+        };
+        for step in completed..steps {
             solver.step(FIXED_DT, step as f32 * FIXED_DT, seed, controls);
+            let done = step + 1;
+            if done % CHECKPOINT_INTERVAL == 0 && done < steps {
+                insert_checkpoint(checkpoint_key(done), SolverCheckpoint::capture(&solver));
+            }
         }
         insert_cached_volume(
             key,
@@ -274,9 +300,67 @@ fn quantize_control(value: f32) -> f32 {
     (value * CONTROL_QUANTIZATION).round() / CONTROL_QUANTIZATION
 }
 
+fn quantize_envelope(value: f32) -> f32 {
+    (value * ENVELOPE_QUANTIZATION).round() / ENVELOPE_QUANTIZATION
+}
+
 fn gas_cache() -> &'static Mutex<VecDeque<(GasCacheKey, GasFluidVolume)>> {
     static CACHE: OnceLock<Mutex<VecDeque<(GasCacheKey, GasFluidVolume)>>> = OnceLock::new();
     CACHE.get_or_init(|| Mutex::new(VecDeque::with_capacity(CACHE_CAPACITY)))
+}
+
+/// Complete cross-step solver state at a checkpoint step.
+#[derive(Debug, Clone)]
+struct SolverCheckpoint {
+    density: Arc<[f32]>,
+    temperature: Arc<[f32]>,
+    velocity: Arc<[Vec3]>,
+}
+
+impl SolverCheckpoint {
+    fn capture(solver: &Solver) -> Self {
+        Self {
+            density: solver.density.clone().into(),
+            temperature: solver.temperature.clone().into(),
+            velocity: solver.velocity.clone().into(),
+        }
+    }
+}
+
+fn checkpoint_cache() -> &'static Mutex<VecDeque<(GasCacheKey, SolverCheckpoint)>> {
+    static CACHE: OnceLock<Mutex<VecDeque<(GasCacheKey, SolverCheckpoint)>>> = OnceLock::new();
+    CACHE.get_or_init(|| Mutex::new(VecDeque::with_capacity(CHECKPOINT_CACHE_CAPACITY)))
+}
+
+/// The latest stored checkpoint at or before `steps` for this seed/controls.
+fn nearest_checkpoint(
+    seed: u64,
+    controls: &GasFlowControls,
+    steps: usize,
+) -> Option<(usize, SolverCheckpoint)> {
+    let components = controls.cache_components();
+    checkpoint_cache()
+        .lock()
+        .unwrap_or_else(std::sync::PoisonError::into_inner)
+        .iter()
+        .filter(|(key, _)| {
+            key.seed == seed && key.controls == components && usize::from(key.step) <= steps
+        })
+        .max_by_key(|(key, _)| key.step)
+        .map(|(key, checkpoint)| (usize::from(key.step), checkpoint.clone()))
+}
+
+fn insert_checkpoint(key: GasCacheKey, checkpoint: SolverCheckpoint) {
+    let mut cache = checkpoint_cache()
+        .lock()
+        .unwrap_or_else(std::sync::PoisonError::into_inner);
+    if cache.iter().any(|(cached_key, _)| *cached_key == key) {
+        return;
+    }
+    if cache.len() == CHECKPOINT_CACHE_CAPACITY {
+        cache.pop_front();
+    }
+    cache.push_back((key, checkpoint));
 }
 
 fn cached_volume(key: GasCacheKey) -> Option<GasFluidVolume> {
@@ -355,6 +439,23 @@ impl Solver {
         solver
     }
 
+    /// Rebuilds a solver from checkpointed state; scratch fields start
+    /// zeroed, which is safe because every pass overwrites them fully.
+    fn resume(checkpoint: &SolverCheckpoint) -> Self {
+        Self {
+            density: checkpoint.density.to_vec(),
+            density_next: vec![0.0; CELL_COUNT],
+            temperature: checkpoint.temperature.to_vec(),
+            temperature_next: vec![0.0; CELL_COUNT],
+            velocity: checkpoint.velocity.to_vec(),
+            velocity_next: vec![Vec3::ZERO; CELL_COUNT],
+            pressure: vec![0.0; CELL_COUNT],
+            pressure_next: vec![0.0; CELL_COUNT],
+            divergence: vec![0.0; CELL_COUNT],
+            curl: vec![Vec3::ZERO; CELL_COUNT],
+        }
+    }
+
     fn step(&mut self, dt: f32, time: f32, seed: u64, controls: GasFlowControls) {
         if dt <= f32::EPSILON {
             return;
@@ -393,11 +494,12 @@ impl Solver {
     }
 
     fn inject_source(&mut self, dt: f32, time: f32, seed: u64, controls: GasFlowControls) {
+        let tables = grid_tables();
         let pulse = 0.72 + 0.28 * (time * 2.7 + hash_unit(seed, 0, 9) * 6.0).sin().abs();
         for z in 0..DEPTH {
             for y in 0..HEIGHT {
                 for x in 0..WIDTH {
-                    let position = GasFluidVolume::grid_position(x, y, z);
+                    let position = tables.positions[index(x, y, z)];
                     let radial = position.x.hypot(position.z);
                     if position.y >= RIM_HEIGHT {
                         continue;
@@ -434,28 +536,30 @@ impl Solver {
     }
 
     fn apply_forces(&mut self, dt: f32, time: f32, seed: u64, controls: GasFlowControls) {
+        let tables = grid_tables();
         for z in 0..DEPTH {
             for y in 0..HEIGHT {
                 for x in 0..WIDTH {
-                    let position = GasFluidVolume::grid_position(x, y, z);
-                    if !inside_simulation_domain(position) {
+                    let index = index(x, y, z);
+                    if !tables.fluid[index] {
                         continue;
                     }
-                    let index = index(x, y, z);
+                    let position = tables.positions[index];
                     let density = self.density[index];
                     let temperature = self.temperature[index];
                     let buoyancy =
                         temperature * controls.thermal_buoyancy - density * controls.density_weight;
+                    let neighbours = &tables.neighbours[index];
                     let concentration_gradient = Vec3::new(
-                        scalar_neighbor(&self.density, x, y, z, 1, 0, 0)
-                            - scalar_neighbor(&self.density, x, y, z, -1, 0, 0),
-                        scalar_neighbor(&self.density, x, y, z, 0, 1, 0)
-                            - scalar_neighbor(&self.density, x, y, z, 0, -1, 0),
-                        scalar_neighbor(&self.density, x, y, z, 0, 0, 1)
-                            - scalar_neighbor(&self.density, x, y, z, 0, 0, -1),
+                        neighbour_or(&self.density, neighbours, 0, density)
+                            - neighbour_or(&self.density, neighbours, 1, density),
+                        neighbour_or(&self.density, neighbours, 2, density)
+                            - neighbour_or(&self.density, neighbours, 3, density),
+                        neighbour_or(&self.density, neighbours, 4, density)
+                            - neighbour_or(&self.density, neighbours, 5, density),
                     ) * 0.5;
                     let turbulence = curl_wind(position, time, seed) * controls.turbulence * 0.34;
-                    let wall_damping = wall_proximity(position);
+                    let wall_damping = tables.wall[index];
                     let draft = controls.wind * (0.42 + wall_damping * 0.58);
                     let concentration_pressure = -concentration_gradient * controls.mixing_pressure;
                     let interface_distance = (position.y - controls.layer_height).abs();
@@ -490,190 +594,157 @@ impl Solver {
     }
 
     fn add_vorticity_confinement(&mut self, dt: f32, strength: f32) {
-        for z in 0..DEPTH {
-            for y in 0..HEIGHT {
-                for x in 0..WIDTH {
-                    if !fluid_cell(x, y, z) {
-                        continue;
-                    }
-                    let dx = velocity_neighbor(&self.velocity, x, y, z, 1, 0, 0)
-                        - velocity_neighbor(&self.velocity, x, y, z, -1, 0, 0);
-                    let dy = velocity_neighbor(&self.velocity, x, y, z, 0, 1, 0)
-                        - velocity_neighbor(&self.velocity, x, y, z, 0, -1, 0);
-                    let dz = velocity_neighbor(&self.velocity, x, y, z, 0, 0, 1)
-                        - velocity_neighbor(&self.velocity, x, y, z, 0, 0, -1);
-                    self.curl[index(x, y, z)] = Vec3::new(
-                        (dy.z - dz.y) * 0.5,
-                        (dz.x - dx.z) * 0.5,
-                        (dx.y - dy.x) * 0.5,
-                    );
-                }
-            }
+        let tables = grid_tables();
+        for &cell in &tables.fluid_indices {
+            let cell = cell as usize;
+            let neighbours = &tables.neighbours[cell];
+            let dx = neighbour_or_zero(&self.velocity, neighbours, 0)
+                - neighbour_or_zero(&self.velocity, neighbours, 1);
+            let dy = neighbour_or_zero(&self.velocity, neighbours, 2)
+                - neighbour_or_zero(&self.velocity, neighbours, 3);
+            let dz = neighbour_or_zero(&self.velocity, neighbours, 4)
+                - neighbour_or_zero(&self.velocity, neighbours, 5);
+            self.curl[cell] = Vec3::new(
+                (dy.z - dz.y) * 0.5,
+                (dz.x - dx.z) * 0.5,
+                (dx.y - dy.x) * 0.5,
+            );
         }
-        for z in 0..DEPTH {
-            for y in 0..HEIGHT {
-                for x in 0..WIDTH {
-                    if !fluid_cell(x, y, z) {
-                        continue;
-                    }
-                    let gradient = Vec3::new(
-                        curl_magnitude_neighbor(&self.curl, x, y, z, 1, 0, 0)
-                            - curl_magnitude_neighbor(&self.curl, x, y, z, -1, 0, 0),
-                        curl_magnitude_neighbor(&self.curl, x, y, z, 0, 1, 0)
-                            - curl_magnitude_neighbor(&self.curl, x, y, z, 0, -1, 0),
-                        curl_magnitude_neighbor(&self.curl, x, y, z, 0, 0, 1)
-                            - curl_magnitude_neighbor(&self.curl, x, y, z, 0, 0, -1),
-                    )
-                    .normalize_or_zero();
-                    let index = index(x, y, z);
-                    self.velocity[index] += gradient.cross(self.curl[index]) * strength * dt * 0.32;
+        {
+            let curl_magnitude = |neighbours: &[u32; 6], slot: usize, own: f32| {
+                let neighbour = neighbours[slot];
+                if neighbour == NO_NEIGHBOUR {
+                    own
+                } else {
+                    self.curl[neighbour as usize].length()
                 }
+            };
+            for &cell in &tables.fluid_indices {
+                let cell = cell as usize;
+                let neighbours = &tables.neighbours[cell];
+                let own = self.curl[cell].length();
+                let gradient = Vec3::new(
+                    curl_magnitude(neighbours, 0, own) - curl_magnitude(neighbours, 1, own),
+                    curl_magnitude(neighbours, 2, own) - curl_magnitude(neighbours, 3, own),
+                    curl_magnitude(neighbours, 4, own) - curl_magnitude(neighbours, 5, own),
+                )
+                .normalize_or_zero();
+                let index = cell;
+                self.velocity[index] += gradient.cross(self.curl[index]) * strength * dt * 0.32;
             }
         }
         apply_velocity_boundary(&mut self.velocity);
     }
 
     fn project_velocity(&mut self) {
+        let tables = grid_tables();
         self.pressure.fill(0.0);
         self.pressure_next.fill(0.0);
-        for z in 0..DEPTH {
-            for y in 0..HEIGHT {
-                for x in 0..WIDTH {
-                    if !fluid_cell(x, y, z) {
-                        continue;
-                    }
-                    let right = velocity_neighbor(&self.velocity, x, y, z, 1, 0, 0).x;
-                    let left = velocity_neighbor(&self.velocity, x, y, z, -1, 0, 0).x;
-                    let up = velocity_neighbor(&self.velocity, x, y, z, 0, 1, 0).y;
-                    let down = velocity_neighbor(&self.velocity, x, y, z, 0, -1, 0).y;
-                    let front = velocity_neighbor(&self.velocity, x, y, z, 0, 0, 1).z;
-                    let back = velocity_neighbor(&self.velocity, x, y, z, 0, 0, -1).z;
-                    self.divergence[index(x, y, z)] =
-                        -0.5 * (right - left + up - down + front - back);
-                }
-            }
+        for &cell in &tables.fluid_indices {
+            let cell = cell as usize;
+            let neighbours = &tables.neighbours[cell];
+            let right = neighbour_or_zero(&self.velocity, neighbours, 0).x;
+            let left = neighbour_or_zero(&self.velocity, neighbours, 1).x;
+            let up = neighbour_or_zero(&self.velocity, neighbours, 2).y;
+            let down = neighbour_or_zero(&self.velocity, neighbours, 3).y;
+            let front = neighbour_or_zero(&self.velocity, neighbours, 4).z;
+            let back = neighbour_or_zero(&self.velocity, neighbours, 5).z;
+            self.divergence[cell] = -0.5 * (right - left + up - down + front - back);
         }
         for _ in 0..PRESSURE_ITERATIONS {
-            for z in 0..DEPTH {
-                for y in 0..HEIGHT {
-                    for x in 0..WIDTH {
-                        if !fluid_cell(x, y, z) {
-                            continue;
-                        }
-                        let sum = scalar_neighbor(&self.pressure, x, y, z, 1, 0, 0)
-                            + scalar_neighbor(&self.pressure, x, y, z, -1, 0, 0)
-                            + scalar_neighbor(&self.pressure, x, y, z, 0, 1, 0)
-                            + scalar_neighbor(&self.pressure, x, y, z, 0, -1, 0)
-                            + scalar_neighbor(&self.pressure, x, y, z, 0, 0, 1)
-                            + scalar_neighbor(&self.pressure, x, y, z, 0, 0, -1);
-                        self.pressure_next[index(x, y, z)] =
-                            (self.divergence[index(x, y, z)] + sum) / 6.0;
-                    }
-                }
+            for &cell in &tables.fluid_indices {
+                let cell = cell as usize;
+                let neighbours = &tables.neighbours[cell];
+                let own = self.pressure[cell];
+                let sum = neighbour_or(&self.pressure, neighbours, 0, own)
+                    + neighbour_or(&self.pressure, neighbours, 1, own)
+                    + neighbour_or(&self.pressure, neighbours, 2, own)
+                    + neighbour_or(&self.pressure, neighbours, 3, own)
+                    + neighbour_or(&self.pressure, neighbours, 4, own)
+                    + neighbour_or(&self.pressure, neighbours, 5, own);
+                self.pressure_next[cell] = (self.divergence[cell] + sum) / 6.0;
             }
             std::mem::swap(&mut self.pressure, &mut self.pressure_next);
         }
-        for z in 0..DEPTH {
-            for y in 0..HEIGHT {
-                for x in 0..WIDTH {
-                    if !fluid_cell(x, y, z) {
-                        continue;
-                    }
-                    let gradient = Vec3::new(
-                        scalar_neighbor(&self.pressure, x, y, z, 1, 0, 0)
-                            - scalar_neighbor(&self.pressure, x, y, z, -1, 0, 0),
-                        scalar_neighbor(&self.pressure, x, y, z, 0, 1, 0)
-                            - scalar_neighbor(&self.pressure, x, y, z, 0, -1, 0),
-                        scalar_neighbor(&self.pressure, x, y, z, 0, 0, 1)
-                            - scalar_neighbor(&self.pressure, x, y, z, 0, 0, -1),
-                    ) * 0.5;
-                    self.velocity[index(x, y, z)] -= gradient;
-                }
-            }
+        for &cell in &tables.fluid_indices {
+            let cell = cell as usize;
+            let neighbours = &tables.neighbours[cell];
+            let own = self.pressure[cell];
+            let gradient = Vec3::new(
+                neighbour_or(&self.pressure, neighbours, 0, own)
+                    - neighbour_or(&self.pressure, neighbours, 1, own),
+                neighbour_or(&self.pressure, neighbours, 2, own)
+                    - neighbour_or(&self.pressure, neighbours, 3, own),
+                neighbour_or(&self.pressure, neighbours, 4, own)
+                    - neighbour_or(&self.pressure, neighbours, 5, own),
+            ) * 0.5;
+            self.velocity[cell] -= gradient;
         }
         apply_velocity_boundary(&mut self.velocity);
     }
 
     fn dissipate(&mut self, dt: f32, controls: GasFlowControls) {
+        let tables = grid_tables();
         let density_decay = 1.0 / (1.0 + dt * (0.045 + (1.0 - controls.retention) * 0.48));
         let temperature_decay = 1.0 / (1.0 + dt * 0.38);
-        for z in 0..DEPTH {
-            for y in 0..HEIGHT {
-                for x in 0..WIDTH {
-                    let index = index(x, y, z);
-                    if !fluid_cell(x, y, z) {
-                        self.density[index] = 0.0;
-                        self.temperature[index] = 0.0;
-                        continue;
-                    }
-                    let position = GasFluidVolume::grid_position(x, y, z);
-                    let escaped = smoother_step(
-                        ((position.y - RIM_HEIGHT) / (1.0 - RIM_HEIGHT)).clamp(0.0, 1.0),
-                    );
-                    let escape_decay =
-                        1.0 / (1.0 + dt * escaped * (1.0 - controls.retention) * 2.8);
-                    self.density[index] *= density_decay * escape_decay;
-                    self.temperature[index] *= temperature_decay;
-                }
+        for index in 0..CELL_COUNT {
+            if !tables.fluid[index] {
+                self.density[index] = 0.0;
+                self.temperature[index] = 0.0;
+                continue;
             }
+            let escaped = smoother_step(
+                ((tables.positions[index].y - RIM_HEIGHT) / (1.0 - RIM_HEIGHT)).clamp(0.0, 1.0),
+            );
+            let escape_decay = 1.0 / (1.0 + dt * escaped * (1.0 - controls.retention) * 2.8);
+            self.density[index] *= density_decay * escape_decay;
+            self.temperature[index] *= temperature_decay;
         }
     }
 }
 
 fn advect_scalar(source: &[f32], velocity: &[Vec3], target: &mut [f32], dt: f32) {
-    for z in 0..DEPTH {
-        for y in 0..HEIGHT {
-            for x in 0..WIDTH {
-                let index = index(x, y, z);
-                let position = GasFluidVolume::grid_position(x, y, z);
-                if !inside_simulation_domain(position) {
-                    target[index] = 0.0;
-                    continue;
-                }
-                let previous = constrain_backtrace(position - velocity[index] * dt);
-                target[index] = sample_scalar(source, previous);
-            }
+    let tables = grid_tables();
+    for index in 0..CELL_COUNT {
+        if !tables.fluid[index] {
+            target[index] = 0.0;
+            continue;
         }
+        let previous = constrain_backtrace(tables.positions[index] - velocity[index] * dt);
+        target[index] = sample_scalar(source, previous);
     }
 }
 
 fn advect_vec3(source: &[Vec3], velocity: &[Vec3], target: &mut [Vec3], dt: f32) {
-    for z in 0..DEPTH {
-        for y in 0..HEIGHT {
-            for x in 0..WIDTH {
-                let index = index(x, y, z);
-                let position = GasFluidVolume::grid_position(x, y, z);
-                if !inside_simulation_domain(position) {
-                    target[index] = Vec3::ZERO;
-                    continue;
-                }
-                let previous = constrain_backtrace(position - velocity[index] * dt);
-                target[index] = sample_vec3(source, previous);
-            }
+    let tables = grid_tables();
+    for index in 0..CELL_COUNT {
+        if !tables.fluid[index] {
+            target[index] = Vec3::ZERO;
+            continue;
         }
+        let previous = constrain_backtrace(tables.positions[index] - velocity[index] * dt);
+        target[index] = sample_vec3(source, previous);
     }
 }
 
 fn diffuse_scalar(source: &[f32], target: &mut [f32], dt: f32, rate: f32) {
+    let tables = grid_tables();
     let response = 1.0 - (-rate.max(0.0) * dt).exp();
-    for z in 0..DEPTH {
-        for y in 0..HEIGHT {
-            for x in 0..WIDTH {
-                let cell = index(x, y, z);
-                if !fluid_cell(x, y, z) {
-                    target[cell] = 0.0;
-                    continue;
-                }
-                let neighbour_average = (scalar_neighbor(source, x, y, z, 1, 0, 0)
-                    + scalar_neighbor(source, x, y, z, -1, 0, 0)
-                    + scalar_neighbor(source, x, y, z, 0, 1, 0)
-                    + scalar_neighbor(source, x, y, z, 0, -1, 0)
-                    + scalar_neighbor(source, x, y, z, 0, 0, 1)
-                    + scalar_neighbor(source, x, y, z, 0, 0, -1))
-                    / 6.0;
-                target[cell] = source[cell] + (neighbour_average - source[cell]) * response;
-            }
+    for cell in 0..CELL_COUNT {
+        if !tables.fluid[cell] {
+            target[cell] = 0.0;
+            continue;
         }
+        let neighbours = &tables.neighbours[cell];
+        let own = source[cell];
+        let neighbour_average = (neighbour_or(source, neighbours, 0, own)
+            + neighbour_or(source, neighbours, 1, own)
+            + neighbour_or(source, neighbours, 2, own)
+            + neighbour_or(source, neighbours, 3, own)
+            + neighbour_or(source, neighbours, 4, own)
+            + neighbour_or(source, neighbours, 5, own))
+            / 6.0;
+        target[cell] = own + (neighbour_average - own) * response;
     }
 }
 
@@ -748,30 +819,22 @@ where
 }
 
 fn apply_velocity_boundary(velocity: &mut [Vec3]) {
-    for z in 0..DEPTH {
-        for y in 0..HEIGHT {
-            for x in 0..WIDTH {
-                let index = index(x, y, z);
-                if !fluid_cell(x, y, z) {
-                    velocity[index] = Vec3::ZERO;
-                    continue;
-                }
-                if !offset_fluid_cell(x, y, z, -1, 0, 0) && velocity[index].x < 0.0
-                    || !offset_fluid_cell(x, y, z, 1, 0, 0) && velocity[index].x > 0.0
-                {
-                    velocity[index].x = 0.0;
-                }
-                if !offset_fluid_cell(x, y, z, 0, -1, 0) && velocity[index].y < 0.0
-                    || !offset_fluid_cell(x, y, z, 0, 1, 0) && velocity[index].y > 0.0
-                {
-                    velocity[index].y = 0.0;
-                }
-                if !offset_fluid_cell(x, y, z, 0, 0, -1) && velocity[index].z < 0.0
-                    || !offset_fluid_cell(x, y, z, 0, 0, 1) && velocity[index].z > 0.0
-                {
-                    velocity[index].z = 0.0;
-                }
-            }
+    let tables = grid_tables();
+    for (cell, value) in velocity.iter_mut().enumerate() {
+        if !tables.fluid[cell] {
+            *value = Vec3::ZERO;
+            continue;
+        }
+        let neighbours = &tables.neighbours[cell];
+        let blocked = |slot: usize| neighbours[slot] == NO_NEIGHBOUR;
+        if blocked(1) && value.x < 0.0 || blocked(0) && value.x > 0.0 {
+            value.x = 0.0;
+        }
+        if blocked(3) && value.y < 0.0 || blocked(2) && value.y > 0.0 {
+            value.y = 0.0;
+        }
+        if blocked(5) && value.z < 0.0 || blocked(4) && value.z > 0.0 {
+            value.z = 0.0;
         }
     }
 }
@@ -814,82 +877,105 @@ fn wall_proximity(position: Vec3) -> f32 {
     (distance / 0.28).clamp(0.0, 1.0)
 }
 
-fn fluid_cell(x: usize, y: usize, z: usize) -> bool {
-    inside_simulation_domain(GasFluidVolume::grid_position(x, y, z))
+/// Immutable per-cell geometry shared by every pass: cell centre, domain
+/// membership, and wall proximity are functions of the fixed grid alone, so
+/// they are computed once instead of per cell per pass per step.
+struct GridTables {
+    positions: Box<[Vec3]>,
+    fluid: Box<[bool]>,
+    wall: Box<[f32]>,
+    /// Fluid-neighbour cell index per axis slot (+x, -x, +y, -y, +z, -z);
+    /// [`NO_NEIGHBOUR`] marks a wall or out-of-domain side.
+    neighbours: Box<[[u32; 6]]>,
+    /// Indices of fluid cells, for passes that skip solid cells entirely.
+    fluid_indices: Box<[u32]>,
 }
 
-fn offset_fluid_cell(x: usize, y: usize, z: usize, dx: isize, dy: isize, dz: isize) -> bool {
-    let Some(x) = x.checked_add_signed(dx) else {
-        return false;
-    };
-    let Some(y) = y.checked_add_signed(dy) else {
-        return false;
-    };
-    let Some(z) = z.checked_add_signed(dz) else {
-        return false;
-    };
-    x < WIDTH && y < HEIGHT && z < DEPTH && fluid_cell(x, y, z)
+const NO_NEIGHBOUR: u32 = u32::MAX;
+
+fn grid_tables() -> &'static GridTables {
+    static TABLES: OnceLock<GridTables> = OnceLock::new();
+    TABLES.get_or_init(|| {
+        let mut positions = vec![Vec3::ZERO; CELL_COUNT];
+        let mut fluid = vec![false; CELL_COUNT];
+        let mut wall = vec![0.0; CELL_COUNT];
+        for z in 0..DEPTH {
+            for y in 0..HEIGHT {
+                for x in 0..WIDTH {
+                    let cell = index(x, y, z);
+                    let position = GasFluidVolume::grid_position(x, y, z);
+                    positions[cell] = position;
+                    fluid[cell] = inside_simulation_domain(position);
+                    wall[cell] = wall_proximity(position);
+                }
+            }
+        }
+        let mut neighbours = vec![[NO_NEIGHBOUR; 6]; CELL_COUNT];
+        let mut fluid_indices = Vec::new();
+        let offsets: [(isize, isize, isize); 6] = [
+            (1, 0, 0),
+            (-1, 0, 0),
+            (0, 1, 0),
+            (0, -1, 0),
+            (0, 0, 1),
+            (0, 0, -1),
+        ];
+        for z in 0..DEPTH {
+            for y in 0..HEIGHT {
+                for x in 0..WIDTH {
+                    let cell = index(x, y, z);
+                    if fluid[cell] {
+                        fluid_indices.push(u32::try_from(cell).expect("cell count fits u32"));
+                    }
+                    for (slot, (dx, dy, dz)) in offsets.into_iter().enumerate() {
+                        let (Some(nx), Some(ny), Some(nz)) = (
+                            x.checked_add_signed(dx),
+                            y.checked_add_signed(dy),
+                            z.checked_add_signed(dz),
+                        ) else {
+                            continue;
+                        };
+                        if nx < WIDTH && ny < HEIGHT && nz < DEPTH && fluid[index(nx, ny, nz)] {
+                            neighbours[cell][slot] =
+                                u32::try_from(index(nx, ny, nz)).expect("cell count fits u32");
+                        }
+                    }
+                }
+            }
+        }
+        GridTables {
+            positions: positions.into_boxed_slice(),
+            fluid: fluid.into_boxed_slice(),
+            wall: wall.into_boxed_slice(),
+            neighbours: neighbours.into_boxed_slice(),
+            fluid_indices: fluid_indices.into_boxed_slice(),
+        }
+    })
 }
 
-fn velocity_neighbor(
-    field: &[Vec3],
-    x: usize,
-    y: usize,
-    z: usize,
-    dx: isize,
-    dy: isize,
-    dz: isize,
-) -> Vec3 {
-    if offset_fluid_cell(x, y, z, dx, dy, dz) {
-        field[index(
-            x.checked_add_signed(dx).unwrap_or(x),
-            y.checked_add_signed(dy).unwrap_or(y),
-            z.checked_add_signed(dz).unwrap_or(z),
-        )]
+#[inline]
+fn neighbour_or(field: &[f32], neighbours: &[u32; 6], slot: usize, fallback: f32) -> f32 {
+    let neighbour = neighbours[slot];
+    if neighbour == NO_NEIGHBOUR {
+        fallback
     } else {
+        field[neighbour as usize]
+    }
+}
+
+#[inline]
+fn neighbour_or_zero(field: &[Vec3], neighbours: &[u32; 6], slot: usize) -> Vec3 {
+    let neighbour = neighbours[slot];
+    if neighbour == NO_NEIGHBOUR {
         Vec3::ZERO
+    } else {
+        field[neighbour as usize]
     }
 }
 
-fn scalar_neighbor(
-    field: &[f32],
-    x: usize,
-    y: usize,
-    z: usize,
-    dx: isize,
-    dy: isize,
-    dz: isize,
-) -> f32 {
-    if offset_fluid_cell(x, y, z, dx, dy, dz) {
-        field[index(
-            x.checked_add_signed(dx).unwrap_or(x),
-            y.checked_add_signed(dy).unwrap_or(y),
-            z.checked_add_signed(dz).unwrap_or(z),
-        )]
-    } else {
-        field[index(x, y, z)]
-    }
-}
-
-fn curl_magnitude_neighbor(
-    field: &[Vec3],
-    x: usize,
-    y: usize,
-    z: usize,
-    dx: isize,
-    dy: isize,
-    dz: isize,
-) -> f32 {
-    if offset_fluid_cell(x, y, z, dx, dy, dz) {
-        field[index(
-            x.checked_add_signed(dx).unwrap_or(x),
-            y.checked_add_signed(dy).unwrap_or(y),
-            z.checked_add_signed(dz).unwrap_or(z),
-        )]
-        .length()
-    } else {
-        field[index(x, y, z)].length()
-    }
+#[cfg(test)]
+fn fluid_cell(x: usize, y: usize, z: usize) -> bool {
+    grid_tables().fluid[index(x, y, z)]
 }
 
 fn grid_coordinate(position: Vec3) -> Vec3 {
@@ -987,13 +1073,47 @@ fn smoother_step(value: f32) -> f32 {
 #[cfg(test)]
 mod tests {
     use super::{
-        CELL_COUNT, GasFlowControls, GasFluidVolume, HEIGHT, RIM_HEIGHT, WIDTH, diffuse_scalar,
-        fluid_cell, index, inside_simulation_domain,
+        CELL_COUNT, FIXED_DT, GasFlowControls, GasFluidVolume, HEIGHT, RIM_HEIGHT, Solver, WIDTH,
+        diffuse_scalar, fluid_cell, index, inside_simulation_domain,
     };
     use glam::Vec3;
 
     fn controls(seed: u64) -> GasFlowControls {
         GasFlowControls::contained(0.82, 0.58, 0.16, 0.18, seed)
+    }
+
+    #[test]
+    #[ignore = "manual perf probe: cargo test -p chemspec-app -- --ignored --nocapture bench_full"]
+    fn bench_full_simulation() {
+        let runs: u64 = 8;
+        let start = std::time::Instant::now();
+        for seed in 0..runs {
+            let _ = GasFluidVolume::simulate(910_000 + seed, 7.0, controls(seed));
+        }
+        eprintln!(
+            "gas sim, full 7s horizon, fresh key: avg {:?}",
+            start.elapsed() / u32::try_from(runs).expect("small run count")
+        );
+    }
+
+    #[test]
+    fn checkpoint_resume_is_byte_identical_to_an_uninterrupted_run() {
+        let seed = 9_137;
+        let quantized = controls(seed).quantized();
+        // The shorter run stores checkpoints; the longer run resumes from
+        // the nearest one instead of re-simulating from zero.
+        let _ = GasFluidVolume::simulate(seed, 4.0, quantized);
+        let resumed = GasFluidVolume::simulate(seed, 6.5, quantized);
+        let steps = (6.5_f32 / FIXED_DT).round() as usize;
+        let mut uninterrupted = Solver::new(seed, quantized);
+        for step in 0..steps {
+            uninterrupted.step(FIXED_DT, step as f32 * FIXED_DT, seed, quantized);
+        }
+        assert_eq!(
+            bytemuck::cast_slice::<f32, u8>(resumed.density.as_ref()),
+            bytemuck::cast_slice::<f32, u8>(uninterrupted.density.as_slice())
+        );
+        assert_eq!(resumed.velocity.as_ref(), uninterrupted.velocity.as_slice());
     }
 
     #[test]

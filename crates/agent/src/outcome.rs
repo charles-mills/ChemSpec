@@ -1,12 +1,14 @@
 use std::{collections::BTreeMap, str::FromStr};
 
-use chem_catalogue::ValidatedCatalogueBundle;
+use chem_catalogue::{
+    ExplosiveWaterContactVariantRecord, ValidatedCatalogueBundle, WaterContactBehaviourRecord,
+};
 use chem_domain::{
     BronstedAcidProfile, Charge, ContentDigest, ElementInventory, ElementSymbol,
     ExternalIdentifier, FormulaComposition, Phase, ReactionDeclaration, ReactionTerm,
     RepresentationKind, ResolvedSpecies, SpeciesAmbiguity, SpeciesId, SpeciesQuery,
     SpeciesRegistry, SpeciesResolution, StructureDefinition, StructureId, UnbalancedReactionTerm,
-    classify_bronsted_acid, generate_structure, reaction_term, symbol_of,
+    classify_bronsted_acid, generate_structure, symbol_of,
 };
 use num_bigint::BigUint;
 
@@ -18,7 +20,7 @@ use crate::{
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
 #[serde(rename_all = "snake_case")]
-pub enum TrustTier {
+pub enum OutcomeProvenance {
     Reviewed,
     Derived,
     ModelAsserted,
@@ -40,6 +42,9 @@ pub enum MacroscopicProcess {
     /// A solid metal transfers into an aqueous ionic product while the
     /// solution's original metal cation becomes a different solid metal.
     MetalDisplacement,
+    /// A reviewed exact-material water-contact capability with an exact
+    /// solid-metal/liquid-water/aqueous-ion/gas layout.
+    ExplosiveMetalWater(ExplosiveWaterContactVariantRecord),
     /// Exactly two validated solid reactants combine into one validated solid
     /// product after more-specific macroscopic processes have been excluded.
     SolidSolidSynthesis,
@@ -174,7 +179,7 @@ pub struct ValidatedStaticOutcome {
     products: Vec<OutcomeSpecies>,
     macroscopic_phases: Box<MacroscopicPhases>,
     claim: ReactionClaim,
-    trust_tier: TrustTier,
+    claim_provenance: OutcomeProvenance,
     equation: String,
     macroscopic_process: Option<MacroscopicProcess>,
 }
@@ -207,8 +212,8 @@ impl ValidatedStaticOutcome {
     }
 
     #[must_use]
-    pub const fn trust_tier(&self) -> TrustTier {
-        self.trust_tier
+    pub const fn claim_provenance(&self) -> OutcomeProvenance {
+        self.claim_provenance
     }
 
     /// Recovers the cacheable provider capability only when this outcome
@@ -321,7 +326,8 @@ impl ValidatedStaticOutcome {
                 MacroscopicProcess::CompleteCombustion
                 | MacroscopicProcess::IncompleteCombustion
                 | MacroscopicProcess::SolventEvaporationCrystallization
-                | MacroscopicProcess::SurfaceOxidation,
+                | MacroscopicProcess::SurfaceOxidation
+                | MacroscopicProcess::ExplosiveMetalWater(_),
             )
             | None => resolved_phase,
         }
@@ -432,19 +438,25 @@ impl ValidatedStaticOutcome {
         }
         self.reactants = reactants;
         self.products = products;
-        self.macroscopic_process = classify_macroscopic_process(
+        let reclassified = classify_macroscopic_process(
             &self.declaration,
             &self.reactants,
             &self.products,
             &self.macroscopic_phases.reactants,
             &self.macroscopic_phases.products,
             &self.claim,
+            None,
         );
+        // Structural adoption preserves side, exact identity, and order above.
+        // It has no catalogue handle, so retain an already catalogue-authorized
+        // process capability rather than silently downgrading it to a
+        // name/formula-derived fallback.
+        self.macroscopic_process = reclassified.or(self.macroscopic_process);
         Ok(self)
     }
 
     pub(crate) fn mark_reviewed(mut self) -> Self {
-        self.trust_tier = TrustTier::Reviewed;
+        self.claim_provenance = OutcomeProvenance::Reviewed;
         self
     }
 }
@@ -522,6 +534,11 @@ fn compile_claim_outcome_inner(
     validate_selected_context_binding(request, &claim)?;
     let local_aqueous_electrolysis =
         request.selected_context.as_deref() == Some("electricity") && solver_authored;
+    let local_net_water_electrolysis = local_aqueous_electrolysis
+        && matches!(
+            claim.products.as_slice(),
+            [hydrogen, oxygen] if hydrogen.formula == "H2" && oxygen.formula == "O2"
+        );
     match claim.disposition {
         ClaimDisposition::NoReaction => return Ok(CompiledClaimOutcome::NoReaction(claim)),
         ClaimDisposition::Ambiguous => return Ok(CompiledClaimOutcome::Ambiguous(claim)),
@@ -613,57 +630,15 @@ fn compile_claim_outcome_inner(
                 .map(|species| OutcomeSpecies::Resolved(Box::new(species.clone())))
                 .or_else(|| generated_product(&water_claim, "H2O", Phase::Liquid))
                 .ok_or(original)?;
-            reactants.push(water);
-            match balance(&reactants) {
-                Ok(declaration) => declaration,
-                Err(_error)
-                    if products.len() == 3
-                        && claim.products[1].formula == "H2"
-                        && claim.products[2].formula == "O2"
-                        && outcome_term(&reactants[0])?.formula
-                            == outcome_term(&products[0])?.formula =>
-                {
-                    let reactant_terms = reactants
-                        .iter()
-                        .zip([1, 2])
-                        .map(|(species, coefficient)| {
-                            reaction_term(outcome_term(species)?, coefficient).map_err(|error| {
-                                AgentError::from_source(
-                                    AgentErrorKind::CompilationFailure,
-                                    "outcome balance",
-                                    error,
-                                )
-                            })
-                        })
-                        .collect::<Result<Vec<_>, AgentError>>()?;
-                    let product_terms = products
-                        .iter()
-                        .zip([1, 2, 1])
-                        .map(|(species, coefficient)| {
-                            reaction_term(outcome_term(species)?, coefficient).map_err(|error| {
-                                AgentError::from_source(
-                                    AgentErrorKind::CompilationFailure,
-                                    "outcome balance",
-                                    error,
-                                )
-                            })
-                        })
-                        .collect::<Result<Vec<_>, AgentError>>()?;
-                    ReactionDeclaration::from_balanced(
-                        reactant_terms,
-                        product_terms,
-                        claim.required_context.clone(),
-                    )
-                    .map_err(|error| {
-                        AgentError::from_source(
-                            AgentErrorKind::CompilationFailure,
-                            "outcome balance",
-                            error,
-                        )
-                    })?
-                }
-                Err(error) => return Err(error),
+            if local_net_water_electrolysis {
+                // An active-metal oxoanion electrolyte is unchanged overall.
+                // Keep it as request context and validate the net chemical
+                // change instead of inventing duplicate reactant/product terms.
+                reactants = vec![water];
+            } else {
+                reactants.push(water);
             }
+            balance(&reactants)?
         }
         Err(error) => return Err(error),
     };
@@ -700,10 +675,10 @@ fn compile_claim_outcome_inner(
                 .insert(species.id().clone(), phase);
         }
     }
-    let trust_tier = if solver_authored {
-        TrustTier::Derived
+    let claim_provenance = if solver_authored {
+        OutcomeProvenance::Derived
     } else {
-        TrustTier::ModelAsserted
+        OutcomeProvenance::ModelAsserted
     };
     let equation = format_equation(&declaration);
     let macroscopic_process = classify_macroscopic_process(
@@ -713,6 +688,7 @@ fn compile_claim_outcome_inner(
         &macroscopic_phases.reactants,
         &macroscopic_phases.products,
         &claim,
+        catalogue,
     );
     Ok(CompiledClaimOutcome::Static(ValidatedStaticOutcome {
         declaration,
@@ -720,7 +696,7 @@ fn compile_claim_outcome_inner(
         products,
         macroscopic_phases: Box::new(macroscopic_phases),
         claim,
-        trust_tier,
+        claim_provenance,
         equation,
         macroscopic_process,
     }))
@@ -733,6 +709,7 @@ fn classify_macroscopic_process(
     reactant_macroscopic_phases: &BTreeMap<SpeciesId, Phase>,
     product_macroscopic_phases: &BTreeMap<SpeciesId, Phase>,
     claim: &ReactionClaim,
+    catalogue: Option<&ValidatedCatalogueBundle>,
 ) -> Option<MacroscopicProcess> {
     if let Some(process) = classifies_combustion(declaration, reactants, claim) {
         return Some(process);
@@ -742,6 +719,9 @@ fn classify_macroscopic_process(
     };
     if classifies_surface_oxidation(first, second, reactants, products, claim) {
         return Some(MacroscopicProcess::SurfaceOxidation);
+    }
+    if let Some(variant) = classifies_explosive_metal_water(reactants, products, catalogue) {
+        return Some(MacroscopicProcess::ExplosiveMetalWater(variant));
     }
     if let Some(process) = classifies_gas_evolution(reactants, reactant_macroscopic_phases, claim) {
         return Some(process);
@@ -862,6 +842,63 @@ fn classifies_combustion(
 
 fn is_dihydrogen(term: &ReactionTerm) -> bool {
     has_counts(term.formula(), &[("H", 2)])
+}
+
+fn classifies_explosive_metal_water(
+    reactants: &[OutcomeSpecies],
+    products: &[OutcomeSpecies],
+    catalogue: Option<&ValidatedCatalogueBundle>,
+) -> Option<ExplosiveWaterContactVariantRecord> {
+    let catalogue = catalogue?;
+    let [first, second] = reactants else {
+        return None;
+    };
+    let material = |species: &OutcomeSpecies| {
+        let OutcomeSpecies::Resolved(species) = species else {
+            return None;
+        };
+        let structure = species.structure.as_ref()?;
+        catalogue.macroscopic_material(structure.id(), None)
+    };
+    let reactant_layout = |metal: &OutcomeSpecies, water: &OutcomeSpecies| {
+        let metal_structure = match metal {
+            OutcomeSpecies::Resolved(species) => species.structure.as_ref(),
+            OutcomeSpecies::FormulaOnly { .. } => None,
+        }?;
+        let water_structure = match water {
+            OutcomeSpecies::Resolved(species) => species.structure.as_ref(),
+            OutcomeSpecies::FormulaOnly { .. } => None,
+        }?;
+        let Some(WaterContactBehaviourRecord::Explosive { variant }) =
+            material(metal)?.water_contact
+        else {
+            return None;
+        };
+        (metal_structure.representation() == RepresentationKind::Metallic
+            && material(metal)?.phase == Phase::Solid
+            && water_structure.representation() == RepresentationKind::Molecular
+            && inventory_has_counts(water_structure.formula(), &[("H", 2), ("O", 1)])
+            && material(water)?.phase == Phase::Liquid)
+            .then_some(variant)
+    };
+    let variant = reactant_layout(first, second).or_else(|| reactant_layout(second, first))?;
+    let [first, second] = products else {
+        return None;
+    };
+    let product_layout = |hydroxide: &OutcomeSpecies, hydrogen: &OutcomeSpecies| {
+        let OutcomeSpecies::Resolved(hydrogen_species) = hydrogen else {
+            return false;
+        };
+        let Some(hydrogen_structure) = hydrogen_species.structure.as_ref() else {
+            return false;
+        };
+        hydroxide.representation() == Some(RepresentationKind::Ionic)
+            && material(hydroxide).is_some_and(|record| record.phase == Phase::Aqueous)
+            && hydrogen_structure.representation() == RepresentationKind::Molecular
+            && inventory_has_counts(hydrogen_structure.formula(), &[("H", 2)])
+            && material(hydrogen).is_some_and(|record| record.phase == Phase::Gas)
+    };
+    (product_layout(first, second) || product_layout(second, first)).then_some(variant)
 }
 
 fn classifies_solid_solid_synthesis(
@@ -1071,16 +1108,20 @@ fn gas_evolution_reactant_phase(species: &OutcomeSpecies) -> Option<Phase> {
     }
 }
 
+/// The process-specific interpretation (e.g. an ionic salt reads as its
+/// dissolved aqueous phase during gas evolution) stays authoritative; the
+/// resolved standard-state map only fills the gaps it leaves.
 fn effective_reactant_phase(
     species: &OutcomeSpecies,
     phases: &BTreeMap<SpeciesId, Phase>,
-    fallback: impl FnOnce(&OutcomeSpecies) -> Option<Phase>,
+    interpretation: impl FnOnce(&OutcomeSpecies) -> Option<Phase>,
 ) -> Option<Phase> {
-    phases
-        .get(species.id())
-        .copied()
-        .filter(|phase| *phase != Phase::Unknown)
-        .or_else(|| fallback(species))
+    interpretation(species).or_else(|| {
+        phases
+            .get(species.id())
+            .copied()
+            .filter(|phase| *phase != Phase::Unknown)
+    })
 }
 
 fn effective_product_phase(
@@ -1354,6 +1395,17 @@ fn has_counts(formula: &FormulaComposition, expected: &[(&str, u64)]) -> bool {
     formula.elements().len() == expected.len()
         && expected.iter().all(|(symbol, count)| {
             formula
+                .elements()
+                .iter()
+                .find(|(element, _)| element.as_str() == *symbol)
+                .is_some_and(|(_, actual)| actual == count)
+        })
+}
+
+fn inventory_has_counts(inventory: &ElementInventory, expected: &[(&str, u64)]) -> bool {
+    inventory.elements().len() == expected.len()
+        && expected.iter().all(|(symbol, count)| {
+            inventory
                 .elements()
                 .iter()
                 .find(|(element, _)| element.as_str() == *symbol)
@@ -1719,7 +1771,7 @@ fn generated_reactant(input: &crate::ReactantInput) -> Option<OutcomeSpecies> {
         *counts.entry(symbol).or_insert(0_u64) += 1;
     }
     let inventory = ElementInventory::new(counts).ok()?;
-    // The display is only trusted as a formula when it actually describes
+    // The display is only reference as a formula when it actually describes
     // the composed atoms: names ("ammonium cyanate") fail to parse, and a
     // SMILES display like "CCO" parses to the WRONG composition (C2O), so
     // both fall back to the inventory's own formula text.
@@ -1990,7 +2042,7 @@ mod tests {
 
     use crate::{
         ClaimMode, ReactantInput, reviewed_species_registry, solve_reaction_claim,
-        test_support::trusted_catalogue as trusted,
+        test_support::reference_catalogue as reference,
     };
 
     fn registry() -> SpeciesRegistry {
@@ -2030,7 +2082,7 @@ mod tests {
 
     #[test]
     fn catalogue_standard_phases_reach_future_dynamic_classification() {
-        let catalogue = trusted();
+        let catalogue = reference();
         let identities = reviewed_species_registry(&catalogue).expect("identities");
         let request = ReactionBuildRequest {
             reactants: vec![
@@ -2238,7 +2290,7 @@ mod tests {
             panic!("expected static outcome")
         };
         assert_eq!(outcome.equation(), "2 Li + 2 H2O → H2 + 2 LiOH");
-        assert_eq!(outcome.trust_tier(), TrustTier::ModelAsserted);
+        assert_eq!(outcome.claim_provenance(), OutcomeProvenance::ModelAsserted);
         assert_eq!(
             outcome.claim().provenance(),
             crate::ClaimProvenance::Provider
@@ -2258,7 +2310,7 @@ mod tests {
         let evidence =
             std::fs::read(root.join("conformance/observations/alkali-water-li-001.evidence.json"))
                 .expect("evidence");
-        let parsed = chem_kernel::expand_review_candidate(
+        let parsed = chem_kernel::expand_provisional(
             "alkali-water-li-001.chems",
             &source,
             &catalogue,
@@ -2315,7 +2367,7 @@ mod tests {
 
     #[test]
     fn neutralisation_process_and_aqueous_colour_are_structure_derived() {
-        let catalogue = trusted();
+        let catalogue = reference();
         let identities = reviewed_species_registry(&catalogue).expect("identities");
         let compile = |reactants: [(&str, Vec<u8>); 2]| {
             let request = ReactionBuildRequest {
@@ -2369,6 +2421,92 @@ mod tests {
     }
 
     #[test]
+    fn catalogue_authorizes_every_heavy_alkali_water_layout_before_presentation() {
+        let catalogue = reference();
+        let identities = reviewed_species_registry(&catalogue).expect("identities");
+        for (display, atomic_number, symbol, variant) in [
+            (
+                "RubidiumMetal",
+                37,
+                "Rb",
+                ExplosiveWaterContactVariantRecord::Rubidium,
+            ),
+            (
+                "CaesiumMetal",
+                55,
+                "Cs",
+                ExplosiveWaterContactVariantRecord::Caesium,
+            ),
+            (
+                "FranciumMetal",
+                87,
+                "Fr",
+                ExplosiveWaterContactVariantRecord::Francium,
+            ),
+        ] {
+            let request = ReactionBuildRequest {
+                reactants: vec![
+                    ReactantInput {
+                        display: display.to_owned(),
+                        atomic_numbers: vec![atomic_number],
+                        species_id: None,
+                    },
+                    ReactantInput {
+                        display: "water".to_owned(),
+                        atomic_numbers: vec![1, 1, 8],
+                        species_id: None,
+                    },
+                ],
+                selected_context: None,
+            };
+            let claim = ProviderClaim::from_json(
+                &serde_json::to_vec(&json!({
+                    "schema_version": 1,
+                    "disposition": "reaction",
+                    "products": [
+                        {"name":"aqueous hydroxide", "formula":format!("{symbol}OH"), "phase":"aqueous", "identity_hints":[]},
+                        {"name":"hydrogen", "formula":"H2", "phase":"gas", "identity_hints":[]}
+                    ],
+                    "required_context":"representative educational outcome",
+                    "observations": [],
+                    "sources": [],
+                    "ambiguity": null
+                }))
+                .expect("claim bytes"),
+                ClaimMode::Fast,
+            )
+            .expect("claim");
+            let CompiledClaimOutcome::Static(outcome) = compile_claim_outcome_with_catalogue(
+                &request,
+                claim.clone(),
+                &identities,
+                &catalogue,
+            )
+            .expect("catalogue-aware outcome") else {
+                panic!("heavy alkali outcome must be static")
+            };
+            assert_eq!(
+                outcome.macroscopic_process(),
+                Some(MacroscopicProcess::ExplosiveMetalWater(variant)),
+                "{display} requires the exact reviewed water-contact variant"
+            );
+
+            let CompiledClaimOutcome::Static(without_catalogue) =
+                compile_claim_outcome(&request, claim, &identities).expect("unreviewed compile")
+            else {
+                panic!("unreviewed outcome must remain static")
+            };
+            assert!(
+                !matches!(
+                    without_catalogue.macroscopic_process(),
+                    Some(MacroscopicProcess::ExplosiveMetalWater(_))
+                ),
+                "the high-energy category needs the catalogue material capability"
+            );
+        }
+    }
+
+    #[test]
     fn formula_only_reactant_compiles_and_enters_structure_escalation() {
         let claim = ProviderClaim::from_json(
             &serde_json::to_vec(&json!({
@@ -2385,7 +2523,7 @@ mod tests {
             ClaimMode::Fast,
         )
         .expect("claim");
-        let catalogue = trusted();
+        let catalogue = reference();
         let identities = reviewed_species_registry(&catalogue).expect("identities");
         let compiled = compile_claim_outcome(
             &ReactionBuildRequest {
@@ -2484,7 +2622,7 @@ mod tests {
 
     #[test]
     fn reviewed_isomorphic_aliases_do_not_create_learner_ambiguity() {
-        let catalogue = trusted();
+        let catalogue = reference();
         let identities = reviewed_species_registry(&catalogue).expect("identities");
         let request = ReactionBuildRequest {
             reactants: [
@@ -2509,7 +2647,7 @@ mod tests {
 
     #[test]
     fn single_reactant_light_context_balances_without_photon_species() {
-        let catalogue = trusted();
+        let catalogue = reference();
         let identities = reviewed_species_registry(&catalogue).expect("identities");
         let mut request = ReactionBuildRequest {
             reactants: vec![ReactantInput {
@@ -2555,8 +2693,68 @@ mod tests {
     }
 
     #[test]
+    fn catalogue_backed_sodium_hydroxide_electrolysis_uses_the_net_water_reaction() {
+        let catalogue = reference();
+        let identities = reviewed_species_registry(&catalogue).expect("identities");
+        let mut request = ReactionBuildRequest {
+            reactants: vec![ReactantInput {
+                display: "NaOH".into(),
+                atomic_numbers: vec![11, 8, 1],
+                species_id: None,
+            }],
+            selected_context: Some("electricity".into()),
+        };
+        let RequestIdentityResolution::Resolved(resolved) =
+            resolve_request_identities_with_catalogue(&request, &identities, &catalogue)
+                .expect("identity resolution")
+        else {
+            panic!("NaOH aliases should collapse")
+        };
+        request.reactants[0].species_id = Some(resolved[0].id().clone());
+
+        let claim = crate::solve_reaction_claim_with_catalogue(&request, &identities, &catalogue)
+            .expect("aqueous NaOH electrolysis should solve locally");
+        assert_eq!(
+            claim
+                .products
+                .iter()
+                .map(|product| product.formula.as_str())
+                .collect::<Vec<_>>(),
+            ["H2", "O2"]
+        );
+        let CompiledClaimOutcome::Static(outcome) =
+            compile_claim_outcome_with_catalogue(&request, claim, &identities, &catalogue)
+                .expect("catalogue-backed NaOH electrolysis should balance")
+        else {
+            panic!("NaOH electrolysis should produce a static outcome")
+        };
+
+        assert_eq!(outcome.declaration().reactants().len(), 1);
+        assert_eq!(outcome.declaration().reactants()[0].formula_text(), "H2O");
+        assert_eq!(outcome.declaration().reactants()[0].coefficient(), 2);
+        assert_eq!(
+            outcome
+                .declaration()
+                .products()
+                .iter()
+                .map(|term| (term.formula_text(), term.coefficient()))
+                .collect::<BTreeMap<_, _>>(),
+            BTreeMap::from([("H2", 2), ("O2", 1)])
+        );
+        assert!(
+            outcome
+                .declaration()
+                .products()
+                .iter()
+                .all(|term| term.formula_text() != "NaOH"),
+            "an unchanged electrolyte must not be listed as its own product"
+        );
+        assert!(outcome.species_without_structure().is_empty());
+    }
+
+    #[test]
     fn single_reactant_claim_cannot_replace_the_selected_energy_context() {
-        let catalogue = trusted();
+        let catalogue = reference();
         let identities = reviewed_species_registry(&catalogue).expect("identities");
         let request = ReactionBuildRequest {
             reactants: vec![ReactantInput {

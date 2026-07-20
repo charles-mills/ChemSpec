@@ -7,3 +7,11 @@ category = "Education"
 out-dir = "../target/agent-smoke"
 binaries-dir = "../target/agent-smoke-bin"
 binaries = [{ path = "chemspec-agent-smoke", main = true }]
+icons = [
+    "../crates/chemspec-app/assets/app-icon/32x32.png",
+    "../crates/chemspec-app/assets/app-icon/64x64.png",
+    "../crates/chemspec-app/assets/app-icon/128x128.png",
+    "../crates/chemspec-app/assets/app-icon/256x256.png",
+    "../crates/chemspec-app/assets/app-icon/512x512.png",
+    "../crates/chemspec-app/assets/app-icon/app-icon.ico",
+]

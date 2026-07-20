@@ -113,20 +113,19 @@ unlock animation until a reviewed structural transformation also exists.
 - **Unsupported** — the request is unsafe, materially ambiguous, or cannot be
   represented or validated by the current language and chemistry engine after
   bounded construction/repair.
-- **Invalid** — source or derived structure contradicts the language or trusted
-  premises.
-- **System error** — trusted data or runtime infrastructure is corrupt.
+- **Invalid** — source or derived structure contradicts the language or its
+  declared premises.
+- **System error** — reference data or runtime infrastructure is corrupt.
 
 Provider failure is a workflow state, never a chemistry state.
 
 ## Simulation claim
 
-Persistent disclosure:
-
-> Representative explanatory model. Structural identities, mapping, graph
-> operations, charge, and electron conservation are validated. Layout, motion,
-> timing, finite metallic fragments, and intermediate positions are
-> illustrative.
+The simulation remains a representative explanatory model. Structural
+identities, mapping, graph operations, charge, and electron conservation are
+validated; layout, motion, timing, finite metallic fragments, and intermediate
+positions are illustrative. The player does not repeat this distinction as an
+overlay on the model.
 
 ## Success criteria
 

@@ -6,20 +6,20 @@ use agent::{
     ReactionBuildRequest, compile_claim_outcome, compile_mechanism_request, derive_mechanism,
     resolve_request_identities_with_catalogue, reviewed_species_registry,
 };
-use chem_catalogue::{CatalogueEnvelope, CatalogueTrustPolicy, TrustedCatalogue};
+use chem_catalogue::{CatalogueEnvelope, ReferenceCatalogue, ReferenceIntegrityPolicy};
 use chem_domain::ContentDigest;
 
-fn trusted() -> TrustedCatalogue {
+fn reference_catalogue() -> ReferenceCatalogue {
     let root = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../..");
     let catalogue =
-        std::fs::read(root.join("catalogue/trusted/core-chemistry/catalogue.json")).unwrap();
+        std::fs::read(root.join("catalogue/reference/core-chemistry/catalogue.json")).unwrap();
     let review = std::fs::read(root.join("catalogue/reviews/core-chemistry.review.json")).unwrap();
     let envelope: CatalogueEnvelope = serde_json::from_slice(&catalogue).unwrap();
     let review_value = serde_json::from_slice(&review).unwrap();
-    TrustedCatalogue::from_canonical_json(
+    ReferenceCatalogue::from_canonical_json(
         &catalogue,
         &review,
-        CatalogueTrustPolicy::new(
+        ReferenceIntegrityPolicy::new(
             envelope.digest,
             ContentDigest::of_json(&review_value).unwrap(),
         ),
@@ -30,8 +30,8 @@ fn trusted() -> TrustedCatalogue {
 #[test]
 #[ignore = "live probe; consumes Codex subscription"]
 fn live_mechanism_probe() {
-    let trusted = trusted();
-    let identities = reviewed_species_registry(&trusted).unwrap();
+    let reference = reference_catalogue();
+    let identities = reviewed_species_registry(&reference).unwrap();
     let claim = serde_json::json!({
         "schema_version": 1,
         "disposition": "reaction",
@@ -61,7 +61,7 @@ fn live_mechanism_probe() {
         selected_context: None,
     };
     if let agent::RequestIdentityResolution::Resolved(resolved) =
-        resolve_request_identities_with_catalogue(&request, &identities, &trusted).unwrap()
+        resolve_request_identities_with_catalogue(&request, &identities, &reference).unwrap()
     {
         for (input, species) in request.reactants.iter_mut().zip(resolved) {
             if let agent::OutcomeSpecies::Resolved(species) = species {
@@ -74,7 +74,7 @@ fn live_mechanism_probe() {
     else {
         panic!("static outcome expected")
     };
-    let context = compile_mechanism_request(&outcome, &trusted)
+    let context = compile_mechanism_request(&outcome, &reference)
         .unwrap()
         .expect("all species structured");
     eprintln!(
@@ -89,7 +89,7 @@ fn live_mechanism_probe() {
                 response.mapping.len(),
                 response.operations.len()
             );
-            match agent::validate_escalated_response(outcome.clone(), &response, &trusted) {
+            match agent::validate_escalated_response(outcome.clone(), &response, &reference) {
                 Ok(animated) => eprintln!("KERNEL OK: {} frames", animated.frames().frames().len()),
                 Err(error) => panic!("KERNEL ERR: {error}"),
             }
@@ -106,8 +106,8 @@ fn live_mechanism_probe() {
 #[test]
 #[ignore = "live probe; consumes Codex subscription"]
 fn live_reactant_structure_escalation_probe() {
-    let trusted = trusted();
-    let identities = reviewed_species_registry(&trusted).unwrap();
+    let reference = reference_catalogue();
+    let identities = reviewed_species_registry(&reference).unwrap();
     let claim = ProviderClaim::from_json(
         &serde_json::to_vec(&serde_json::json!({
             "schema_version": 1,
@@ -145,7 +145,7 @@ fn live_reactant_structure_escalation_probe() {
         panic!("static outcome expected")
     };
     let mut provider = CodexProvider::new(CodexProviderConfig::from_environment());
-    match derive_mechanism(outcome, &trusted, &mut provider) {
+    match derive_mechanism(outcome, &reference, &mut provider) {
         MechanismEscalationOutcome::Animated(animated) => eprintln!(
             "KERNEL OK: reactant structure escalation produced {} frames",
             animated.frames().frames().len()

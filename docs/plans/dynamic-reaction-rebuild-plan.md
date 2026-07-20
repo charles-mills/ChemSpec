@@ -89,9 +89,9 @@ Two independent conclusions must not be conflated:
 
 The kernel cannot prove that claimed products occur in reality. Conversely, a
 web source cannot prove that an authored structural animation conserves atoms
-and electrons. Dynamic results remain internal review candidates even after
+and electrons. Dynamic results remain internal provisionals even after
 both gates pass; only host-pinned reviewed catalogue content has production
-catalogue trust.
+catalogue provenance.
 
 Factual support is a typed ladder, not a boolean:
 
@@ -267,7 +267,7 @@ unknown fields fail closed. Escalation runs without live search at low
 reasoning. Kernel rejection produces a precise operation-level diagnostic and
 at most two targeted repair attempts before the reaction settles to the
 mechanism-unavailable static state. A validated escalated mechanism is cached
-with the claim and marked internally as model-proposed review-candidate
+with the claim and marked internally as model-proposed provisional
 content—reviewable and exportable as a draft `.chems` family candidate, never
 self-promoted into the production catalogue.
 
@@ -411,7 +411,7 @@ still require the cited excerpt to exist in the fetched bytes.
 
 This is stronger than transcribing a plausible URL, but it is not human
 scientific review or proof of semantic entailment. It upgrades the result to
-`EvidenceBacked`, not to production catalogue trust. A reviewed bundled
+`EvidenceBacked`, not to production catalogue provenance. A reviewed bundled
 outcome remains the stronger and faster gate. Conflicting credible evidence is
 an explicit conflict state on the result, never silently averaged.
 
@@ -440,11 +440,11 @@ StaticOutcome
 
 EscalatedMechanismOutcome
   StaticOutcome
-  ValidatedReviewCandidateFrames (model-proposed, kernel-validated)
+  SimulationFrames (model-proposed, kernel-validated, provisional provenance)
 
 ReviewedAnimationOutcome
   StaticOutcome
-  SimulationFrames (host-pinned catalogue provenance)
+  SimulationFrames (reviewed-reference provenance)
 ```
 
 Both animated capabilities expose identical playback and 2D/3D timeline
@@ -838,7 +838,7 @@ Acceptance:
   the model never authors a valence table (the exact failure mode of the
   retired design).
 - Provisional states exist only inside the working bundle under the dynamic
-  provisional premise; they never touch the trusted catalogue and carry the
+  provisional premise; they never touch the reference catalogue and carry the
   `ModelAsserted` framing of everything escalated.
 
 Acceptance:
@@ -847,7 +847,7 @@ Acceptance:
   organic combustion intermediates) validates and animates;
 - an arithmetically impossible state fails closed with a repairable
   diagnostic naming the identity violation;
-- reviewed states still win where they exist, and the trusted catalogue is
+- reviewed states still win where they exist, and the reference catalogue is
   byte-identical before and after any dynamic run; and
 - kernel conservation checks are unchanged.
 

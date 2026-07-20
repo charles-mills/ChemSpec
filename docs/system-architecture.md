@@ -24,7 +24,7 @@ structured reaction request
         -> algorithmic graph-diff mechanism derivation
            -> miss: reviewed-family match or bounded model proposal
   -> chem-kernel validates every animated structural derivation
-  -> ValidatedStructuralReaction or ValidatedReviewCandidateFrames
+  -> kernel-validated StructuralDerivation
   -> paired structural and observation frames
   -> chem-presentation guided and macroscopic plans
   -> Iced Canvas/wgpu presentation
@@ -32,10 +32,10 @@ structured reaction request
 
 The simulation does not parse `.chems`; the agent does not construct validated
 domain values; the renderer does not infer bonds; and the application cannot
-mark a reaction valid. `ValidatedReviewCandidateFrames` are renderer-readable
-because their structural derivation crossed deterministic kernel validation.
-They retain `review_candidate` provenance: projection is not catalogue review,
-host approval, or a trust promotion.
+mark a reaction valid. `SimulationFrames` are renderer-readable because their
+structural derivation crossed deterministic kernel validation. They retain
+their `provisional` or `reviewed_reference` provenance; projection is not
+catalogue review or host approval.
 
 ## Workspace boundaries
 
@@ -106,7 +106,10 @@ trust.
 For one-reactant electricity requests, the solver derives electrode products
 from the validated ionic structure. Outcome compilation introduces water as a
 contextual participant only when the incoming claim exactly matches that local
-derivation; it then crosses the normal exact conservation and structural gates.
+derivation. If the dissolved electrolyte is unchanged overall, it remains
+request context and the declaration contains the net water decomposition rather
+than duplicating the electrolyte on both sides. The result then crosses the
+normal exact conservation and structural gates.
 
 ### `chem-presentation`
 
@@ -264,8 +267,10 @@ Structural entry uses a typed `Inactive -> Settling -> Ready` input state. The
 settling phase advances with structural animation time, preventing queued
 submit/continue keys from mutating the newly entered screen without depending
 on wall-clock scheduling. Pointer playback explicitly arms immediately.
-Smoke-window titles are derived from the live screen at the same navigation
-boundary, not from the launch argument.
+The standard application window title is the static product name `ChemSpec`.
+Dedicated smoke-window titles are derived from the live screen at the same
+navigation boundary, not from the launch argument, so Computer Use can still
+verify the active route.
 
 ## Platform decision
 
@@ -273,3 +278,12 @@ ChemSpec remains a native Rust application using Iced and `wgpu`. Platform code
 is limited to provider discovery, storage, credentials, file dialogs, process
 management, and packaging. Structural meaning remains platform- and
 renderer-independent.
+
+The macOS window retains native decorations and traffic-light controls while
+using Iced's hidden, transparent titlebar and full-size content view. The app
+draws a continuous canvas behind the native controls but never positions
+content from traffic-light coordinates or insets. Instead, each main screen
+uses the design system's ordinary top-spacing rail, and Builder keeps its
+toolbar at the trailing edge. The window's native title metadata remains
+authoritative even though its text is not drawn. Windows, Linux, and Web keep
+their default window presentation.

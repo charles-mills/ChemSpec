@@ -216,7 +216,7 @@
     {
       "id": "Rules.MonoproticAcidHydroxideNeutralization",
       "parameters": {
-        "member": {"kind": "element", "category": "Categories.AlkaliMetal"},
+        "member": {"kind": "element", "category": "Categories.ReviewedAlkaliSalt"},
         "halide": {"kind": "element", "category": "Categories.Halide"}
       },
       "roles": {

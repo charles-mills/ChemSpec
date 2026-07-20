@@ -692,17 +692,12 @@ fn catalogue_formula(
 }
 
 pub(crate) fn inventory_formula(inventory: &chem_domain::ElementInventory) -> String {
-    inventory
-        .elements()
-        .iter()
-        .map(|(symbol, count)| {
-            if *count == 1 {
-                symbol.to_string()
-            } else {
-                format!("{symbol}{count}")
-            }
-        })
-        .collect()
+    chem_domain::conventional_formula(
+        inventory
+            .elements()
+            .iter()
+            .map(|(symbol, count)| (symbol.as_str(), *count)),
+    )
 }
 
 fn display_name(id: &str) -> String {

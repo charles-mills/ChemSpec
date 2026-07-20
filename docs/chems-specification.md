@@ -32,7 +32,7 @@ structural-operation templates, model assumptions, and observation
 compatibility.
 
 The agent may author source using catalogue identities and may produce an
-external evidence packet. It may not create trusted catalogue facts or weaken
+external evidence packet. It may not create reference catalogue facts or weaken
 kernel checks. Source declarations are claims until catalogue resolution,
 expansion, and validation succeed.
 
@@ -403,7 +403,7 @@ the selected reaction rule. Observations do not alter structural graphs,
 applicability, mappings, or operations.
 
 Conflicting or insufficient evidence remains visible. It cannot be converted
-into trusted catalogue fact during a run.
+into reference catalogue fact during a run.
 
 ## Mandatory structural validation
 
@@ -510,8 +510,8 @@ coverage is a corrupt validated artifact and cannot produce frames.
 Observation stages are explanatory synchronization markers. They do not
 encode duration, kinetics, mechanism timing, concentration, perceptual delay,
 or a claim that the corresponding physical observation is instantaneous.
-Runtime evidence keeps its distinct `external_untrusted` trust label even when
-the structural frame artifact was produced through the trusted catalogue and
+Runtime evidence keeps its distinct `external` trust label even when
+the structural frame artifact was produced through the reference catalogue and
 kernel boundary.
 
 ## Lexical structure and normative grammar
@@ -679,13 +679,12 @@ no concrete lithium fallback.
 ## Generalized member frame projection
 
 Frame projection remains private to kernel-validated chemistry. A validated
-review-candidate derivation projects directly to
-`ValidatedReviewCandidateFrames`, an immutable renderer-readable capability
-that retains `trust: review_candidate`. No separate inspection or approval
-event is implied: catalogue authoring serializes this capability for review,
-while the dynamic runtime may present it with its review-candidate disclosure.
-Neither use promotes it to the host-pinned `ValidatedStructuralReaction`
-capability. Tests may use the same projection to compare candidates with
+provisional derivation projects through `generate_frames` to immutable
+`SimulationFrames` that retain `provenance: provisional`. No separate
+inspection or approval event is implied: catalogue authoring may serialize
+these frames for review, while the dynamic runtime may present them with their
+provisional disclosure. Reviewed-reference derivations use the identical
+projection capability. Tests may use it to compare provisional output with
 independently authored frame oracles. Every supported family member must
 preserve its exact element labels, electron states, edges, ionic components,
 product membership, operation sequence, and change sequence. No generic

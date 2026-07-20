@@ -67,7 +67,7 @@ Every catalogue build checks:
 - declared schema compatibility;
 - compatibility with the canonical chemistry fixtures.
 
-Catalogue trust tests additionally require the exact canonical catalogue and
+Catalogue provenance tests additionally require the exact canonical catalogue and
 external review to match independently supplied host pins. The review must
 bind the catalogue digest and exactly the complete premise and evidence-source
 sets. Mismatched pins fail with `CHEMS-C025`; malformed, partial, or
@@ -75,11 +75,11 @@ misbound reviews fail with `CHEMS-C026`. Candidate checking cannot construct
 the trusted capability, and promotion must validate and package the review
 without choosing the runtime host pins.
 
-Dynamic claims cannot construct catalogue trust. Exact static compilation must
+Dynamic claims cannot construct catalogue provenance. Exact static compilation must
 prove stable request identity, formula/charge conservation, deterministic
 smallest-integer coefficients, and checked `ReactionDeclaration` construction.
 Reviewed-family and model-proposed animation recipes must then cross the same
-review-candidate expansion, kernel validation, and frame projection before
+provisional expansion, kernel validation, and frame projection before
 presentation.
 
 ## Agent evaluation
@@ -100,8 +100,9 @@ ordinary workspace tests:
   generation, graph-diff mechanism derivation, kernel validation, and frame
   projection while asserting **zero model calls**;
 - aqueous-electrolysis tests cover halide and oxoanion discharge with active,
-  depositable, and spectator cations, including exact contextual-water balance
-  and complete structural frames;
+  depositable, and spectator cations, including exact contextual-water balance,
+  net-water normalization for unchanged electrolytes, and complete structural
+  frames;
 - provider-path tests with fakes: structured-output failure, bounded repair,
   escalated mechanism validation, and cache-v3 replay.
 
@@ -201,9 +202,10 @@ synchronization, transition-metal suppression of static Lewis/domain dots
 without suppressing typed transfer motion, and explanatory disclosure. The
 display equation comes from the pinned experience profile; renderer-side
 inference is forbidden.
-Non-1:1 ionic layout tests additionally prove that every validated component
-receives an opposite-charge lattice neighbour and remains in the same rendered
-product cluster.
+Non-1:1 ionic layout tests additionally prove that every covalently connected
+charged fragment receives an opposite-charge lattice neighbour and remains in
+the same rendered product cluster, including catalogue components that aggregate
+multiple disconnected same-charge ions.
 Composer tests prove that manual element-entry order cannot change a displayed
 formula: unambiguous structures supply their canonical formula and unresolved
 inventories use deterministic Hill order.
@@ -363,26 +365,24 @@ context, unknown structure/rule/role and premise references to fail with
 `CHEMS-C024`, and duplicate contexts to fail deterministically. Generic
 phase-combination tests cover solid + gas -> gas without bubbles, gas + gas ->
 liquid without precipitate, and aqueous reactants -> solid with settling
-precipitate. The proposed oxygen, water, carbon, and carbon-dioxide
+precipitate. The proposed hydrogen, oxygen, water, carbon, and carbon-dioxide
 standard-phase records remain untrusted until a separate exact-digest review is
-promoted. The phase-synthesis regression exercises the promoted exact
-structure bindings through the production request, catalogue, classifier, and
-presentation selector for H2/I2, H2/S8, H2/Cl2, and N2/H2. Dynamic-claim
-coverage proves that catalogue-resolved reactant phases reach the
-chemistry-owned process classifier; missing records remain `Unknown`. The
-compiler input contains bindings and phases but no reaction name.
+promoted. Live-profile tests therefore require those catalogue phases to remain
+`Unknown`; typed compiler and renderer fixtures cover the intended phase
+combinations without conferring catalogue provenance. The compiler input contains
+bindings and phases but no reaction name.
 
-Exposed surface-oxidation tests require validated dynamic outcomes with exact
-material phases to reach the typed `SurfaceOxidation` path from structural
-roles, not reaction names. Unreviewed static oxygen-family materials must not
-select it. Typed renderer fixtures require the resulting plan to contain one
-imported metal asset, no vessel, no visible gas object, and one
-process-authorized oxidation effect. The embedded mesh parser checks its
-magic/version, exact byte length, finite normalized vertices, unit normals,
-triangular indices, and index bounds. Renderer tests check that the metal starts
-stationary on the bench and that missing appearance authority leaves the
-original metal material unchanged, while an accepted exact-product colour
-drives the seeded coating deterministically.
+Exposed surface-oxidation tests require validated static and dynamic outcomes
+to reach the typed `SurfaceOxidation` path from structural roles, exact
+dioxygen composition, and the single ionic oxygen-containing product—not from
+reaction names or macroscopic phase catalogue entries. Typed renderer fixtures
+require the resulting plan to contain one imported metal asset, no vessel, no
+visible gas object, and one process-authorized oxidation effect. The embedded
+mesh parser checks its magic/version, exact byte length, finite normalized
+vertices, unit normals, triangular indices, and index bounds. Renderer tests
+check that the metal starts stationary on the bench and that missing appearance
+authority leaves the original metal material unchanged, while an accepted
+exact-product colour drives the seeded coating deterministically.
 
 Flame tests additionally require deterministic faceted plume geometry, separate
 alpha body and additive core/spark batches, palette preservation, and a smooth
@@ -489,18 +489,6 @@ reactant/product identity to its own reaction-scoped RGB, permit only the warm
 reaction-front module to be hidden, and sample byte-identical geometry at the
 same absolute playhead.
 
-Phase-synthesis tests require either one typed solid plus one typed gas, in
-either order, or exactly two typed gases, followed by exactly one typed gaseous
-product. A gas product without the matching complete reactant layout is
-insufficient. Combustion and all existing specific process categories retain
-priority, while missing phases, extra reactants, multiple products, and liquid
-layouts fall back. Each embedded clip must contain exactly 180 frames at 30
-FPS, preserve append-only clip module/colour IDs, bind all chemical slots to
-reaction-scoped colours, keep colourless gas translucent, and sample
-byte-identical geometry at the same absolute playhead. Tests must also prove
-the reaction front is independently optional and that chamber glass/frame
-colours do not inherit a chemical binding.
-
 Macroscopic coverage tests must compile every supported experience through the
 same production profile-selection path and reject any profile with zero
 effects. Legacy-profile completion tests require the validated `forms`
@@ -535,9 +523,10 @@ observations, never internal IDs or renderer-authored chemistry wording.
 Live vessel checks additionally require a fixed camera pitch above the rim,
 a grounded vessel, liquid contained below its rim, a visible liquid top
 surface and meniscus, connected cloud-like gas without a visible bead field,
-readable key/fill lighting, automatic progression without stage-button
-input, stable geometry while seeking, and macroscopic effects whose presence is
-authorized by the reviewed scene plan.
+readable key/fill lighting without cast shadows, retained planar and environment
+reflections, automatic progression without stage-button input, stable geometry
+while seeking, and macroscopic effects whose presence is authorized by the
+reviewed scene plan.
 
 Post-simulation product-record tests require the macroscopic timeline to reach
 its exact end before navigation unlocks. They compile products only from final
@@ -556,17 +545,20 @@ lone-pair-bearing two-bond centres to produce a deterministic bent geometry.
 Stage 1 composer tests cover progressive formula construction (`C` → `CO` →
 `CO₂`), independent reactant slots, undo/clear/swap behavior, unrecognised
 drafts, slow orbit progression, and exhaustive order-independent reachability
-for all 205 trusted experiences. Recognised unsupported, recognised
+for all 208 trusted experiences. Recognised unsupported, recognised
 uncatalogued, and unrecognised pairs have separate regression coverage. The
 handoff tests prove every trusted family can open both the 2D sequence and its
-macroscopic profile. Profile tests compile all 205 experiences against
+macroscopic profile. Profile tests compile all 208 experiences against
 their active trusted observations, reject premature effects and mismatched
 values, and separately preserve the validated white, cream, and yellow
 silver-halide appearances through scene geometry. The alkali-water comparison
 separately verifies reviewed potassium ignition against lithium and sodium
-non-ignition without a renderer identity branch. Legacy profiles are checked
-for generic validated-progress completion and liquid profiles retain a single
-volume without transparent overdraw. The complete application-path tests cover
+non-ignition without a renderer identity branch. Elemental-oxygen resolution
+selects a unique representative oxygen-family transformation ahead of a
+generic ion-pair construction; genuinely distinct oxygen-family products still
+require learner selection. Legacy profiles are checked for generic
+validated-progress completion and liquid profiles retain a single volume
+without transparent overdraw. The complete application-path tests cover
 the original 36 independently authored request
 fixtures plus representative single- and multi-outcome registry routes. They
 require the same trusted digest to reach frames, the 2D plan, and the 3D plan
@@ -574,6 +566,16 @@ before a simulation screen transition succeeds. Periodic-table tests require all
 numbers and long-form display positions to be unique, every tile to remain
 square, the 18-column grid to fit without horizontal scrolling, and the s/d
 and d/p block gaps to remain larger than within-block spacing.
+
+The heavy-alkali water-contact category additionally requires focused offline
+tests for all three typed reviewed variants on both the local catalogue and
+catalogue-aware dynamic paths; missing, extra, or mismatched material layouts;
+precedence over generic gas rendering; exact material-slot RGB and phase-owned
+opacity; product-colour transition at its trusted ordinal; shared-beaker reuse;
+clip frame/module/material bounds; lazy variant clip selection; and absolute
+timeline replay and backwards seeking. Cache tests pin the deliberate schema-4
+and compiler-contract-5 invalidation so a stale dynamic claim is recompiled
+through the current catalogue before presentation.
 
 ## Cross-platform verification
 
@@ -586,6 +588,10 @@ Platform-specific smoke checks cover:
 - file open/save;
 - packaged application startup;
 - GPU renderer initialization or a clear unsupported-adapter error.
+
+The Windows release gate inspects the built application's PE header before
+packaging and requires the Windows GUI subsystem. Debug builds retain the
+console subsystem for local diagnostics and headless `react` verification.
 
 The packaged macOS `ChemSpec Agent Smoke` bundle was checked in Structural 3D
 mode on 2026-07-15 with one supported representative from every family:
@@ -602,7 +608,7 @@ the expected family equation and scene. The displacement profile intentionally
 shows no liquid colour or product visual until such an appearance is supported
 by a trusted observation.
 
-Oxide appearance verification is split at the trust boundary. Unit tests
+Oxide appearance verification is split at the validation boundary. Unit tests
 require exact product/digest binding, closed-palette conversion,
 `ModelAsserted` provenance, procedural-text rejection, cache revalidation and
 tamper rejection, reviewed-colour precedence, original-material preservation

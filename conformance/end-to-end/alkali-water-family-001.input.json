@@ -11,7 +11,7 @@
     "one family rule supplies every supported member",
     "all generic values are eliminated before kernel validation",
     "member-specific product graphs are compared exactly",
-    "candidate derivations do not cross the human-attestation trust boundary",
+    "provisional and reviewed derivations cross the same kernel validation boundary",
     "existing non-generalized concrete chemistry remains executable"
   ]
 }

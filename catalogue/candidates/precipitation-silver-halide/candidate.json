@@ -187,7 +187,7 @@
       "representation": "ionic",
       "id": "Templates.AlkaliMetalHalide",
       "parameters": {
-        "member": {"kind": "element", "category": "Categories.AlkaliMetal"},
+        "member": {"kind": "element", "category": "Categories.ReviewedAlkaliSalt"},
         "halide": {"kind": "element", "category": "Categories.Halide"}
       },
       "components": [
@@ -246,7 +246,7 @@
       "representation": "ionic",
       "id": "Templates.AlkaliMetalNitrate",
       "parameters": {
-        "member": {"kind": "element", "category": "Categories.AlkaliMetal"}
+        "member": {"kind": "element", "category": "Categories.ReviewedAlkaliSalt"}
       },
       "components": [
         {

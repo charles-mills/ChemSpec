@@ -93,7 +93,7 @@ graph-difference and reviewed-family mechanisms also decline, Codex may propose
 an atom mapping and a bounded sequence of operations over structures supplied
 by ChemSpec.
 
-Those proposals are not trusted chemistry. Codex cannot author the structures,
+Those proposals are not validated chemistry. Codex cannot author the structures,
 coefficients, valence rules, internal identities, or validated simulation
 frames. ChemSpec resolves and balances the reaction locally, then runs any
 proposed mechanism through the same deterministic chemistry kernel used for
@@ -120,7 +120,7 @@ The governing rule is simple:
 
 > Codex proposes; ChemSpec validates.
 
-Codex cannot construct a trusted chemistry value, and the application cannot
+Codex cannot construct a validated chemistry value, and the application cannot
 mark one as valid. The validator and chemistry kernel sit between every local,
 cached, or model-proposed result and the simulation. The full crate boundaries
 and contracts are documented in the [system architecture](docs/system-architecture.md).

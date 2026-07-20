@@ -9,8 +9,9 @@ use std::sync::OnceLock;
 use bytemuck::{Pod, Zeroable};
 use chem_catalogue::ObservationPredicate;
 use chem_presentation::{
-    AppearanceProfile, AssetProfile, EffectIntensity, EffectProfile, FlamePalette,
-    GasEvolutionVariant, MacroscopicStage, PhaseSynthesisVariant, PresentationColourTransition,
+    AppearanceProfile, AssetProfile, EffectIntensity, EffectProfile, ExplosiveMetalWaterVariant,
+    FlamePalette, GasEvolutionVariant, MacroscopicStage, PhaseSynthesisVariant,
+    PresentationColourTransition,
     PresentationEffect, PresentationObject, PresentationTransform, ReactionVisualInputs, SceneRole,
     VisualColour,
 };
@@ -19,7 +20,7 @@ use glam::{EulerRot, Mat4, Quat, Vec3};
 use iced::widget::shader::{self, Program};
 use iced::{Rectangle, wgpu};
 
-use crate::animated_clip::{AnimatedClip, ClipColour, ClipModule, ClipPass, ClipTrack, ClipVertex};
+use crate::animated_clip::ClipColour;
 use crate::gas_fluid::{GasFlowControls, GasFluidVolume};
 use crate::scene_registry::{self, AssetGeometry, EffectDynamics, EffectGeometry};
 
@@ -27,61 +28,395 @@ const MAX_VERTICES: u64 = 32_768;
 const MAX_INDICES: u64 = 98_304;
 const MAX_GAS_SPLATS: u64 = 4_096;
 
-#[derive(Debug, Clone)]
-pub struct Scene {
-    plan: ScenePlan,
-    moment: RealWorldPosition,
+/// The single fixed presentation pose shared by the camera and transparent
+/// triangle sort. Phase-4 camera cues will replace these constants with
+/// authored choreography.
+const FIXED_CAMERA_YAW: f32 = -0.72;
+const FIXED_CAMERA_PITCH: f32 = -0.70;
+const MSAA_SAMPLE_COUNT: u32 = 4;
+const HDR_FORMAT: wgpu::TextureFormat = wgpu::TextureFormat::Rgba16Float;
+
+/// Material classes resolved per vertex bucket at upload; the shader keys its
+/// BRDF on these instead of inferring material from alpha thresholds.
+const MATERIAL_DIELECTRIC: u32 = 0;
+const MATERIAL_LIQUID: u32 = 1;
+const MATERIAL_GLASS: u32 = 2;
+const MATERIAL_EMISSIVE: u32 = 3;
+const MATERIAL_METAL: u32 = 4;
+
+#[cfg(test)]
+fn fixed_view_direction() -> Vec3 {
+    -(Quat::from_rotation_y(FIXED_CAMERA_YAW) * Quat::from_rotation_x(FIXED_CAMERA_PITCH) * Vec3::Z)
 }
 
-impl Scene {
-    pub fn new(plan: &ScenePlan, moment: RealWorldPosition) -> Self {
+/// Camera offsets performed for one authored [`CameraBehaviour`] cue,
+/// relative to the neutral presentation pose. Everything is a pure function
+/// of cue progress so scrubbing reproduces identical framing.
+#[derive(Debug, Clone, Copy)]
+struct CueAdjustment {
+    distance_scale: f32,
+    target_blend: f32,
+    yaw_offset: f32,
+    pitch_offset: f32,
+    focus: f32,
+}
+
+impl CueAdjustment {
+    const NEUTRAL: Self = Self {
+        distance_scale: 1.0,
+        target_blend: 0.0,
+        yaw_offset: 0.0,
+        pitch_offset: 0.0,
+        focus: 0.0,
+    };
+
+    fn lerp(self, other: Self, blend: f32) -> Self {
+        let mix = |from: f32, to: f32| from + (to - from) * blend;
         Self {
-            plan: plan.clone(),
-            moment,
+            distance_scale: mix(self.distance_scale, other.distance_scale),
+            target_blend: mix(self.target_blend, other.target_blend),
+            yaw_offset: mix(self.yaw_offset, other.yaw_offset),
+            pitch_offset: mix(self.pitch_offset, other.pitch_offset),
+            focus: mix(self.focus, other.focus),
         }
     }
 }
 
-/// Deliberately stateless: the macroscopic view has no orbit, pan, or zoom
-/// interaction. Vessel-size framing is derived deterministically from the plan.
+fn smooth01(value: f32) -> f32 {
+    let clamped = value.clamp(0.0, 1.0);
+    clamped * clamped * (3.0 - 2.0 * clamped)
+}
+
+fn behaviour_adjustment(
+    behaviour: chem_presentation::CameraBehaviour,
+    progress: f32,
+) -> CueAdjustment {
+    use chem_presentation::CameraBehaviour;
+    let eased = smooth01(progress);
+    match behaviour {
+        CameraBehaviour::WideEstablishingShot => CueAdjustment {
+            distance_scale: 1.22,
+            target_blend: 0.0,
+            yaw_offset: 0.0,
+            pitch_offset: -0.05,
+            focus: 0.0,
+        },
+        CameraBehaviour::SlowPushIn => CueAdjustment {
+            distance_scale: 1.14 + (0.92 - 1.14) * eased,
+            target_blend: 0.55 * eased,
+            yaw_offset: 0.0,
+            pitch_offset: 0.0,
+            focus: 0.0,
+        },
+        CameraBehaviour::ReactionFocus => CueAdjustment {
+            distance_scale: 0.94,
+            target_blend: 0.65,
+            yaw_offset: 0.025,
+            pitch_offset: 0.01,
+            focus: 0.0,
+        },
+        CameraBehaviour::ObservationCloseUp => CueAdjustment {
+            distance_scale: 0.80,
+            target_blend: 0.85,
+            yaw_offset: 0.0,
+            pitch_offset: 0.035,
+            focus: smooth01(progress / 0.25),
+        },
+        CameraBehaviour::SlowPullBack => CueAdjustment {
+            distance_scale: 0.94 + (1.20 - 0.94) * eased,
+            target_blend: 0.55 * (1.0 - eased),
+            yaw_offset: 0.0,
+            pitch_offset: 0.0,
+            focus: 0.0,
+        },
+        CameraBehaviour::FinalHeroShot => CueAdjustment {
+            distance_scale: 1.04,
+            target_blend: 0.25,
+            yaw_offset: -0.035 + 0.08 * eased,
+            pitch_offset: 0.015,
+            focus: 0.0,
+        },
+    }
+}
+
+/// The camera's final resting pose: a gentle push-in that levels the gaze on
+/// the outcome. The closing glide blends into this across the timeline's last
+/// stretch, so the final frame is arrived at, never cut to.
+const HERO_ARRIVAL: CueAdjustment = CueAdjustment {
+    distance_scale: 1.02,
+    target_blend: 0.25,
+    yaw_offset: 0.06,
+    pitch_offset: 0.01,
+    focus: 0.0,
+};
+
+/// Blend factor of the closing glide at this moment: zero until the final
+/// stretch of the presentation, easing to one exactly at the end. smoothstep
+/// has zero slope at both ends, so the glide joins and settles without a
+/// visible hitch, and the completed presentation holds the hero pose.
+#[allow(clippy::cast_precision_loss)]
+fn closing_hero_blend(plan: &ScenePlan, moment: RealWorldPosition) -> f32 {
+    let total = plan.timeline.duration_ms() as f32;
+    if total <= f32::EPSILON {
+        return 1.0;
+    }
+    let Some(elapsed) = plan.timeline.elapsed_ms_at(moment) else {
+        // Past the end of the timeline: the presentation has completed and
+        // holds the arrival.
+        return 1.0;
+    };
+    let window = (total * 0.22).clamp(1_200.0, 2_600.0).min(total);
+    smooth01((elapsed - (total - window)) / window)
+}
+
+/// Resolves the timeline's per-beat camera performance at this moment,
+/// easing into each beat's behaviour from the previous one over the first
+/// fifth of the beat. Past the schedule the final pose holds — the camera
+/// never snaps to a default. The closing stretch glides into
+/// [`HERO_ARRIVAL`] with a gentle orbit reveal.
+fn camera_cue_adjustment(plan: &ScenePlan, moment: RealWorldPosition) -> CueAdjustment {
+    const TRANSITION: f32 = 0.2;
+    let beats = &plan.timeline.beats;
+    let blend = closing_hero_blend(plan, moment);
+    let Some(last_index) = beats.len().checked_sub(1) else {
+        return CueAdjustment::NEUTRAL.lerp(HERO_ARRIVAL, blend);
+    };
+    let index = moment.beat_index.min(last_index);
+    let progress = if moment.beat_index > last_index {
+        1.0
+    } else {
+        moment.beat_progress.clamp(0.0, 1.0)
+    };
+    let current = behaviour_adjustment(beats[index].camera.behaviour, progress);
+    let cue_pose = if progress < TRANSITION && index > 0 {
+        behaviour_adjustment(beats[index - 1].camera.behaviour, 1.0)
+            .lerp(current, smooth01(progress / TRANSITION))
+    } else {
+        current
+    };
+    let mut pose = cue_pose.lerp(HERO_ARRIVAL, blend);
+    // Orbit reveal: the closing glide sweeps around the outcome before
+    // settling into the hero yaw. Zero at both ends keeps the join and the
+    // arrival exactly where the tests pin them.
+    pose.yaw_offset += blend * (1.0 - blend) * 1.35;
+    pose
+}
+
+#[derive(Debug, Clone)]
+pub struct Scene {
+    plan: ScenePlan,
+    moment: RealWorldPosition,
+    /// Pause-orbit: while playback is paused the user may drag to orbit the
+    /// bench; on resume the directed camera takes over again.
+    orbit_enabled: bool,
+}
+
+impl Scene {
+    pub fn new(plan: &ScenePlan, moment: RealWorldPosition, orbit_enabled: bool) -> Self {
+        Self {
+            plan: plan.clone(),
+            moment,
+            orbit_enabled,
+        }
+    }
+}
+
+/// Interactive pause-orbit state. Playback itself stays a pure function of
+/// the playhead; this only holds the user's paused-view offsets.
 #[derive(Debug, Default)]
-pub struct FixedCameraState;
+pub struct OrbitState {
+    dragging: bool,
+    last_cursor: Option<iced::Point>,
+    yaw: f32,
+    pitch: f32,
+}
 
 impl<Message> Program<Message> for Scene {
-    type State = FixedCameraState;
+    type State = OrbitState;
     type Primitive = ScenePrimitive;
+
+    fn update(
+        &self,
+        state: &mut Self::State,
+        event: &iced::Event,
+        bounds: Rectangle,
+        cursor: iced::mouse::Cursor,
+    ) -> Option<iced::widget::Action<Message>> {
+        use iced::mouse;
+        if !self.orbit_enabled {
+            // Resuming playback hands the camera back to the director.
+            if state.dragging || state.yaw != 0.0 || state.pitch != 0.0 {
+                *state = OrbitState::default();
+                return Some(iced::widget::Action::request_redraw());
+            }
+            return None;
+        }
+        match event {
+            iced::Event::Mouse(mouse::Event::ButtonPressed(mouse::Button::Left))
+                if cursor.is_over(bounds) =>
+            {
+                state.dragging = true;
+                state.last_cursor = cursor.position();
+                Some(iced::widget::Action::capture())
+            }
+            iced::Event::Mouse(mouse::Event::CursorMoved { .. }) if state.dragging => {
+                if let (Some(previous), Some(current)) = (state.last_cursor, cursor.position()) {
+                    state.yaw += (current.x - previous.x) * 0.008;
+                    state.pitch = (state.pitch + (current.y - previous.y) * 0.006).clamp(-0.5, 0.6);
+                }
+                state.last_cursor = cursor.position();
+                Some(iced::widget::Action::request_redraw().and_capture())
+            }
+            iced::Event::Mouse(mouse::Event::ButtonReleased(mouse::Button::Left))
+                if state.dragging =>
+            {
+                state.dragging = false;
+                Some(iced::widget::Action::capture())
+            }
+            _ => None,
+        }
+    }
+
+    fn mouse_interaction(
+        &self,
+        state: &Self::State,
+        bounds: Rectangle,
+        cursor: iced::mouse::Cursor,
+    ) -> iced::mouse::Interaction {
+        if self.orbit_enabled && cursor.is_over(bounds) {
+            if state.dragging {
+                iced::mouse::Interaction::Grabbing
+            } else {
+                iced::mouse::Interaction::Grab
+            }
+        } else {
+            iced::mouse::Interaction::default()
+        }
+    }
 
     fn draw(
         &self,
-        _state: &Self::State,
+        state: &Self::State,
         _cursor: iced::mouse::Cursor,
         _bounds: Rectangle,
     ) -> Self::Primitive {
+        let orbit = if self.orbit_enabled {
+            (state.yaw, state.pitch)
+        } else {
+            (0.0, 0.0)
+        };
         let (vertices, indices, opaque_index_count, transparent_index_count, mut gas_splats) =
-            build_scene_at(&self.plan, self.moment);
+            build_scene_at(&self.plan, self.moment, orbit);
         let camera = fixed_camera_pose(&self.plan);
-        let focus_target = SceneLayout::resolve(&self.plan).camera_target;
+        let layout = SceneLayout::resolve(&self.plan);
+        let cue = camera_cue_adjustment(&self.plan, self.moment);
+        let time_seconds = self.plan.timeline.elapsed_ms_at(self.moment).unwrap_or(0.0) / 1000.0;
+        let final_ordinal = self
+            .plan
+            .timeline
+            .beats
+            .last()
+            .map_or(self.moment.ordinal, |beat| beat.end_ordinal);
+        let inputs = ReactionVisualInputs::from_effects(
+            &self.plan.effects,
+            self.moment.ordinal,
+            self.moment.ordinal_progress,
+            final_ordinal,
+        );
+        let post_process =
+            post_process_visual_state(&self.plan, self.moment.stage, self.moment.beat_progress);
+        // Restrained handheld shake, driven by what the chemistry is doing:
+        // pressure impulses and rolling boils nudge the camera a fraction of
+        // a degree on two incommensurate frequencies.
+        let shake = inputs
+            .pressure_impulse
+            .max(post_process.boiling * 0.5)
+            .min(1.0);
+        // The detonation adds a much harder, faster kick on top — scaled by
+        // the blast envelope and the metal's intensity, gone with the blast.
+        let blast_kick = explosion::blast_camera_shake(&self.plan, self.moment).min(2.0);
+        let shake_yaw = (time_seconds * 23.7).sin() * (time_seconds * 5.9).cos() * 0.0035 * shake
+            + (time_seconds * 61.3).sin() * (time_seconds * 13.7).cos() * 0.0075 * blast_kick;
+        let shake_pitch = (time_seconds * 19.1).sin() * 0.0028 * shake
+            + (time_seconds * 53.9).sin() * 0.0060 * blast_kick;
+        let yaw = camera.yaw + cue.yaw_offset + shake_yaw + orbit.0;
+        let pitch = (camera.pitch + cue.pitch_offset + shake_pitch + orbit.1).clamp(-1.35, -0.12);
+        let focus_target = layout
+            .camera_target
+            .lerp(layout.reaction_point, cue.target_blend);
+        let camera_distance = camera.view_height * 2.1 * cue.distance_scale;
         let eye = focus_target
-            + Quat::from_rotation_y(camera.yaw)
-                * Quat::from_rotation_x(camera.pitch)
-                * Vec3::new(0.0, 0.0, 8.0);
+            + Quat::from_rotation_y(yaw)
+                * Quat::from_rotation_x(pitch)
+                * Vec3::new(0.0, 0.0, camera_distance);
         let view_direction = (focus_target - eye).normalize_or_zero();
         gas_splats.sort_by(|left, right| {
             let left_depth = (Vec3::from_array(left.center) - eye).dot(view_direction);
             let right_depth = (Vec3::from_array(right.center) - eye).dot(view_direction);
             right_depth.total_cmp(&left_depth)
         });
+
+        let (caustic, caustic_tint) = scene_caustics(&self.plan, layout);
+        let heat_strength = inputs
+            .heat_output
+            .max(inputs.flame_rate * 0.85)
+            .max(post_process.flame * 0.9);
+        let heat_centre = layout.reaction_point + Vec3::Y * 0.6;
         ScenePrimitive {
             vertices,
             indices,
             opaque_index_count,
             transparent_index_count,
             gas_splats,
-            yaw: camera.yaw,
-            pitch: camera.pitch,
-            view_height: camera.view_height,
+            yaw,
+            pitch,
             focus_target,
+            camera_distance,
+            time_seconds,
+            caustic,
+            caustic_tint,
+            heat: [heat_centre.x, heat_centre.y, heat_centre.z, heat_strength],
+            focus_strength: cue.focus,
+            flame_exposure: inputs.flame_rate.max(post_process.flame),
+            fog_strength: inputs
+                .gas_generation_rate
+                .max(inputs.vapour_generation_rate)
+                .max(post_process.vapour),
+            endcard: closing_hero_blend(&self.plan, self.moment),
         }
+    }
+}
+
+/// Bench caustic footprint and light tint for the standing liquid, or a
+/// disabled set when the scene has no lit basin.
+fn scene_caustics(plan: &ScenePlan, layout: SceneLayout) -> ([f32; 4], [f32; 4]) {
+    if layout.has_vessel && layout.has_liquid {
+        let tint = plan
+            .objects
+            .iter()
+            .find(|object| object.role == SceneRole::Contents)
+            .map_or([0.36, 0.62, 0.74, 0.28], |object| {
+                appearance_color(object.appearance)
+            });
+        // Lift the linear tint toward white: focused light stays bright
+        // even through strongly coloured solutions.
+        let linear = |value: f32| value.max(0.0).powf(2.2) * 0.5 + 0.5;
+        (
+            [
+                layout.vessel_center.x,
+                layout.vessel_center.z,
+                0.92 * layout.vessel_scale.x,
+                1.0,
+            ],
+            [
+                linear(tint[0]),
+                linear(tint[1]),
+                linear(tint[2]),
+                layout.bench_top,
+            ],
+        )
+    } else {
+        ([0.0; 4], [0.0, 0.0, 0.0, layout.bench_top])
     }
 }
 
@@ -91,6 +426,16 @@ struct Vertex {
     position: [f32; 3],
     normal: [f32; 3],
     color: [f32; 4],
+}
+
+/// Upload format: a scene [`Vertex`] plus the material class of its bucket.
+#[repr(C)]
+#[derive(Debug, Clone, Copy, Pod, Zeroable)]
+struct GpuVertex {
+    position: [f32; 3],
+    normal: [f32; 3],
+    color: [f32; 4],
+    material: u32,
 }
 
 #[derive(Debug, Clone, Copy)]
@@ -105,127 +450,26 @@ struct EmbeddedMesh {
     indices: Box<[u32]>,
 }
 
+mod alkali_water;
+mod combustion;
+mod displacement;
+mod explosion;
+mod gas_evolution;
+mod neutralisation;
+mod precipitation;
+mod phase_synthesis;
+mod synthesis;
+
 const METAL_MESH_BYTES: &[u8] = include_bytes!("../assets/models/metal.mesh");
 const EMBEDDED_MESH_MAGIC: &[u8; 8] = b"CMSHMESH";
 const EMBEDDED_MESH_VERSION: u32 = 1;
 static METAL_MESH: OnceLock<EmbeddedMesh> = OnceLock::new();
-const ALKALI_WATER_CLIP_BYTES: &[u8] = include_bytes!("../assets/models/alkali_water.clip");
-static ALKALI_WATER_CLIP: OnceLock<AnimatedClip> = OnceLock::new();
-const NEUTRALISATION_CLIP_BYTES: &[u8] = include_bytes!("../assets/models/neutralisation.clip");
-static NEUTRALISATION_CLIP: OnceLock<AnimatedClip> = OnceLock::new();
-const COMPLETE_COMBUSTION_CLIP_BYTES: &[u8] =
-    include_bytes!("../assets/models/complete_combustion.clip");
-static COMPLETE_COMBUSTION_CLIP: OnceLock<AnimatedClip> = OnceLock::new();
-const INCOMPLETE_COMBUSTION_CLIP_BYTES: &[u8] =
-    include_bytes!("../assets/models/incomplete_combustion.clip");
-static INCOMPLETE_COMBUSTION_CLIP: OnceLock<AnimatedClip> = OnceLock::new();
-const PRECIPITATION_CLIP_BYTES: &[u8] = include_bytes!("../assets/models/precipitation.clip");
-static PRECIPITATION_CLIP: OnceLock<AnimatedClip> = OnceLock::new();
-const GAS_EVOLUTION_LIQUID_LIQUID_CLIP_BYTES: &[u8] =
-    include_bytes!("../assets/models/gas_evolution_liquid_liquid.clip");
-static GAS_EVOLUTION_LIQUID_LIQUID_CLIP: OnceLock<AnimatedClip> = OnceLock::new();
-const GAS_EVOLUTION_SOLID_LIQUID_CLIP_BYTES: &[u8] =
-    include_bytes!("../assets/models/gas_evolution_solid_liquid.clip");
-static GAS_EVOLUTION_SOLID_LIQUID_CLIP: OnceLock<AnimatedClip> = OnceLock::new();
-const METAL_DISPLACEMENT_CLIP_BYTES: &[u8] =
-    include_bytes!("../assets/models/metal_displacement.clip");
-static METAL_DISPLACEMENT_CLIP: OnceLock<AnimatedClip> = OnceLock::new();
-const SYNTHESIS_COMBINATION_CLIP_BYTES: &[u8] =
-    include_bytes!("../assets/models/synthesis_combination.clip");
-static SYNTHESIS_COMBINATION_CLIP: OnceLock<AnimatedClip> = OnceLock::new();
-const SOLID_GAS_SYNTHESIS_CLIP_BYTES: &[u8] =
-    include_bytes!("../assets/models/solid_gas_synthesis.clip");
-static SOLID_GAS_SYNTHESIS_CLIP: OnceLock<AnimatedClip> = OnceLock::new();
-const GAS_GAS_SYNTHESIS_CLIP_BYTES: &[u8] =
-    include_bytes!("../assets/models/gas_gas_synthesis.clip");
-static GAS_GAS_SYNTHESIS_CLIP: OnceLock<AnimatedClip> = OnceLock::new();
 
 fn embedded_metal_mesh() -> &'static EmbeddedMesh {
     METAL_MESH.get_or_init(|| {
         parse_embedded_mesh(METAL_MESH_BYTES)
             .unwrap_or_else(|error| panic!("embedded metal mesh is invalid: {error}"))
     })
-}
-
-fn alkali_water_clip() -> &'static AnimatedClip {
-    ALKALI_WATER_CLIP.get_or_init(|| {
-        AnimatedClip::parse(ALKALI_WATER_CLIP_BYTES)
-            .unwrap_or_else(|error| panic!("embedded alkali-water clip is invalid: {error}"))
-    })
-}
-
-fn neutralisation_clip() -> &'static AnimatedClip {
-    NEUTRALISATION_CLIP.get_or_init(|| {
-        AnimatedClip::parse(NEUTRALISATION_CLIP_BYTES)
-            .unwrap_or_else(|error| panic!("embedded neutralisation clip is invalid: {error}"))
-    })
-}
-
-fn complete_combustion_clip() -> &'static AnimatedClip {
-    COMPLETE_COMBUSTION_CLIP.get_or_init(|| {
-        AnimatedClip::parse(COMPLETE_COMBUSTION_CLIP_BYTES)
-            .unwrap_or_else(|error| panic!("embedded complete-combustion clip is invalid: {error}"))
-    })
-}
-
-fn incomplete_combustion_clip() -> &'static AnimatedClip {
-    INCOMPLETE_COMBUSTION_CLIP.get_or_init(|| {
-        AnimatedClip::parse(INCOMPLETE_COMBUSTION_CLIP_BYTES).unwrap_or_else(|error| {
-            panic!("embedded incomplete-combustion clip is invalid: {error}")
-        })
-    })
-}
-
-fn precipitation_clip() -> &'static AnimatedClip {
-    PRECIPITATION_CLIP.get_or_init(|| {
-        AnimatedClip::parse(PRECIPITATION_CLIP_BYTES)
-            .unwrap_or_else(|error| panic!("embedded precipitation clip is invalid: {error}"))
-    })
-}
-
-fn gas_evolution_clip(variant: GasEvolutionVariant) -> &'static AnimatedClip {
-    match variant {
-        GasEvolutionVariant::LiquidLiquid => GAS_EVOLUTION_LIQUID_LIQUID_CLIP.get_or_init(|| {
-            AnimatedClip::parse(GAS_EVOLUTION_LIQUID_LIQUID_CLIP_BYTES).unwrap_or_else(|error| {
-                panic!("embedded liquid-liquid gas-evolution clip is invalid: {error}")
-            })
-        }),
-        GasEvolutionVariant::SolidLiquid => GAS_EVOLUTION_SOLID_LIQUID_CLIP.get_or_init(|| {
-            AnimatedClip::parse(GAS_EVOLUTION_SOLID_LIQUID_CLIP_BYTES).unwrap_or_else(|error| {
-                panic!("embedded solid-liquid gas-evolution clip is invalid: {error}")
-            })
-        }),
-    }
-}
-
-fn metal_displacement_clip() -> &'static AnimatedClip {
-    METAL_DISPLACEMENT_CLIP.get_or_init(|| {
-        AnimatedClip::parse(METAL_DISPLACEMENT_CLIP_BYTES)
-            .unwrap_or_else(|error| panic!("embedded metal-displacement clip is invalid: {error}"))
-    })
-}
-
-fn synthesis_combination_clip() -> &'static AnimatedClip {
-    SYNTHESIS_COMBINATION_CLIP.get_or_init(|| {
-        AnimatedClip::parse(SYNTHESIS_COMBINATION_CLIP_BYTES).unwrap_or_else(|error| {
-            panic!("embedded synthesis-combination clip is invalid: {error}")
-        })
-    })
-}
-
-fn phase_synthesis_clip(variant: PhaseSynthesisVariant) -> &'static AnimatedClip {
-    match variant {
-        PhaseSynthesisVariant::SolidGas => SOLID_GAS_SYNTHESIS_CLIP.get_or_init(|| {
-            AnimatedClip::parse(SOLID_GAS_SYNTHESIS_CLIP_BYTES).unwrap_or_else(|error| {
-                panic!("embedded solid-gas synthesis clip is invalid: {error}")
-            })
-        }),
-        PhaseSynthesisVariant::GasGas => GAS_GAS_SYNTHESIS_CLIP.get_or_init(|| {
-            AnimatedClip::parse(GAS_GAS_SYNTHESIS_CLIP_BYTES).unwrap_or_else(|error| {
-                panic!("embedded gas-gas synthesis clip is invalid: {error}")
-            })
-        }),
-    }
 }
 
 fn parse_embedded_mesh(bytes: &[u8]) -> Result<EmbeddedMesh, &'static str> {
@@ -325,19 +569,71 @@ struct CameraUniform {
     key_direction: [f32; 4],
     fill_direction: [f32; 4],
     camera_position: [f32; 4],
+    params: [f32; 4],
+    caustic: [f32; 4],
+    caustic_tint: [f32; 4],
 }
+
+#[repr(C)]
+#[derive(Debug, Clone, Copy, Pod, Zeroable)]
+struct PanelStyle {
+    top: [f32; 4],
+    bottom: [f32; 4],
+    border: [f32; 4],
+    params: [f32; 4],
+}
+
+#[repr(C)]
+#[derive(Debug, Clone, Copy, Pod, Zeroable)]
+struct BlitParams {
+    texel: [f32; 4],
+}
+
+#[repr(C)]
+#[derive(Debug, Clone, Copy, Pod, Zeroable)]
+struct CompositeParams {
+    inv_view_projection: [[f32; 4]; 4],
+    values: [f32; 4],
+    heat: [f32; 4],
+    clock: [f32; 4],
+    ray: [f32; 4],
+}
+
+const COMPOSITE_EXPOSURE: f32 = 1.12;
+const COMPOSITE_BLOOM_STRENGTH: f32 = 0.34;
+const BLOOM_THRESHOLD: f32 = 1.0;
+const MAX_BLOOM_LEVELS: usize = 5;
 
 #[derive(Debug)]
 pub struct ScenePrimitive {
-    vertices: Vec<Vertex>,
+    vertices: Vec<GpuVertex>,
     indices: Vec<u32>,
     opaque_index_count: u32,
     transparent_index_count: u32,
     gas_splats: Vec<GasSplat>,
     yaw: f32,
     pitch: f32,
-    view_height: f32,
     focus_target: Vec3,
+    /// Eye distance from the focus target; camera cues animate it.
+    camera_distance: f32,
+    /// Deterministic presentation clock derived from the playhead; drives
+    /// caustics and heat shimmer so scrubbing reproduces identical frames.
+    time_seconds: f32,
+    /// World x, z of the vessel footprint, its radius, and intensity.
+    caustic: [f32; 4],
+    /// Caustic light tint (linear rgb) and the bench-top height in w.
+    caustic_tint: [f32; 4],
+    /// Heat-shimmer column: world centre xyz and strength in w.
+    heat: [f32; 4],
+    /// 0..1 close-up focus effect strength (camera cue driven).
+    focus_strength: f32,
+    /// 0..1 flame envelope driving the composite's exposure dip.
+    flame_exposure: f32,
+    /// 0..1 closing-glide blend: the composite frames the arrival with a
+    /// gentle end-card vignette.
+    endcard: f32,
+    /// 0..1 gas/vapour envelope driving the volumetric haze.
+    fog_strength: f32,
 }
 
 #[derive(Debug)]
@@ -346,38 +642,126 @@ pub struct ScenePipeline {
     transparent_pipeline: wgpu::RenderPipeline,
     additive_pipeline: wgpu::RenderPipeline,
     gas_pipeline: wgpu::RenderPipeline,
+    panel_pipeline: wgpu::RenderPipeline,
+    bloom_down_pipeline: wgpu::RenderPipeline,
+    bloom_up_pipeline: wgpu::RenderPipeline,
+    composite_pipeline: wgpu::RenderPipeline,
+    scene_layout: wgpu::BindGroupLayout,
+    bloom_layout: wgpu::BindGroupLayout,
+    composite_layout: wgpu::BindGroupLayout,
+    background_layout: wgpu::BindGroupLayout,
     vertex_buffer: wgpu::Buffer,
     index_buffer: wgpu::Buffer,
     gas_buffer: wgpu::Buffer,
     uniform_buffer: wgpu::Buffer,
-    bind_group: wgpu::BindGroup,
-    depth: Option<DepthTarget>,
+    scene_bind_group: Option<wgpu::BindGroup>,
+    reflection_bind_group: wgpu::BindGroup,
+    reflection_uniform: wgpu::Buffer,
+    opaque_reflect_pipeline: wgpu::RenderPipeline,
+    panel_bind_group: wgpu::BindGroup,
+    linear_sampler: wgpu::Sampler,
+    targets: Option<SizedTargets>,
     opaque_index_count: u32,
     transparent_index_count: u32,
     index_count: u32,
     gas_count: u32,
     physical_bounds: [u32; 4],
+    overflow_warned: bool,
+    gamma_encode: f32,
 }
 
 #[derive(Debug)]
-struct DepthTarget {
+struct SizedTargets {
+    size: [u32; 2],
+    _hdr_msaa: wgpu::Texture,
+    hdr_msaa_view: wgpu::TextureView,
+    _hdr_resolve: wgpu::Texture,
+    hdr_resolve_view: wgpu::TextureView,
+    _depth: wgpu::Texture,
+    depth_view: wgpu::TextureView,
+    _background: wgpu::Texture,
+    background_view: wgpu::TextureView,
+    background_bind_group: wgpu::BindGroup,
+    _reflection_msaa: wgpu::Texture,
+    reflection_msaa_view: wgpu::TextureView,
+    _reflection_resolve: wgpu::Texture,
+    reflection_resolve_view: wgpu::TextureView,
+    _reflection_depth: wgpu::Texture,
+    reflection_depth_view: wgpu::TextureView,
+    _blur_half: wgpu::Texture,
+    blur_half_view: wgpu::TextureView,
+    blur_half_bind_group: wgpu::BindGroup,
+    _blur_half_params: wgpu::Buffer,
+    _blur_quarter: wgpu::Texture,
+    blur_quarter_view: wgpu::TextureView,
+    blur_quarter_bind_group: wgpu::BindGroup,
+    _blur_quarter_params: wgpu::Buffer,
+    _aux_msaa: wgpu::Texture,
+    aux_msaa_view: wgpu::TextureView,
+    _aux_resolve: wgpu::Texture,
+    aux_resolve_view: wgpu::TextureView,
+    bloom_levels: Vec<BloomLevel>,
+    composite_bind_group: wgpu::BindGroup,
+    composite_uniform: wgpu::Buffer,
+}
+
+#[derive(Debug)]
+struct BloomLevel {
     _texture: wgpu::Texture,
     view: wgpu::TextureView,
-    size: [u32; 2],
+    down_bind_group: wgpu::BindGroup,
+    _down_params: wgpu::Buffer,
+    up_bind_group: Option<wgpu::BindGroup>,
+    _up_params: Option<wgpu::Buffer>,
 }
 
 impl shader::Pipeline for ScenePipeline {
     #[allow(clippy::too_many_lines)]
-    fn new(device: &wgpu::Device, _queue: &wgpu::Queue, format: wgpu::TextureFormat) -> Self {
+    fn new(device: &wgpu::Device, queue: &wgpu::Queue, format: wgpu::TextureFormat) -> Self {
         let shader = device.create_shader_module(wgpu::ShaderModuleDescriptor {
             label: Some("chemspec structural 3d shader"),
             source: wgpu::ShaderSource::Wgsl(include_str!("structural_3d.wgsl").into()),
         });
-        let bind_group_layout = device.create_bind_group_layout(&wgpu::BindGroupLayoutDescriptor {
-            label: Some("chemspec structural 3d camera layout"),
+        let post_shader = device.create_shader_module(wgpu::ShaderModuleDescriptor {
+            label: Some("chemspec structural 3d post shader"),
+            source: wgpu::ShaderSource::Wgsl(include_str!("structural_3d_post.wgsl").into()),
+        });
+        let scene_layout = device.create_bind_group_layout(&wgpu::BindGroupLayoutDescriptor {
+            label: Some("chemspec structural 3d scene layout"),
+            entries: &[
+                wgpu::BindGroupLayoutEntry {
+                    binding: 0,
+                    visibility: wgpu::ShaderStages::VERTEX_FRAGMENT,
+                    ty: wgpu::BindingType::Buffer {
+                        ty: wgpu::BufferBindingType::Uniform,
+                        has_dynamic_offset: false,
+                        min_binding_size: None,
+                    },
+                    count: None,
+                },
+                wgpu::BindGroupLayoutEntry {
+                    binding: 3,
+                    visibility: wgpu::ShaderStages::FRAGMENT,
+                    ty: wgpu::BindingType::Texture {
+                        sample_type: wgpu::TextureSampleType::Float { filterable: true },
+                        view_dimension: wgpu::TextureViewDimension::D2,
+                        multisampled: false,
+                    },
+                    count: None,
+                },
+                wgpu::BindGroupLayoutEntry {
+                    binding: 4,
+                    visibility: wgpu::ShaderStages::FRAGMENT,
+                    ty: wgpu::BindingType::Sampler(wgpu::SamplerBindingType::Filtering),
+                    count: None,
+                },
+            ],
+        });
+        let panel_layout = device.create_bind_group_layout(&wgpu::BindGroupLayoutDescriptor {
+            label: Some("chemspec structural 3d panel layout"),
             entries: &[wgpu::BindGroupLayoutEntry {
                 binding: 0,
-                visibility: wgpu::ShaderStages::VERTEX_FRAGMENT,
+                visibility: wgpu::ShaderStages::FRAGMENT,
                 ty: wgpu::BindingType::Buffer {
                     ty: wgpu::BufferBindingType::Uniform,
                     has_dynamic_offset: false,
@@ -386,86 +770,247 @@ impl shader::Pipeline for ScenePipeline {
                 count: None,
             }],
         });
+        let texture_entry = |binding: u32| wgpu::BindGroupLayoutEntry {
+            binding,
+            visibility: wgpu::ShaderStages::FRAGMENT,
+            ty: wgpu::BindingType::Texture {
+                sample_type: wgpu::TextureSampleType::Float { filterable: true },
+                view_dimension: wgpu::TextureViewDimension::D2,
+                multisampled: false,
+            },
+            count: None,
+        };
+        let uniform_entry = |binding: u32| wgpu::BindGroupLayoutEntry {
+            binding,
+            visibility: wgpu::ShaderStages::FRAGMENT,
+            ty: wgpu::BindingType::Buffer {
+                ty: wgpu::BufferBindingType::Uniform,
+                has_dynamic_offset: false,
+                min_binding_size: None,
+            },
+            count: None,
+        };
+        let sampler_entry = |binding: u32| wgpu::BindGroupLayoutEntry {
+            binding,
+            visibility: wgpu::ShaderStages::FRAGMENT,
+            ty: wgpu::BindingType::Sampler(wgpu::SamplerBindingType::Filtering),
+            count: None,
+        };
+        let bloom_layout = device.create_bind_group_layout(&wgpu::BindGroupLayoutDescriptor {
+            label: Some("chemspec structural 3d bloom layout"),
+            entries: &[uniform_entry(4), texture_entry(5), sampler_entry(6)],
+        });
+        let composite_layout = device.create_bind_group_layout(&wgpu::BindGroupLayoutDescriptor {
+            label: Some("chemspec structural 3d composite layout"),
+            entries: &[
+                uniform_entry(7),
+                texture_entry(8),
+                texture_entry(9),
+                sampler_entry(10),
+                texture_entry(11),
+                texture_entry(13),
+            ],
+        });
+        let background_layout = device.create_bind_group_layout(&wgpu::BindGroupLayoutDescriptor {
+            label: Some("chemspec structural 3d background layout"),
+            entries: &[texture_entry(0), sampler_entry(1)],
+        });
+
         let uniform_buffer = device.create_buffer(&wgpu::BufferDescriptor {
             label: Some("chemspec structural 3d camera"),
             size: std::mem::size_of::<CameraUniform>() as u64,
             usage: wgpu::BufferUsages::UNIFORM | wgpu::BufferUsages::COPY_DST,
             mapped_at_creation: false,
         });
-        let bind_group = device.create_bind_group(&wgpu::BindGroupDescriptor {
-            label: Some("chemspec structural 3d camera group"),
-            layout: &bind_group_layout,
+        let panel_buffer = device.create_buffer(&wgpu::BufferDescriptor {
+            label: Some("chemspec structural 3d panel style"),
+            size: std::mem::size_of::<PanelStyle>() as u64,
+            usage: wgpu::BufferUsages::UNIFORM | wgpu::BufferUsages::COPY_DST,
+            mapped_at_creation: false,
+        });
+        // A dark studio backdrop in linear HDR space; the tonemapper keeps its
+        // gradient smooth and the dither in the composite kills banding.
+        queue.write_buffer(
+            &panel_buffer,
+            0,
+            bytemuck::bytes_of(&PanelStyle {
+                top: [0.058, 0.070, 0.096, 1.0],
+                bottom: [0.014, 0.017, 0.024, 1.0],
+                border: [0.0, 0.0, 0.0, 0.0],
+                params: [0.0, 0.62, 0.0, 0.0],
+            }),
+        );
+
+        let linear_sampler = device.create_sampler(&wgpu::SamplerDescriptor {
+            label: Some("chemspec structural 3d linear sampler"),
+            address_mode_u: wgpu::AddressMode::ClampToEdge,
+            address_mode_v: wgpu::AddressMode::ClampToEdge,
+            mag_filter: wgpu::FilterMode::Linear,
+            min_filter: wgpu::FilterMode::Linear,
+            ..wgpu::SamplerDescriptor::default()
+        });
+
+        // The main scene bind group references the sized reflection texture,
+        // so it is (re)built in ensure_targets.
+        let reflection_uniform = device.create_buffer(&wgpu::BufferDescriptor {
+            label: Some("chemspec structural 3d reflection camera"),
+            size: std::mem::size_of::<CameraUniform>() as u64,
+            usage: wgpu::BufferUsages::UNIFORM | wgpu::BufferUsages::COPY_DST,
+            mapped_at_creation: false,
+        });
+        let dummy_reflection = device.create_texture(&wgpu::TextureDescriptor {
+            label: Some("chemspec structural 3d dummy reflection"),
+            size: wgpu::Extent3d {
+                width: 1,
+                height: 1,
+                depth_or_array_layers: 1,
+            },
+            mip_level_count: 1,
+            sample_count: 1,
+            dimension: wgpu::TextureDimension::D2,
+            format: HDR_FORMAT,
+            usage: wgpu::TextureUsages::TEXTURE_BINDING,
+            view_formats: &[],
+        });
+        let dummy_reflection_view =
+            dummy_reflection.create_view(&wgpu::TextureViewDescriptor::default());
+        let reflection_bind_group = device.create_bind_group(&wgpu::BindGroupDescriptor {
+            label: Some("chemspec structural 3d reflection group"),
+            layout: &scene_layout,
+            entries: &[
+                wgpu::BindGroupEntry {
+                    binding: 0,
+                    resource: reflection_uniform.as_entire_binding(),
+                },
+                wgpu::BindGroupEntry {
+                    binding: 3,
+                    resource: wgpu::BindingResource::TextureView(&dummy_reflection_view),
+                },
+                wgpu::BindGroupEntry {
+                    binding: 4,
+                    resource: wgpu::BindingResource::Sampler(&linear_sampler),
+                },
+            ],
+        });
+        let panel_bind_group = device.create_bind_group(&wgpu::BindGroupDescriptor {
+            label: Some("chemspec structural 3d panel group"),
+            layout: &panel_layout,
             entries: &[wgpu::BindGroupEntry {
                 binding: 0,
-                resource: uniform_buffer.as_entire_binding(),
+                resource: panel_buffer.as_entire_binding(),
             }],
         });
-        let layout = device.create_pipeline_layout(&wgpu::PipelineLayoutDescriptor {
-            label: Some("chemspec structural 3d pipeline layout"),
-            bind_group_layouts: &[&bind_group_layout],
-            push_constant_ranges: &[],
-        });
-        let create_pipeline = |label: &'static str,
-                               blend: Option<wgpu::BlendState>,
-                               depth_write_enabled: bool,
-                               cull_mode: Option<wgpu::Face>,
-                               fragment_entry: &'static str| {
-            device.create_render_pipeline(&wgpu::RenderPipelineDescriptor {
-                label: Some(label),
-                layout: Some(&layout),
-                vertex: wgpu::VertexState {
-                    module: &shader,
-                    entry_point: Some("vertex"),
-                    compilation_options: wgpu::PipelineCompilationOptions::default(),
-                    buffers: &[wgpu::VertexBufferLayout {
-                        array_stride: std::mem::size_of::<Vertex>() as u64,
-                        step_mode: wgpu::VertexStepMode::Vertex,
-                        attributes: &wgpu::vertex_attr_array![0 => Float32x3, 1 => Float32x3, 2 => Float32x4],
-                    }],
-                },
-                fragment: Some(wgpu::FragmentState {
-                    module: &shader,
-                    entry_point: Some(fragment_entry),
-                    compilation_options: wgpu::PipelineCompilationOptions::default(),
-                    targets: &[Some(wgpu::ColorTargetState {
-                        format,
-                        blend,
-                        write_mask: wgpu::ColorWrites::ALL,
-                    })],
-                }),
-                primitive: wgpu::PrimitiveState {
-                    topology: wgpu::PrimitiveTopology::TriangleList,
-                    cull_mode,
-                    ..wgpu::PrimitiveState::default()
-                },
-                depth_stencil: Some(wgpu::DepthStencilState {
-                    format: wgpu::TextureFormat::Depth32Float,
-                    depth_write_enabled,
-                    depth_compare: wgpu::CompareFunction::Less,
-                    stencil: wgpu::StencilState::default(),
-                    bias: wgpu::DepthBiasState::default(),
-                }),
-                multisample: wgpu::MultisampleState::default(),
-                multiview: None,
-                cache: None,
-            })
+
+        let scene_pipeline_layout =
+            device.create_pipeline_layout(&wgpu::PipelineLayoutDescriptor {
+                label: Some("chemspec structural 3d scene pipeline layout"),
+                bind_group_layouts: &[&scene_layout],
+                push_constant_ranges: &[],
+            });
+        let refracting_pipeline_layout =
+            device.create_pipeline_layout(&wgpu::PipelineLayoutDescriptor {
+                label: Some("chemspec structural 3d refracting pipeline layout"),
+                bind_group_layouts: &[&scene_layout, &background_layout],
+                push_constant_ranges: &[],
+            });
+        let vertex_layout = wgpu::VertexBufferLayout {
+            array_stride: std::mem::size_of::<GpuVertex>() as u64,
+            step_mode: wgpu::VertexStepMode::Vertex,
+            attributes: &wgpu::vertex_attr_array![
+                0 => Float32x3,
+                1 => Float32x3,
+                2 => Float32x4,
+                9 => Uint32
+            ],
         };
-        let opaque_pipeline = create_pipeline(
+        let msaa_state = wgpu::MultisampleState {
+            count: MSAA_SAMPLE_COUNT,
+            ..wgpu::MultisampleState::default()
+        };
+        let create_scene_pipeline =
+            |label: &'static str,
+             layout: &wgpu::PipelineLayout,
+             blend: Option<wgpu::BlendState>,
+             depth_write_enabled: bool,
+             cull_mode: Option<wgpu::Face>,
+             fragment_entry: &'static str| {
+                // Pass-1 pipelines additionally declare the aux (normal +
+                // distance) attachment; only the g-buffer entry writes it.
+                let aux_writes =
+                    (fragment_entry == "fragment_gbuffer").then_some(wgpu::ColorWrites::ALL);
+                let mut targets = vec![Some(wgpu::ColorTargetState {
+                    format: HDR_FORMAT,
+                    blend,
+                    write_mask: wgpu::ColorWrites::ALL,
+                })];
+                if let Some(write_mask) = aux_writes {
+                    targets.push(Some(wgpu::ColorTargetState {
+                        format: HDR_FORMAT,
+                        blend: None,
+                        write_mask,
+                    }));
+                }
+                device.create_render_pipeline(&wgpu::RenderPipelineDescriptor {
+                    label: Some(label),
+                    layout: Some(layout),
+                    vertex: wgpu::VertexState {
+                        module: &shader,
+                        entry_point: Some("vertex"),
+                        compilation_options: wgpu::PipelineCompilationOptions::default(),
+                        buffers: std::slice::from_ref(&vertex_layout),
+                    },
+                    fragment: Some(wgpu::FragmentState {
+                        module: &shader,
+                        entry_point: Some(fragment_entry),
+                        compilation_options: wgpu::PipelineCompilationOptions::default(),
+                        targets: &targets,
+                    }),
+                    primitive: wgpu::PrimitiveState {
+                        topology: wgpu::PrimitiveTopology::TriangleList,
+                        cull_mode,
+                        ..wgpu::PrimitiveState::default()
+                    },
+                    depth_stencil: Some(wgpu::DepthStencilState {
+                        format: wgpu::TextureFormat::Depth32Float,
+                        depth_write_enabled,
+                        depth_compare: wgpu::CompareFunction::Less,
+                        stencil: wgpu::StencilState::default(),
+                        bias: wgpu::DepthBiasState::default(),
+                    }),
+                    multisample: msaa_state,
+                    multiview: None,
+                    cache: None,
+                })
+            };
+        let opaque_pipeline = create_scene_pipeline(
             "chemspec structural 3d opaque pipeline",
+            &scene_pipeline_layout,
             None,
             true,
             Some(wgpu::Face::Back),
+            "fragment_gbuffer",
+        );
+        // Mirrored geometry flips winding, so the reflection pass culls the
+        // opposite face set.
+        let opaque_reflect_pipeline = create_scene_pipeline(
+            "chemspec structural 3d reflected opaque pipeline",
+            &scene_pipeline_layout,
+            None,
+            true,
+            Some(wgpu::Face::Front),
             "fragment",
         );
-        let transparent_pipeline = create_pipeline(
+        let transparent_pipeline = create_scene_pipeline(
             "chemspec structural 3d transparent pipeline",
+            &refracting_pipeline_layout,
             Some(wgpu::BlendState::ALPHA_BLENDING),
             false,
             None,
-            "fragment",
+            "fragment_transparent",
         );
-        let additive_pipeline = create_pipeline(
+        let additive_pipeline = create_scene_pipeline(
             "chemspec structural 3d additive flame pipeline",
+            &scene_pipeline_layout,
             Some(wgpu::BlendState {
                 color: wgpu::BlendComponent {
                     src_factor: wgpu::BlendFactor::SrcAlpha,
@@ -480,7 +1025,7 @@ impl shader::Pipeline for ScenePipeline {
         );
         let gas_pipeline = device.create_render_pipeline(&wgpu::RenderPipelineDescriptor {
             label: Some("chemspec structural 3d volumetric gas pipeline"),
-            layout: Some(&layout),
+            layout: Some(&scene_pipeline_layout),
             vertex: wgpu::VertexState {
                 module: &shader,
                 entry_point: Some("gas_vertex"),
@@ -502,11 +1047,18 @@ impl shader::Pipeline for ScenePipeline {
                 module: &shader,
                 entry_point: Some("gas_fragment"),
                 compilation_options: wgpu::PipelineCompilationOptions::default(),
-                targets: &[Some(wgpu::ColorTargetState {
-                    format,
-                    blend: Some(wgpu::BlendState::ALPHA_BLENDING),
-                    write_mask: wgpu::ColorWrites::ALL,
-                })],
+                targets: &[
+                    Some(wgpu::ColorTargetState {
+                        format: HDR_FORMAT,
+                        blend: Some(wgpu::BlendState::ALPHA_BLENDING),
+                        write_mask: wgpu::ColorWrites::ALL,
+                    }),
+                    Some(wgpu::ColorTargetState {
+                        format: HDR_FORMAT,
+                        blend: None,
+                        write_mask: wgpu::ColorWrites::empty(),
+                    }),
+                ],
             }),
             primitive: wgpu::PrimitiveState {
                 topology: wgpu::PrimitiveTopology::TriangleList,
@@ -520,18 +1072,139 @@ impl shader::Pipeline for ScenePipeline {
                 stencil: wgpu::StencilState::default(),
                 bias: wgpu::DepthBiasState::default(),
             }),
-            multisample: wgpu::MultisampleState::default(),
+            multisample: msaa_state,
             multiview: None,
             cache: None,
         });
+
+        let panel_pipeline_layout =
+            device.create_pipeline_layout(&wgpu::PipelineLayoutDescriptor {
+                label: Some("chemspec structural 3d panel pipeline layout"),
+                bind_group_layouts: &[&panel_layout],
+                push_constant_ranges: &[],
+            });
+        let panel_pipeline = device.create_render_pipeline(&wgpu::RenderPipelineDescriptor {
+            label: Some("chemspec structural 3d panel pipeline"),
+            layout: Some(&panel_pipeline_layout),
+            vertex: wgpu::VertexState {
+                module: &post_shader,
+                entry_point: Some("panel_vertex"),
+                compilation_options: wgpu::PipelineCompilationOptions::default(),
+                buffers: &[],
+            },
+            fragment: Some(wgpu::FragmentState {
+                module: &post_shader,
+                entry_point: Some("panel_fragment"),
+                compilation_options: wgpu::PipelineCompilationOptions::default(),
+                targets: &[
+                    Some(wgpu::ColorTargetState {
+                        format: HDR_FORMAT,
+                        blend: None,
+                        write_mask: wgpu::ColorWrites::ALL,
+                    }),
+                    Some(wgpu::ColorTargetState {
+                        format: HDR_FORMAT,
+                        blend: None,
+                        write_mask: wgpu::ColorWrites::empty(),
+                    }),
+                ],
+            }),
+            primitive: wgpu::PrimitiveState::default(),
+            depth_stencil: Some(wgpu::DepthStencilState {
+                format: wgpu::TextureFormat::Depth32Float,
+                depth_write_enabled: false,
+                depth_compare: wgpu::CompareFunction::Always,
+                stencil: wgpu::StencilState::default(),
+                bias: wgpu::DepthBiasState::default(),
+            }),
+            multisample: msaa_state,
+            multiview: None,
+            cache: None,
+        });
+
+        let create_post_pipeline =
+            |label: &'static str,
+             layout: &wgpu::BindGroupLayout,
+             fragment_entry: &'static str,
+             target_format: wgpu::TextureFormat,
+             blend: Option<wgpu::BlendState>| {
+                let pipeline_layout =
+                    device.create_pipeline_layout(&wgpu::PipelineLayoutDescriptor {
+                        label: Some(label),
+                        bind_group_layouts: &[layout],
+                        push_constant_ranges: &[],
+                    });
+                device.create_render_pipeline(&wgpu::RenderPipelineDescriptor {
+                    label: Some(label),
+                    layout: Some(&pipeline_layout),
+                    vertex: wgpu::VertexState {
+                        module: &post_shader,
+                        entry_point: Some("blit_vertex"),
+                        compilation_options: wgpu::PipelineCompilationOptions::default(),
+                        buffers: &[],
+                    },
+                    fragment: Some(wgpu::FragmentState {
+                        module: &post_shader,
+                        entry_point: Some(fragment_entry),
+                        compilation_options: wgpu::PipelineCompilationOptions::default(),
+                        targets: &[Some(wgpu::ColorTargetState {
+                            format: target_format,
+                            blend,
+                            write_mask: wgpu::ColorWrites::ALL,
+                        })],
+                    }),
+                    primitive: wgpu::PrimitiveState::default(),
+                    depth_stencil: None,
+                    multisample: wgpu::MultisampleState::default(),
+                    multiview: None,
+                    cache: None,
+                })
+            };
+        let bloom_down_pipeline = create_post_pipeline(
+            "chemspec structural 3d bloom downsample",
+            &bloom_layout,
+            "bloom_downsample",
+            HDR_FORMAT,
+            None,
+        );
+        let bloom_up_pipeline = create_post_pipeline(
+            "chemspec structural 3d bloom upsample",
+            &bloom_layout,
+            "bloom_upsample",
+            HDR_FORMAT,
+            Some(wgpu::BlendState {
+                color: wgpu::BlendComponent {
+                    src_factor: wgpu::BlendFactor::One,
+                    dst_factor: wgpu::BlendFactor::One,
+                    operation: wgpu::BlendOperation::Add,
+                },
+                alpha: wgpu::BlendComponent::OVER,
+            }),
+        );
+        let composite_pipeline = create_post_pipeline(
+            "chemspec structural 3d composite",
+            &composite_layout,
+            "composite_fragment",
+            format,
+            None,
+        );
+
         Self {
             opaque_pipeline,
             transparent_pipeline,
             additive_pipeline,
             gas_pipeline,
+            panel_pipeline,
+            bloom_down_pipeline,
+            bloom_up_pipeline,
+            composite_pipeline,
+            scene_layout,
+            bloom_layout,
+            composite_layout,
+            background_layout,
             vertex_buffer: device.create_buffer(&wgpu::BufferDescriptor {
                 label: Some("chemspec structural 3d vertices"),
-                size: MAX_VERTICES * std::mem::size_of::<Vertex>() as u64,
+                size: MAX_VERTICES * std::mem::size_of::<GpuVertex>() as u64,
                 usage: wgpu::BufferUsages::VERTEX | wgpu::BufferUsages::COPY_DST,
                 mapped_at_creation: false,
             }),
@@ -548,13 +1221,466 @@ impl shader::Pipeline for ScenePipeline {
                 mapped_at_creation: false,
             }),
             uniform_buffer,
-            bind_group,
-            depth: None,
+            scene_bind_group: None,
+            reflection_bind_group,
+            reflection_uniform,
+            opaque_reflect_pipeline,
+            panel_bind_group,
+            linear_sampler,
+            targets: None,
             opaque_index_count: 0,
             transparent_index_count: 0,
             index_count: 0,
             gas_count: 0,
             physical_bounds: [0; 4],
+            overflow_warned: false,
+            gamma_encode: if format.is_srgb() { 0.0 } else { 1.0 },
+        }
+    }
+}
+
+impl ScenePipeline {
+    #[allow(clippy::too_many_lines, clippy::cast_precision_loss)]
+    fn ensure_targets(&mut self, device: &wgpu::Device, queue: &wgpu::Queue, size: [u32; 2]) {
+        if self
+            .targets
+            .as_ref()
+            .is_some_and(|targets| targets.size == size)
+        {
+            return;
+        }
+        let extent = |width: u32, height: u32| wgpu::Extent3d {
+            width: width.max(1),
+            height: height.max(1),
+            depth_or_array_layers: 1,
+        };
+        let create_target = |label: &str, size: wgpu::Extent3d, format, samples: u32| {
+            device.create_texture(&wgpu::TextureDescriptor {
+                label: Some(label),
+                size,
+                mip_level_count: 1,
+                sample_count: samples,
+                dimension: wgpu::TextureDimension::D2,
+                format,
+                usage: if samples > 1 {
+                    wgpu::TextureUsages::RENDER_ATTACHMENT
+                } else {
+                    wgpu::TextureUsages::RENDER_ATTACHMENT | wgpu::TextureUsages::TEXTURE_BINDING
+                },
+                view_formats: &[],
+            })
+        };
+        let full = extent(size[0], size[1]);
+        let hdr_msaa = create_target(
+            "chemspec structural 3d hdr msaa",
+            full,
+            HDR_FORMAT,
+            MSAA_SAMPLE_COUNT,
+        );
+        let hdr_msaa_view = hdr_msaa.create_view(&wgpu::TextureViewDescriptor::default());
+        let hdr_resolve = create_target("chemspec structural 3d hdr resolve", full, HDR_FORMAT, 1);
+        let hdr_resolve_view = hdr_resolve.create_view(&wgpu::TextureViewDescriptor::default());
+        let depth = device.create_texture(&wgpu::TextureDescriptor {
+            label: Some("chemspec structural 3d depth"),
+            size: full,
+            mip_level_count: 1,
+            sample_count: MSAA_SAMPLE_COUNT,
+            dimension: wgpu::TextureDimension::D2,
+            format: wgpu::TextureFormat::Depth32Float,
+            usage: wgpu::TextureUsages::RENDER_ATTACHMENT,
+            view_formats: &[],
+        });
+        let depth_view = depth.create_view(&wgpu::TextureViewDescriptor::default());
+        // The opaque scene resolved mid-frame; the transparent pass samples
+        // this for screen-space refraction through glass and liquid.
+        let background = create_target("chemspec structural 3d background", full, HDR_FORMAT, 1);
+        let background_view = background.create_view(&wgpu::TextureViewDescriptor::default());
+        let background_bind_group = device.create_bind_group(&wgpu::BindGroupDescriptor {
+            label: Some("chemspec structural 3d background group"),
+            layout: &self.background_layout,
+            entries: &[
+                wgpu::BindGroupEntry {
+                    binding: 0,
+                    resource: wgpu::BindingResource::TextureView(&background_view),
+                },
+                wgpu::BindGroupEntry {
+                    binding: 1,
+                    resource: wgpu::BindingResource::Sampler(&self.linear_sampler),
+                },
+            ],
+        });
+
+        // Half-res mirrored-scene targets for the bench's planar reflection.
+        let half = extent(size[0].max(2) / 2, size[1].max(2) / 2);
+        let reflection_msaa = create_target(
+            "chemspec structural 3d reflection msaa",
+            half,
+            HDR_FORMAT,
+            MSAA_SAMPLE_COUNT,
+        );
+        let reflection_msaa_view =
+            reflection_msaa.create_view(&wgpu::TextureViewDescriptor::default());
+        let reflection_resolve = create_target(
+            "chemspec structural 3d reflection resolve",
+            half,
+            HDR_FORMAT,
+            1,
+        );
+        let reflection_resolve_view =
+            reflection_resolve.create_view(&wgpu::TextureViewDescriptor::default());
+        let reflection_depth = device.create_texture(&wgpu::TextureDescriptor {
+            label: Some("chemspec structural 3d reflection depth"),
+            size: half,
+            mip_level_count: 1,
+            sample_count: MSAA_SAMPLE_COUNT,
+            dimension: wgpu::TextureDimension::D2,
+            format: wgpu::TextureFormat::Depth32Float,
+            usage: wgpu::TextureUsages::RENDER_ATTACHMENT,
+            view_formats: &[],
+        });
+        let reflection_depth_view =
+            reflection_depth.create_view(&wgpu::TextureViewDescriptor::default());
+        self.scene_bind_group = Some(device.create_bind_group(&wgpu::BindGroupDescriptor {
+            label: Some("chemspec structural 3d scene group"),
+            layout: &self.scene_layout,
+            entries: &[
+                wgpu::BindGroupEntry {
+                    binding: 0,
+                    resource: self.uniform_buffer.as_entire_binding(),
+                },
+                wgpu::BindGroupEntry {
+                    binding: 3,
+                    resource: wgpu::BindingResource::TextureView(&reflection_resolve_view),
+                },
+                wgpu::BindGroupEntry {
+                    binding: 4,
+                    resource: wgpu::BindingResource::Sampler(&self.linear_sampler),
+                },
+            ],
+        }));
+
+        // Half-resolution cascade for the dual-filter bloom.
+        let mut level_sizes: Vec<[u32; 2]> = Vec::new();
+        let mut level_size = [size[0].max(2) / 2, size[1].max(2) / 2];
+        while level_sizes.len() < MAX_BLOOM_LEVELS {
+            level_sizes.push([level_size[0].max(1), level_size[1].max(1)]);
+            if level_size[0] / 2 < 8 || level_size[1] / 2 < 8 {
+                break;
+            }
+            level_size = [level_size[0] / 2, level_size[1] / 2];
+        }
+        let bloom_textures: Vec<wgpu::Texture> = level_sizes
+            .iter()
+            .map(|level| {
+                create_target(
+                    "chemspec structural 3d bloom level",
+                    extent(level[0], level[1]),
+                    HDR_FORMAT,
+                    1,
+                )
+            })
+            .collect();
+        let bloom_views: Vec<wgpu::TextureView> = bloom_textures
+            .iter()
+            .map(|texture| texture.create_view(&wgpu::TextureViewDescriptor::default()))
+            .collect();
+        let create_blit_params = |source: [u32; 2], threshold: f32, intensity: f32| {
+            let buffer = device.create_buffer(&wgpu::BufferDescriptor {
+                label: Some("chemspec structural 3d blit params"),
+                size: std::mem::size_of::<BlitParams>() as u64,
+                usage: wgpu::BufferUsages::UNIFORM | wgpu::BufferUsages::COPY_DST,
+                mapped_at_creation: false,
+            });
+            queue.write_buffer(
+                &buffer,
+                0,
+                bytemuck::bytes_of(&BlitParams {
+                    texel: [
+                        1.0 / source[0].max(1) as f32,
+                        1.0 / source[1].max(1) as f32,
+                        threshold,
+                        intensity,
+                    ],
+                }),
+            );
+            buffer
+        };
+        let create_blit_group = |params: &wgpu::Buffer, source_view: &wgpu::TextureView| {
+            device.create_bind_group(&wgpu::BindGroupDescriptor {
+                label: Some("chemspec structural 3d blit group"),
+                layout: &self.bloom_layout,
+                entries: &[
+                    wgpu::BindGroupEntry {
+                        binding: 4,
+                        resource: params.as_entire_binding(),
+                    },
+                    wgpu::BindGroupEntry {
+                        binding: 5,
+                        resource: wgpu::BindingResource::TextureView(source_view),
+                    },
+                    wgpu::BindGroupEntry {
+                        binding: 6,
+                        resource: wgpu::BindingResource::Sampler(&self.linear_sampler),
+                    },
+                ],
+            })
+        };
+        let mut bloom_levels = Vec::with_capacity(level_sizes.len());
+        for (index, texture) in bloom_textures.into_iter().enumerate() {
+            let source_size = if index == 0 {
+                size
+            } else {
+                level_sizes[index - 1]
+            };
+            let down_params = create_blit_params(
+                source_size,
+                if index == 0 { BLOOM_THRESHOLD } else { 0.0 },
+                1.0,
+            );
+            let down_source = if index == 0 {
+                &hdr_resolve_view
+            } else {
+                &bloom_views[index - 1]
+            };
+            let down_bind_group = create_blit_group(&down_params, down_source);
+            let (up_params, up_bind_group) = if index + 1 < level_sizes.len() {
+                let params = create_blit_params(level_sizes[index + 1], 0.0, 0.72);
+                let group = create_blit_group(&params, &bloom_views[index + 1]);
+                (Some(params), Some(group))
+            } else {
+                (None, None)
+            };
+            bloom_levels.push(BloomLevel {
+                _texture: texture,
+                view: bloom_views[index].clone(),
+                down_bind_group,
+                _down_params: down_params,
+                up_bind_group,
+                _up_params: up_params,
+            });
+        }
+
+        // Unthresholded half/quarter blur chain feeding the close-up focus
+        // effect in the composite.
+        let half_size = [size[0].max(2) / 2, size[1].max(2) / 2];
+        let quarter_size = [half_size[0].max(2) / 2, half_size[1].max(2) / 2];
+        let blur_half = create_target(
+            "chemspec structural 3d blur half",
+            extent(half_size[0], half_size[1]),
+            HDR_FORMAT,
+            1,
+        );
+        let blur_half_view = blur_half.create_view(&wgpu::TextureViewDescriptor::default());
+        let blur_quarter = create_target(
+            "chemspec structural 3d blur quarter",
+            extent(quarter_size[0], quarter_size[1]),
+            HDR_FORMAT,
+            1,
+        );
+        let blur_quarter_view = blur_quarter.create_view(&wgpu::TextureViewDescriptor::default());
+        let blur_half_params = create_blit_params(size, 0.0, 1.0);
+        let blur_half_bind_group = create_blit_group(&blur_half_params, &hdr_resolve_view);
+        let blur_quarter_params = create_blit_params(half_size, 0.0, 1.0);
+        let blur_quarter_bind_group = create_blit_group(&blur_quarter_params, &blur_half_view);
+
+        // Aux (normal + camera distance) buffer alongside the HDR scene. The
+        // composite uses its distance channel to bound the height-fog march.
+        let aux_msaa = create_target(
+            "chemspec structural 3d aux msaa",
+            full,
+            HDR_FORMAT,
+            MSAA_SAMPLE_COUNT,
+        );
+        let aux_msaa_view = aux_msaa.create_view(&wgpu::TextureViewDescriptor::default());
+        let aux_resolve = create_target("chemspec structural 3d aux resolve", full, HDR_FORMAT, 1);
+        let aux_resolve_view = aux_resolve.create_view(&wgpu::TextureViewDescriptor::default());
+        let composite_uniform = device.create_buffer(&wgpu::BufferDescriptor {
+            label: Some("chemspec structural 3d composite params"),
+            size: std::mem::size_of::<CompositeParams>() as u64,
+            usage: wgpu::BufferUsages::UNIFORM | wgpu::BufferUsages::COPY_DST,
+            mapped_at_creation: false,
+        });
+        queue.write_buffer(
+            &composite_uniform,
+            0,
+            bytemuck::bytes_of(&CompositeParams {
+                inv_view_projection: Mat4::IDENTITY.to_cols_array_2d(),
+                values: [
+                    COMPOSITE_EXPOSURE,
+                    COMPOSITE_BLOOM_STRENGTH,
+                    self.gamma_encode,
+                    0.0,
+                ],
+                heat: [0.0; 4],
+                clock: [0.0; 4],
+                ray: [0.0; 4],
+            }),
+        );
+        let composite_bind_group = device.create_bind_group(&wgpu::BindGroupDescriptor {
+            label: Some("chemspec structural 3d composite group"),
+            layout: &self.composite_layout,
+            entries: &[
+                wgpu::BindGroupEntry {
+                    binding: 7,
+                    resource: composite_uniform.as_entire_binding(),
+                },
+                wgpu::BindGroupEntry {
+                    binding: 8,
+                    resource: wgpu::BindingResource::TextureView(&hdr_resolve_view),
+                },
+                wgpu::BindGroupEntry {
+                    binding: 9,
+                    resource: wgpu::BindingResource::TextureView(&bloom_levels[0].view),
+                },
+                wgpu::BindGroupEntry {
+                    binding: 10,
+                    resource: wgpu::BindingResource::Sampler(&self.linear_sampler),
+                },
+                wgpu::BindGroupEntry {
+                    binding: 11,
+                    resource: wgpu::BindingResource::TextureView(&blur_quarter_view),
+                },
+                wgpu::BindGroupEntry {
+                    binding: 13,
+                    resource: wgpu::BindingResource::TextureView(&aux_resolve_view),
+                },
+            ],
+        });
+
+        self.targets = Some(SizedTargets {
+            size,
+            _hdr_msaa: hdr_msaa,
+            hdr_msaa_view,
+            _hdr_resolve: hdr_resolve,
+            hdr_resolve_view,
+            _depth: depth,
+            depth_view,
+            _background: background,
+            background_view,
+            background_bind_group,
+            _reflection_msaa: reflection_msaa,
+            reflection_msaa_view,
+            _reflection_resolve: reflection_resolve,
+            reflection_resolve_view,
+            _reflection_depth: reflection_depth,
+            reflection_depth_view,
+            _blur_half: blur_half,
+            blur_half_view,
+            blur_half_bind_group,
+            _blur_half_params: blur_half_params,
+            _blur_quarter: blur_quarter,
+            blur_quarter_view,
+            blur_quarter_bind_group,
+            _blur_quarter_params: blur_quarter_params,
+            _aux_msaa: aux_msaa,
+            aux_msaa_view,
+            _aux_resolve: aux_resolve,
+            aux_resolve_view,
+            bloom_levels,
+            composite_bind_group,
+            composite_uniform,
+        });
+    }
+}
+
+impl ScenePrimitive {
+    /// Uploads the camera, light, caustic, and clock uniforms; returns the
+    /// view-projection so the composite can project world-space regions.
+    #[allow(clippy::cast_precision_loss)]
+    fn write_camera_uniform(
+        &self,
+        pipeline: &ScenePipeline,
+        queue: &wgpu::Queue,
+        width: u32,
+        height: u32,
+    ) -> (Mat4, Vec3) {
+        let aspect = width as f32 / height.max(1) as f32;
+        let reaction_target = self.focus_target;
+        let pitch = self.pitch.clamp(-1.18, -0.22);
+        let eye = reaction_target
+            + Quat::from_rotation_y(self.yaw)
+                * Quat::from_rotation_x(pitch)
+                * Vec3::new(0.0, 0.0, self.camera_distance.max(1.0));
+        let view = Mat4::look_at_rh(eye, reaction_target, Vec3::Y);
+        // Mild telephoto chosen so the neutral distance (2.1 x view height)
+        // frames exactly the old orthographic view height at the target.
+        let projection = Mat4::perspective_rh(0.468, aspect, 0.3, 60.0);
+        let key_direction = Vec3::new(-0.55, -0.88, -0.48).normalize();
+        let view_projection = projection * view;
+        let uniform = CameraUniform {
+            view_projection: view_projection.to_cols_array_2d(),
+            key_direction: [key_direction.x, key_direction.y, key_direction.z, 0.0],
+            fill_direction: [0.70, -0.45, 0.55, 0.0],
+            camera_position: [eye.x, eye.y, eye.z, 1.0],
+            params: [self.time_seconds, width as f32, height as f32, 0.0],
+            caustic: self.caustic,
+            caustic_tint: self.caustic_tint,
+        };
+        queue.write_buffer(&pipeline.uniform_buffer, 0, bytemuck::bytes_of(&uniform));
+
+        // Mirror camera across the bench plane for the planar reflection.
+        let bench_top = self.caustic_tint[3];
+        let mirror = Mat4::from_translation(Vec3::Y * bench_top)
+            * Mat4::from_scale(Vec3::new(1.0, -1.0, 1.0))
+            * Mat4::from_translation(Vec3::Y * -bench_top);
+        let mirrored_eye = Vec3::new(eye.x, 2.0 * bench_top - eye.y, eye.z);
+        let reflection = CameraUniform {
+            view_projection: (view_projection * mirror).to_cols_array_2d(),
+            camera_position: [mirrored_eye.x, mirrored_eye.y, mirrored_eye.z, 1.0],
+            params: [self.time_seconds, width as f32, height as f32, 1.0],
+            ..uniform
+        };
+        queue.write_buffer(
+            &pipeline.reflection_uniform,
+            0,
+            bytemuck::bytes_of(&reflection),
+        );
+        (view_projection, eye)
+    }
+
+    /// Projects the heat column into uv space and uploads the composite
+    /// parameters (exposure, bloom, gamma, focus, shimmer, clock).
+    fn write_composite_uniform(
+        &self,
+        pipeline: &ScenePipeline,
+        queue: &wgpu::Queue,
+        view_projection: Mat4,
+        eye: Vec3,
+    ) {
+        let heat_centre = Vec3::new(self.heat[0], self.heat[1], self.heat[2]);
+        let project_uv = |world: Vec3| {
+            let clip = view_projection * world.extend(1.0);
+            let ndc = clip.truncate() / clip.w.max(1e-4);
+            [ndc.x * 0.5 + 0.5, 0.5 - ndc.y * 0.5]
+        };
+        let centre_uv = project_uv(heat_centre);
+        let camera_right = Quat::from_rotation_y(self.yaw) * Vec3::X;
+        let edge_uv = project_uv(heat_centre + camera_right * 1.15);
+        let radius_uv = ((edge_uv[0] - centre_uv[0]).powi(2) + (edge_uv[1] - centre_uv[1]).powi(2))
+            .sqrt()
+            .max(0.02);
+        if let Some(targets) = &pipeline.targets {
+            queue.write_buffer(
+                &targets.composite_uniform,
+                0,
+                bytemuck::bytes_of(&CompositeParams {
+                    inv_view_projection: view_projection.inverse().to_cols_array_2d(),
+                    values: [
+                        COMPOSITE_EXPOSURE,
+                        COMPOSITE_BLOOM_STRENGTH,
+                        pipeline.gamma_encode,
+                        self.focus_strength,
+                    ],
+                    heat: [centre_uv[0], centre_uv[1], radius_uv, self.heat[3]],
+                    clock: [
+                        self.time_seconds,
+                        self.flame_exposure,
+                        self.fog_strength,
+                        self.endcard,
+                    ],
+                    ray: [eye.x, eye.y, eye.z, self.caustic_tint[3]],
+                }),
+            );
         }
     }
 }
@@ -584,35 +1710,17 @@ impl shader::Primitive for ScenePrimitive {
             width,
             height,
         ];
-        let viewport_size = viewport.physical_size();
-        let depth_size = [viewport_size.width.max(1), viewport_size.height.max(1)];
-        if pipeline
-            .depth
-            .as_ref()
-            .is_none_or(|depth| depth.size != depth_size)
-        {
-            let texture = device.create_texture(&wgpu::TextureDescriptor {
-                label: Some("chemspec structural 3d depth"),
-                size: wgpu::Extent3d {
-                    width: depth_size[0],
-                    height: depth_size[1],
-                    depth_or_array_layers: 1,
-                },
-                mip_level_count: 1,
-                sample_count: 1,
-                dimension: wgpu::TextureDimension::D2,
-                format: wgpu::TextureFormat::Depth32Float,
-                usage: wgpu::TextureUsages::RENDER_ATTACHMENT,
-                view_formats: &[],
-            });
-            let view = texture.create_view(&wgpu::TextureViewDescriptor::default());
-            pipeline.depth = Some(DepthTarget {
-                _texture: texture,
-                view,
-                size: depth_size,
-            });
-        }
+        pipeline.ensure_targets(device, queue, [width, height]);
         if self.vertices.len() as u64 > MAX_VERTICES || self.indices.len() as u64 > MAX_INDICES {
+            if !pipeline.overflow_warned {
+                pipeline.overflow_warned = true;
+                eprintln!(
+                    "structural 3d scene exceeds geometry budget \
+                     ({} vertices, {} indices); frame skipped",
+                    self.vertices.len(),
+                    self.indices.len(),
+                );
+            }
             pipeline.opaque_index_count = 0;
             pipeline.transparent_index_count = 0;
             pipeline.index_count = 0;
@@ -645,34 +1753,11 @@ impl shader::Primitive for ScenePrimitive {
             .transparent_index_count
             .clamp(pipeline.opaque_index_count, pipeline.index_count);
 
-        let aspect = width as f32 / height.max(1) as f32;
-        let reaction_target = self.focus_target;
-        let pitch = self.pitch.clamp(-1.18, -0.22);
-        let eye = reaction_target
-            + Quat::from_rotation_y(self.yaw)
-                * Quat::from_rotation_x(pitch)
-                * Vec3::new(0.0, 0.0, 8.0);
-        let view = Mat4::look_at_rh(eye, reaction_target, Vec3::Y);
-        let half_height = self.view_height * 0.5;
-        let half_width = half_height * aspect;
-        let projection = Mat4::orthographic_rh(
-            -half_width,
-            half_width,
-            -half_height,
-            half_height,
-            0.1,
-            50.0,
-        );
-        let uniform = CameraUniform {
-            view_projection: (projection * view).to_cols_array_2d(),
-            key_direction: [-0.55, -0.88, -0.48, 0.0],
-            fill_direction: [0.70, -0.45, 0.55, 0.0],
-            camera_position: [eye.x, eye.y, eye.z, 1.0],
-        };
-        queue.write_buffer(&pipeline.uniform_buffer, 0, bytemuck::bytes_of(&uniform));
+        let (view_projection, eye) = self.write_camera_uniform(pipeline, queue, width, height);
+        self.write_composite_uniform(pipeline, queue, view_projection, eye);
     }
 
-    #[allow(clippy::cast_precision_loss)]
+    #[allow(clippy::cast_precision_loss, clippy::too_many_lines)]
     fn render(
         &self,
         pipeline: &Self::Pipeline,
@@ -680,7 +1765,12 @@ impl shader::Primitive for ScenePrimitive {
         target: &wgpu::TextureView,
         clip_bounds: &Rectangle<u32>,
     ) {
-        let Some(depth) = &pipeline.depth else { return };
+        let Some(targets) = &pipeline.targets else {
+            return;
+        };
+        let Some(scene_bind_group) = &pipeline.scene_bind_group else {
+            return;
+        };
         let [x, y, width, height] = pipeline.physical_bounds;
         let scissor_x = clip_bounds.x.max(x);
         let scissor_y = clip_bounds.y.max(y);
@@ -697,8 +1787,233 @@ impl shader::Primitive for ScenePrimitive {
         if scissor_width == 0 || scissor_height == 0 {
             return;
         }
+
+        // Mirrored scene, half res: the bench samples this for its planar
+        // reflection. The bench itself is discarded in-shader; gas splats are
+        // skipped (their billboards assume the primary camera).
+        {
+            let mut pass = encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
+                label: Some("chemspec structural 3d reflection pass"),
+                color_attachments: &[Some(wgpu::RenderPassColorAttachment {
+                    view: &targets.reflection_msaa_view,
+                    depth_slice: None,
+                    resolve_target: Some(&targets.reflection_resolve_view),
+                    ops: wgpu::Operations {
+                        load: wgpu::LoadOp::Clear(wgpu::Color {
+                            r: 0.013,
+                            g: 0.016,
+                            b: 0.023,
+                            a: 1.0,
+                        }),
+                        store: wgpu::StoreOp::Discard,
+                    },
+                })],
+                depth_stencil_attachment: Some(wgpu::RenderPassDepthStencilAttachment {
+                    view: &targets.reflection_depth_view,
+                    depth_ops: Some(wgpu::Operations {
+                        load: wgpu::LoadOp::Clear(1.0),
+                        store: wgpu::StoreOp::Discard,
+                    }),
+                    stencil_ops: None,
+                }),
+                timestamp_writes: None,
+                occlusion_query_set: None,
+            });
+            pass.set_bind_group(0, &pipeline.reflection_bind_group, &[]);
+            pass.set_vertex_buffer(0, pipeline.vertex_buffer.slice(..));
+            pass.set_index_buffer(pipeline.index_buffer.slice(..), wgpu::IndexFormat::Uint32);
+            pass.set_pipeline(&pipeline.opaque_reflect_pipeline);
+            pass.draw_indexed(0..pipeline.opaque_index_count, 0, 0..1);
+            if pipeline.opaque_index_count < pipeline.transparent_index_count {
+                pass.set_bind_group(1, &targets.background_bind_group, &[]);
+                pass.set_pipeline(&pipeline.transparent_pipeline);
+                pass.draw_indexed(
+                    pipeline.opaque_index_count..pipeline.transparent_index_count,
+                    0,
+                    0..1,
+                );
+            }
+            if pipeline.transparent_index_count < pipeline.index_count {
+                pass.set_pipeline(&pipeline.additive_pipeline);
+                pass.draw_indexed(
+                    pipeline.transparent_index_count..pipeline.index_count,
+                    0,
+                    0..1,
+                );
+            }
+        }
+
+        // Opaque pass: backdrop, opaque geometry, and gas resolve into the
+        // background texture the transparent pass refracts. The MSAA contents
+        // are kept for the second pass to continue over.
+        {
+            let mut pass = encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
+                label: Some("chemspec structural 3d opaque pass"),
+                color_attachments: &[
+                    Some(wgpu::RenderPassColorAttachment {
+                        view: &targets.hdr_msaa_view,
+                        depth_slice: None,
+                        resolve_target: Some(&targets.background_view),
+                        ops: wgpu::Operations {
+                            load: wgpu::LoadOp::Clear(wgpu::Color::BLACK),
+                            store: wgpu::StoreOp::Store,
+                        },
+                    }),
+                    Some(wgpu::RenderPassColorAttachment {
+                        view: &targets.aux_msaa_view,
+                        depth_slice: None,
+                        resolve_target: Some(&targets.aux_resolve_view),
+                        ops: wgpu::Operations {
+                            load: wgpu::LoadOp::Clear(wgpu::Color::TRANSPARENT),
+                            store: wgpu::StoreOp::Discard,
+                        },
+                    }),
+                ],
+                depth_stencil_attachment: Some(wgpu::RenderPassDepthStencilAttachment {
+                    view: &targets.depth_view,
+                    depth_ops: Some(wgpu::Operations {
+                        load: wgpu::LoadOp::Clear(1.0),
+                        store: wgpu::StoreOp::Store,
+                    }),
+                    stencil_ops: None,
+                }),
+                timestamp_writes: None,
+                occlusion_query_set: None,
+            });
+            pass.set_pipeline(&pipeline.panel_pipeline);
+            pass.set_bind_group(0, &pipeline.panel_bind_group, &[]);
+            pass.draw(0..3, 0..1);
+            pass.set_pipeline(&pipeline.opaque_pipeline);
+            pass.set_bind_group(0, scene_bind_group, &[]);
+            pass.set_vertex_buffer(0, pipeline.vertex_buffer.slice(..));
+            pass.set_index_buffer(pipeline.index_buffer.slice(..), wgpu::IndexFormat::Uint32);
+            pass.draw_indexed(0..pipeline.opaque_index_count, 0, 0..1);
+            if pipeline.gas_count > 0 {
+                pass.set_pipeline(&pipeline.gas_pipeline);
+                pass.set_vertex_buffer(0, pipeline.gas_buffer.slice(..));
+                pass.draw(0..6, 0..pipeline.gas_count);
+            }
+        }
+
+        // Transparent pass: sorted glass and liquid refract the resolved
+        // background, then emissive cores blend additively; the final HDR
+        // frame resolves out of the same MSAA target.
+        {
+            let mut pass = encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
+                label: Some("chemspec structural 3d transparent pass"),
+                color_attachments: &[Some(wgpu::RenderPassColorAttachment {
+                    view: &targets.hdr_msaa_view,
+                    depth_slice: None,
+                    resolve_target: Some(&targets.hdr_resolve_view),
+                    ops: wgpu::Operations {
+                        load: wgpu::LoadOp::Load,
+                        store: wgpu::StoreOp::Discard,
+                    },
+                })],
+                depth_stencil_attachment: Some(wgpu::RenderPassDepthStencilAttachment {
+                    view: &targets.depth_view,
+                    depth_ops: Some(wgpu::Operations {
+                        load: wgpu::LoadOp::Load,
+                        store: wgpu::StoreOp::Discard,
+                    }),
+                    stencil_ops: None,
+                }),
+                timestamp_writes: None,
+                occlusion_query_set: None,
+            });
+            pass.set_bind_group(0, scene_bind_group, &[]);
+            pass.set_bind_group(1, &targets.background_bind_group, &[]);
+            pass.set_vertex_buffer(0, pipeline.vertex_buffer.slice(..));
+            pass.set_index_buffer(pipeline.index_buffer.slice(..), wgpu::IndexFormat::Uint32);
+            if pipeline.opaque_index_count < pipeline.transparent_index_count {
+                pass.set_pipeline(&pipeline.transparent_pipeline);
+                pass.draw_indexed(
+                    pipeline.opaque_index_count..pipeline.transparent_index_count,
+                    0,
+                    0..1,
+                );
+            }
+            if pipeline.transparent_index_count < pipeline.index_count {
+                pass.set_pipeline(&pipeline.additive_pipeline);
+                pass.draw_indexed(
+                    pipeline.transparent_index_count..pipeline.index_count,
+                    0,
+                    0..1,
+                );
+            }
+        }
+
+        for level in &targets.bloom_levels {
+            let mut pass = encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
+                label: Some("chemspec structural 3d bloom downsample pass"),
+                color_attachments: &[Some(wgpu::RenderPassColorAttachment {
+                    view: &level.view,
+                    depth_slice: None,
+                    resolve_target: None,
+                    ops: wgpu::Operations {
+                        load: wgpu::LoadOp::Clear(wgpu::Color::BLACK),
+                        store: wgpu::StoreOp::Store,
+                    },
+                })],
+                depth_stencil_attachment: None,
+                timestamp_writes: None,
+                occlusion_query_set: None,
+            });
+            pass.set_pipeline(&pipeline.bloom_down_pipeline);
+            pass.set_bind_group(0, &level.down_bind_group, &[]);
+            pass.draw(0..3, 0..1);
+        }
+        for level in targets.bloom_levels.iter().rev() {
+            let Some(up_bind_group) = &level.up_bind_group else {
+                continue;
+            };
+            let mut pass = encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
+                label: Some("chemspec structural 3d bloom upsample pass"),
+                color_attachments: &[Some(wgpu::RenderPassColorAttachment {
+                    view: &level.view,
+                    depth_slice: None,
+                    resolve_target: None,
+                    ops: wgpu::Operations {
+                        load: wgpu::LoadOp::Load,
+                        store: wgpu::StoreOp::Store,
+                    },
+                })],
+                depth_stencil_attachment: None,
+                timestamp_writes: None,
+                occlusion_query_set: None,
+            });
+            pass.set_pipeline(&pipeline.bloom_up_pipeline);
+            pass.set_bind_group(0, up_bind_group, &[]);
+            pass.draw(0..3, 0..1);
+        }
+
+        // Unthresholded blur chain for the close-up focus effect.
+        for (view, bind_group) in [
+            (&targets.blur_half_view, &targets.blur_half_bind_group),
+            (&targets.blur_quarter_view, &targets.blur_quarter_bind_group),
+        ] {
+            let mut pass = encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
+                label: Some("chemspec structural 3d focus blur pass"),
+                color_attachments: &[Some(wgpu::RenderPassColorAttachment {
+                    view,
+                    depth_slice: None,
+                    resolve_target: None,
+                    ops: wgpu::Operations {
+                        load: wgpu::LoadOp::Clear(wgpu::Color::BLACK),
+                        store: wgpu::StoreOp::Store,
+                    },
+                })],
+                depth_stencil_attachment: None,
+                timestamp_writes: None,
+                occlusion_query_set: None,
+            });
+            pass.set_pipeline(&pipeline.bloom_down_pipeline);
+            pass.set_bind_group(0, bind_group, &[]);
+            pass.draw(0..3, 0..1);
+        }
+
         let mut pass = encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
-            label: Some("chemspec structural 3d render pass"),
+            label: Some("chemspec structural 3d composite pass"),
             color_attachments: &[Some(wgpu::RenderPassColorAttachment {
                 view: target,
                 depth_slice: None,
@@ -708,46 +2023,15 @@ impl shader::Primitive for ScenePrimitive {
                     store: wgpu::StoreOp::Store,
                 },
             })],
-            depth_stencil_attachment: Some(wgpu::RenderPassDepthStencilAttachment {
-                view: &depth.view,
-                depth_ops: Some(wgpu::Operations {
-                    load: wgpu::LoadOp::Clear(1.0),
-                    store: wgpu::StoreOp::Discard,
-                }),
-                stencil_ops: None,
-            }),
+            depth_stencil_attachment: None,
             timestamp_writes: None,
             occlusion_query_set: None,
         });
         pass.set_viewport(x as f32, y as f32, width as f32, height as f32, 0.0, 1.0);
         pass.set_scissor_rect(scissor_x, scissor_y, scissor_width, scissor_height);
-        pass.set_pipeline(&pipeline.opaque_pipeline);
-        pass.set_bind_group(0, &pipeline.bind_group, &[]);
-        pass.set_vertex_buffer(0, pipeline.vertex_buffer.slice(..));
-        pass.set_index_buffer(pipeline.index_buffer.slice(..), wgpu::IndexFormat::Uint32);
-        pass.draw_indexed(0..pipeline.opaque_index_count, 0, 0..1);
-        if pipeline.gas_count > 0 {
-            pass.set_pipeline(&pipeline.gas_pipeline);
-            pass.set_vertex_buffer(0, pipeline.gas_buffer.slice(..));
-            pass.draw(0..6, 0..pipeline.gas_count);
-            pass.set_vertex_buffer(0, pipeline.vertex_buffer.slice(..));
-        }
-        if pipeline.opaque_index_count < pipeline.transparent_index_count {
-            pass.set_pipeline(&pipeline.transparent_pipeline);
-            pass.draw_indexed(
-                pipeline.opaque_index_count..pipeline.transparent_index_count,
-                0,
-                0..1,
-            );
-        }
-        if pipeline.transparent_index_count < pipeline.index_count {
-            pass.set_pipeline(&pipeline.additive_pipeline);
-            pass.draw_indexed(
-                pipeline.transparent_index_count..pipeline.index_count,
-                0,
-                0..1,
-            );
-        }
+        pass.set_pipeline(&pipeline.composite_pipeline);
+        pass.set_bind_group(0, &targets.composite_bind_group, &[]);
+        pass.draw(0..3, 0..1);
     }
 }
 
@@ -781,6 +2065,8 @@ impl SceneLayout {
                     | AssetProfile::AqueousPrecipitationAssembly
                     | AssetProfile::MetalDisplacementAssembly
                     | AssetProfile::SolidSolidSynthesisAssembly
+                    | AssetProfile::SolidGasSynthesisAssembly
+                    | AssetProfile::GasGasSynthesisAssembly
             )
         }) {
             let vessel_center = Vec3::new(0.0, bench_top + 0.90, 0.0);
@@ -1083,7 +2369,7 @@ fn build_scene(
     plan: &ScenePlan,
     ordinal: u16,
     progress: f32,
-) -> (Vec<Vertex>, Vec<u32>, u32, u32, Vec<GasSplat>) {
+) -> (Vec<GpuVertex>, Vec<u32>, u32, u32, Vec<GasSplat>) {
     build_scene_with_stage(
         plan,
         ordinal,
@@ -1091,15 +2377,34 @@ fn build_scene(
         MacroscopicStage::Reaction,
         progress,
         None,
+        fixed_view_direction(),
     )
+}
+
+/// The cue-adjusted view direction at this moment (shake excluded: its
+/// fraction of a degree cannot flip triangle ordering).
+fn live_view_direction(plan: &ScenePlan, moment: RealWorldPosition, orbit: (f32, f32)) -> Vec3 {
+    let cue = camera_cue_adjustment(plan, moment);
+    -(Quat::from_rotation_y(FIXED_CAMERA_YAW + cue.yaw_offset + orbit.0)
+        * Quat::from_rotation_x(
+            (FIXED_CAMERA_PITCH + cue.pitch_offset + orbit.1).clamp(-1.35, -0.12),
+        )
+        * Vec3::Z)
 }
 
 fn build_scene_at(
     plan: &ScenePlan,
     moment: RealWorldPosition,
-) -> (Vec<Vertex>, Vec<u32>, u32, u32, Vec<GasSplat>) {
-    let authored_clip_progress =
-        if moment.stage == MacroscopicStage::Reaction && plan.gas_evolution.is_some() {
+    orbit: (f32, f32),
+) -> (Vec<GpuVertex>, Vec<u32>, u32, u32, Vec<GasSplat>) {
+    let authored_clip_progress = if plan.explosive_metal_water.is_some() {
+            // The detonation choreography carries its own authored pacing
+            // (contact at frame 39/179) on the wall-clock timeline — the
+            // gas-evolution remap below would postpone contact to the
+            // gas-generation ordinal while blast_camera_shake stays on the
+            // wall clock, splitting the scene across two clocks.
+            plan.timeline.normalized_progress_at(moment)
+        } else if moment.stage == MacroscopicStage::Reaction && plan.gas_evolution.is_some() {
             gas_evolution_clip_progress(plan, moment)
         } else if moment.stage == MacroscopicStage::Reaction && plan.metal_displacement.is_some() {
             authored_reaction_clip_progress(plan, moment)
@@ -1116,6 +2421,7 @@ fn build_scene_at(
         moment.stage,
         moment.beat_progress,
         Some(authored_clip_progress),
+        live_view_direction(plan, moment, orbit),
     )
 }
 
@@ -1127,8 +2433,11 @@ fn build_scene_with_stage(
     stage: MacroscopicStage,
     stage_progress: f32,
     authored_clip_progress: Option<f32>,
-) -> (Vec<Vertex>, Vec<u32>, u32, u32, Vec<GasSplat>) {
+    view_direction: Vec3,
+) -> (Vec<GpuVertex>, Vec<u32>, u32, u32, Vec<GasSplat>) {
     let mut meshes = SceneMeshes::default();
+    // Scene invariant: per-plan topology is CONSTANT — entities never appear
+    // or disappear across (ordinal, progress); only sizes/positions animate.
     let layout = SceneLayout::resolve(plan);
     let final_ordinal = plan
         .timeline
@@ -1187,18 +2496,32 @@ fn build_scene_with_stage(
         None,
     );
     if plan.objects.iter().any(|object| {
+        object.role == SceneRole::Vessel
+            && object.asset == AssetProfile::ExplosiveMetalWaterAssembly
+    }) {
+        explosion::add_explosive_metal_water_assembly(
+            &mut meshes,
+            plan,
+            layout,
+            authored_clip_progress.unwrap_or(visual_inputs.reaction_progress),
+            ordinal,
+            progress,
+        );
+        return meshes.finish(view_direction);
+    }
+    if plan.objects.iter().any(|object| {
         object.role == SceneRole::Vessel && object.asset == AssetProfile::ReactiveMetalWaterAssembly
     }) {
-        add_animated_alkali_water_assembly(
+        alkali_water::add_alkali_water_assembly(
             &mut meshes,
             plan,
             layout,
             authored_clip_progress.unwrap_or(visual_inputs.reaction_progress),
         );
-        return meshes.finish();
+        return meshes.finish(view_direction);
     }
     if stage == MacroscopicStage::Reaction && plan.gas_evolution.is_some() {
-        add_animated_gas_evolution_assembly(
+        gas_evolution::add_gas_evolution_assembly(
             &mut meshes,
             plan,
             layout,
@@ -1206,10 +2529,10 @@ fn build_scene_with_stage(
             ordinal,
             progress,
         );
-        return meshes.finish();
+        return meshes.finish(view_direction);
     }
     if stage == MacroscopicStage::Reaction && plan.metal_displacement.is_some() {
-        add_animated_metal_displacement_assembly(
+        displacement::add_displacement_assembly(
             &mut meshes,
             plan,
             layout,
@@ -1217,10 +2540,10 @@ fn build_scene_with_stage(
             ordinal,
             progress,
         );
-        return meshes.finish();
+        return meshes.finish(view_direction);
     }
     if stage == MacroscopicStage::Reaction && plan.solid_solid_synthesis.is_some() {
-        add_animated_synthesis_combination_assembly(
+        synthesis::add_synthesis_assembly(
             &mut meshes,
             plan,
             layout,
@@ -1228,10 +2551,10 @@ fn build_scene_with_stage(
             ordinal,
             progress,
         );
-        return meshes.finish();
+        return meshes.finish(view_direction);
     }
     if stage == MacroscopicStage::Reaction && plan.phase_synthesis.is_some() {
-        add_animated_phase_synthesis_assembly(
+        phase_synthesis::add_phase_synthesis_assembly(
             &mut meshes,
             plan,
             layout,
@@ -1239,17 +2562,18 @@ fn build_scene_with_stage(
             ordinal,
             progress,
         );
-        return meshes.finish();
+        return meshes.finish(view_direction);
     }
     if plan.objects.iter().any(|object| {
         object.role == SceneRole::Vessel
             && object.asset == AssetProfile::NeutralisationEvaporationAssembly
     }) {
-        add_animated_neutralisation_assembly(
+        neutralisation::add_neutralisation_assembly(
             &mut meshes,
             NeutralisationAssemblyMoment {
                 plan,
                 layout,
+                stage,
                 progress: authored_clip_progress.unwrap_or(visual_inputs.reaction_progress),
                 post_process,
                 stage_progress,
@@ -1260,7 +2584,7 @@ fn build_scene_with_stage(
                 ordinal_progress: progress,
             },
         );
-        return meshes.finish();
+        return meshes.finish(view_direction);
     }
     if let Some(assembly) = plan.objects.iter().find(|object| {
         object.role == SceneRole::Vessel
@@ -1270,19 +2594,19 @@ fn build_scene_with_stage(
                     | AssetProfile::IncompleteCombustionAssembly
             )
     }) {
-        add_animated_combustion_assembly(
+        combustion::add_combustion_assembly(
             &mut meshes,
             assembly,
             layout,
             authored_clip_progress.unwrap_or(visual_inputs.reaction_progress),
         );
-        return meshes.finish();
+        return meshes.finish(view_direction);
     }
     if plan.objects.iter().any(|object| {
         object.role == SceneRole::Vessel
             && object.asset == AssetProfile::AqueousPrecipitationAssembly
     }) {
-        add_animated_precipitation_assembly(
+        precipitation::add_precipitation_assembly(
             &mut meshes,
             plan,
             layout,
@@ -1290,7 +2614,7 @@ fn build_scene_with_stage(
             ordinal,
             progress,
         );
-        return meshes.finish();
+        return meshes.finish(view_direction);
     }
     for object in &plan.objects {
         if object.visible_from_ordinal <= ordinal {
@@ -1377,7 +2701,7 @@ fn build_scene_with_stage(
             stage_progress,
         );
     }
-    meshes.finish()
+    meshes.finish(view_direction)
 }
 
 fn scene_effect_colours(plan: &ScenePlan, ordinal: u16, progress: f32) -> EffectColours {
@@ -2123,9 +3447,10 @@ fn apply_asset_colour_transition(
         let noise = seeded_unit(position_seed, 0, 119);
         let delay = match asset {
             AssetProfile::LiquidVolume => {
-                // Liquid colour enters at the reaction region and diffuses
-                // radially and vertically instead of recolouring all at once.
-                (offset.x.hypot(offset.z) * 0.28 + offset.y.abs() * 0.10 + noise * 0.08)
+                // Additions enter at the surface, so colour sinks from the
+                // top and spreads outward — vertices below the centre are
+                // reached later than the surface directly under the source.
+                (offset.x.hypot(offset.z) * 0.24 + (-offset.y).max(0.0) * 0.30 + noise * 0.08)
                     .clamp(0.0, 0.40)
             }
             AssetProfile::GasCloud => {
@@ -2140,6 +3465,7 @@ fn apply_asset_colour_transition(
             AssetProfile::LaboratoryBench
             | AssetProfile::DarkPresentationPlatform
             | AssetProfile::ReactiveMetalWaterAssembly
+            | AssetProfile::ExplosiveMetalWaterAssembly
             | AssetProfile::NeutralisationEvaporationAssembly
             | AssetProfile::CompleteCombustionAssembly
             | AssetProfile::IncompleteCombustionAssembly
@@ -2285,22 +3611,19 @@ fn instantiate_asset(
         appearance_color(appearance)
     };
     let opaque_start = meshes.opaque.vertices.len();
+    let metallic_start = meshes.metallic.vertices.len();
     let translucent_start = meshes.translucent.vertices.len();
     let glass_start = meshes.glass.vertices.len();
     let gas_start = meshes.gas.len();
     match scene_registry::asset_geometry(asset) {
         AssetGeometry::Bench => {
+            // The old baked contact disc is gone. The bench keeps its own
+            // studio-surface grey so reflected geometry remains legible.
             add_box(
                 &mut meshes.opaque,
                 position,
-                Vec3::new(20.0, 0.28, 10.0) * scale,
-                color,
-            );
-            add_disc(
-                &mut meshes.translucent,
-                position + Vec3::new(0.0, 0.148, 0.0),
-                1.30,
-                [0.01, 0.02, 0.025, 0.22],
+                Vec3::new(44.0, 0.28, 30.0) * scale,
+                [0.165, 0.185, 0.215, 1.0],
             );
         }
         // Authored assemblies are instantiated once by the scene-level clip
@@ -2364,7 +3687,7 @@ fn instantiate_asset(
             );
         }
         AssetGeometry::ImportedMetal => {
-            add_imported_metal(&mut meshes.opaque, position, scale, color);
+            add_imported_metal(&mut meshes.metallic, position, scale, color);
         }
         AssetGeometry::ShardCluster => {
             add_particle_cluster(
@@ -2411,6 +3734,13 @@ fn instantiate_asset(
             transition,
         );
         apply_asset_colour_transition(
+            &mut meshes.metallic,
+            metallic_start,
+            asset,
+            position,
+            transition,
+        );
+        apply_asset_colour_transition(
             &mut meshes.translucent,
             translucent_start,
             asset,
@@ -2420,6 +3750,7 @@ fn instantiate_asset(
         apply_gas_colour_transition(&mut meshes.gas, gas_start, position, transition);
     }
     rotate_mesh_vertices(&mut meshes.opaque, opaque_start, position, rotation);
+    rotate_mesh_vertices(&mut meshes.metallic, metallic_start, position, rotation);
     rotate_mesh_vertices(
         &mut meshes.translucent,
         translucent_start,
@@ -2824,9 +4155,16 @@ fn add_evaporation_crystallization_process(
         );
     }
     if state.crystal_growth > 0.002 {
+        // Crystals rest on the vessel's actual interior floor — the same
+        // place the shrinking pool bottoms out — riding the heating lift,
+        // so they never hang where an old liquid level used to be.
         add_crystallizing_salt(
             &mut meshes.opaque,
-            layout,
+            Vec3::new(
+                layout.vessel_center.x,
+                layout.bench_top + state.lift + 0.125,
+                layout.vessel_center.z,
+            ),
             state.crystal_growth,
             seed.rotate_left(37),
             colours.solid,
@@ -2845,11 +4183,17 @@ fn add_heating_rig(
     if reveal <= 0.002 {
         return;
     }
+    // Entrance choreography: the rig slides in from the wings at full size
+    // while the vessel lifts to make room, settling under it — instead of
+    // inflating out of the bench.
+    let entrance = smooth01(reveal / 0.55);
+    let slide_angle = seed_phase(seed, 152);
+    let slide = Vec3::new(slide_angle.cos(), 0.0, slide_angle.sin()) * (1.7 * (1.0 - entrance));
     let centre = Vec3::new(
         layout.vessel_center.x,
         layout.bench_top,
         layout.vessel_center.z,
-    );
+    ) + slide;
     let vessel_bottom = layout.bench_top + state.lift;
     let support_y = vessel_bottom - 0.035;
     let metal = [0.20, 0.24, 0.28, 1.0];
@@ -2857,14 +4201,14 @@ fn add_heating_rig(
     add_cylinder(
         &mut meshes.opaque,
         centre + Vec3::Y * 0.018,
-        centre + Vec3::Y * (0.105 * reveal),
-        0.13 * reveal,
+        centre + Vec3::Y * 0.105,
+        0.13,
         burner,
     );
     add_ring(
         &mut meshes.opaque,
         Vec3::new(centre.x, support_y, centre.z),
-        0.57 * reveal,
+        0.57,
         0.022,
         metal,
     );
@@ -2872,9 +4216,9 @@ fn add_heating_rig(
         let angle = std::f32::consts::TAU * f32::from(leg) / 3.0 + seed_phase(seed, 151) * 0.04;
         let foot = centre + Vec3::new(angle.cos() * 0.48, 0.025, angle.sin() * 0.48);
         let top = Vec3::new(
-            centre.x + angle.cos() * 0.50 * reveal,
+            centre.x + angle.cos() * 0.50,
             support_y,
-            centre.z + angle.sin() * 0.50 * reveal,
+            centre.z + angle.sin() * 0.50,
         );
         add_cylinder(&mut meshes.opaque, foot, top, 0.016, metal);
     }
@@ -2980,17 +4324,12 @@ fn add_nucleate_boiling(
 
 fn add_crystallizing_salt(
     mesh: &mut Mesh,
-    layout: SceneLayout,
+    floor: Vec3,
     progress: f32,
     seed: u64,
     colour: [f32; 4],
 ) {
     let progress = progress.clamp(0.0, 1.0);
-    let floor = Vec3::new(
-        layout.vessel_center.x,
-        layout.bench_top + stateful_vessel_floor_offset(layout) + 0.035,
-        layout.vessel_center.z,
-    );
     let crystal_colour = mix_color(colour, [0.93, 0.95, 0.92, 1.0], 0.42);
     for index in 0..48_u32 {
         let birth = seeded_unit(seed, index, 171) * 0.72;
@@ -3011,27 +4350,22 @@ fn add_crystallizing_salt(
                 size * 0.34 + tier,
                 angle.sin() * radial,
             );
-        let axis = Vec3::new(
-            seeded_unit(seed, index, 175) - 0.5,
-            0.65 + seeded_unit(seed, index, 176) * 0.35,
-            seeded_unit(seed, index, 177) - 0.5,
-        )
-        .normalize_or_zero();
-        let rotation =
-            Quat::from_axis_angle(axis, seeded_unit(seed, index, 178) * std::f32::consts::TAU);
+        // Cubic habit: the alkali halides this pipeline crystallises are all
+        // rock-salt cubes, so each crystal is an even cube resting near-flat
+        // on a face — random yaw, only a small settle tilt.
+        let rotation = Quat::from_rotation_y(
+            seeded_unit(seed, index, 178) * std::f32::consts::TAU,
+        ) * Quat::from_rotation_x((seeded_unit(seed, index, 175) - 0.5) * 0.22)
+            * Quat::from_rotation_z((seeded_unit(seed, index, 177) - 0.5) * 0.22);
         add_shard(
             mesh,
             point,
-            Vec3::new(size * 0.86, size * 0.82, size * 0.78),
+            Vec3::splat(size * 0.84),
             rotation,
             crystal_colour,
             shard_seed,
         );
     }
-}
-
-fn stateful_vessel_floor_offset(layout: SceneLayout) -> f32 {
-    (layout.vessel_center.y - (layout.bench_top + 0.605)).max(0.0)
 }
 
 #[derive(Debug, Clone, Copy)]
@@ -3198,73 +4532,569 @@ fn add_liquid_volume(
     phase: f32,
     seed: u64,
 ) {
-    const RINGS: u16 = 6;
-    const SEGMENTS: u16 = 24;
-    let radius = 0.82 * scale.x;
-    let bottom = center + Vec3::new(0.0, -0.52 * scale.y, 0.0);
-    let surface = center + Vec3::new(0.0, 0.54 * scale.y, 0.0);
-    let surface_color = mix_color(color, [0.86, 0.94, 0.97, 0.54], 0.46);
-    let rim_color = mix_color(color, [0.92, 0.97, 0.99, 0.62], 0.68);
-    add_cylinder(mesh, bottom, surface, radius, color);
-    add_disc(mesh, bottom, radius, color);
+    add_contained_liquid(
+        mesh,
+        center + Vec3::new(0.0, 0.54 * scale.y, 0.0),
+        center.y - 0.52 * scale.y,
+        0.82 * scale.x,
+        color,
+        turbulence,
+        phase,
+        seed,
+    );
+}
 
-    for ring in 0..RINGS {
-        let inner_radius = f32::from(ring) / f32::from(RINGS);
-        let outer_radius = f32::from(ring + 1) / f32::from(RINGS);
+/// Universal contained-liquid primitive: a basin sealed by a wall, a floor
+/// disc, and a smooth-shaded free surface with procedural ripples and a
+/// meniscus climbing the vessel wall. Everything renders from scalar state
+/// (level, radius, turbulence), so any scene that knows its liquid level
+/// shares this one implementation.
+#[allow(clippy::too_many_arguments)]
+fn add_contained_liquid(
+    mesh: &mut Mesh,
+    surface_centre: Vec3,
+    floor_y: f32,
+    radius: f32,
+    colour: [f32; 4],
+    turbulence: f32,
+    phase: f32,
+    seed: u64,
+) {
+    const RINGS: u16 = 7;
+    const SEGMENTS: u16 = 28;
+    if surface_centre.y - floor_y <= 0.02 || radius <= 0.01 {
+        return;
+    }
+    let surface_colour = mix_color(colour, [0.86, 0.94, 0.97, 0.54], 0.46);
+    let rim_colour = mix_color(colour, [0.92, 0.97, 0.99, 0.62], 0.68);
+    let point = |radial: f32, angle: f32| {
+        liquid_surface_point(
+            surface_centre,
+            radius,
+            radial,
+            angle,
+            turbulence,
+            phase,
+            seed,
+        )
+    };
+    let bottom = Vec3::new(surface_centre.x, floor_y, surface_centre.z);
+    // The wall meets the surface rim exactly: at radial 1.0 the ripple field
+    // is edge damped away, leaving only the angle-independent meniscus lift.
+    let rim_y = point(1.0, 0.0).y;
+    add_cylinder_wall(
+        mesh,
+        bottom,
+        Vec3::new(surface_centre.x, rim_y, surface_centre.z),
+        radius,
+        colour,
+    );
+    add_disc(mesh, bottom, radius, colour);
+
+    // Smooth-shaded free surface: shared vertices, finite-difference normals.
+    let base = u32::try_from(mesh.vertices.len()).unwrap_or(u32::MAX);
+    mesh.vertices.push(Vertex {
+        position: point(0.0, 0.0).to_array(),
+        normal: Vec3::Y.to_array(),
+        color: surface_colour,
+    });
+    let radial_step = 0.5 / f32::from(RINGS);
+    let angle_step = std::f32::consts::TAU * 0.5 / f32::from(SEGMENTS);
+    for ring in 1..=RINGS {
+        let radial = f32::from(ring) / f32::from(RINGS);
         for segment in 0..SEGMENTS {
-            let angle_a = std::f32::consts::TAU * f32::from(segment) / f32::from(SEGMENTS);
-            let angle_b = std::f32::consts::TAU * f32::from(segment + 1) / f32::from(SEGMENTS);
-            let inner_a = liquid_surface_point(
-                surface,
-                radius,
-                inner_radius,
-                angle_a,
-                turbulence,
-                phase,
-                seed,
-            );
-            let inner_b = liquid_surface_point(
-                surface,
-                radius,
-                inner_radius,
-                angle_b,
-                turbulence,
-                phase,
-                seed,
-            );
-            let outer_a = liquid_surface_point(
-                surface,
-                radius,
-                outer_radius,
-                angle_a,
-                turbulence,
-                phase,
-                seed,
-            );
-            let outer_b = liquid_surface_point(
-                surface,
-                radius,
-                outer_radius,
-                angle_b,
-                turbulence,
-                phase,
-                seed,
-            );
-            if ring == 0 {
-                add_flat_triangle(mesh, inner_a, outer_a, outer_b, surface_color);
-            } else {
-                add_flat_triangle(mesh, inner_a, outer_a, outer_b, surface_color);
-                add_flat_triangle(mesh, inner_a, outer_b, inner_b, surface_color);
-            }
+            let angle = std::f32::consts::TAU * f32::from(segment) / f32::from(SEGMENTS);
+            let along_radius =
+                point((radial + radial_step).min(1.0), angle) - point(radial - radial_step, angle);
+            let along_rim = point(radial, angle + angle_step) - point(radial, angle - angle_step);
+            let normal = along_rim
+                .cross(along_radius)
+                .try_normalize()
+                .unwrap_or(Vec3::Y);
+            mesh.vertices.push(Vertex {
+                position: point(radial, angle).to_array(),
+                normal: normal.to_array(),
+                color: surface_colour,
+            });
+        }
+    }
+    let ring_vertex = |ring: u16, segment: u16| -> u32 {
+        base + 1 + u32::from(ring - 1) * u32::from(SEGMENTS) + u32::from(segment % SEGMENTS)
+    };
+    for segment in 0..SEGMENTS {
+        mesh.indices.extend_from_slice(&[
+            base,
+            ring_vertex(1, segment),
+            ring_vertex(1, segment + 1),
+        ]);
+    }
+    for ring in 1..RINGS {
+        for segment in 0..SEGMENTS {
+            let inner_a = ring_vertex(ring, segment);
+            let inner_b = ring_vertex(ring, segment + 1);
+            let outer_a = ring_vertex(ring + 1, segment);
+            let outer_b = ring_vertex(ring + 1, segment + 1);
+            mesh.indices
+                .extend_from_slice(&[inner_a, outer_a, outer_b, inner_a, outer_b, inner_b]);
         }
     }
     add_ring(
         mesh,
-        surface + Vec3::new(0.0, 0.018 + turbulence * 0.006, 0.0),
+        Vec3::new(
+            surface_centre.x,
+            rim_y + 0.008 + turbulence * 0.006,
+            surface_centre.z,
+        ),
         radius * 0.965,
         0.014,
-        rim_color,
+        rim_colour,
     );
+}
+
+/// Procedural surface bursts: short-lived expanding rings with a few flung
+/// droplets, popping at seeded points on the free surface. Each slot cycles
+/// on its own seeded period, so activity reads as continuous simmering pops
+/// rather than a synchronized loop. Pure function of `phase`.
+#[allow(
+    clippy::too_many_arguments,
+    clippy::cast_possible_truncation,
+    clippy::cast_sign_loss
+)]
+fn add_surface_bursts(
+    mesh: &mut Mesh,
+    surface_centre: Vec3,
+    radius: f32,
+    activity: f32,
+    phase: f32,
+    seed: u64,
+    colour: [f32; 4],
+) {
+    const SLOTS: u32 = 9;
+    const LIFE_FRACTION: f32 = 0.42;
+    if activity <= 0.02 {
+        return;
+    }
+    for slot in 0..SLOTS {
+        if seeded_unit(seed, slot, 210) > activity {
+            continue;
+        }
+        let period = 0.8 + seeded_unit(seed, slot, 211) * 1.5;
+        let offset = seeded_unit(seed, slot, 212);
+        let cycles = phase / period + offset;
+        let cycle = cycles.floor().max(0.0) as u64;
+        let local = cycles - cycles.floor();
+        if local >= LIFE_FRACTION {
+            continue;
+        }
+        let life = local / LIFE_FRACTION;
+        let cycle_seed = seed.wrapping_add(cycle.wrapping_mul(0x9e37_79b9_7f4a_7c15));
+        let angle = seeded_unit(cycle_seed, slot, 213) * std::f32::consts::TAU;
+        let radial = seeded_unit(cycle_seed, slot, 214).sqrt() * 0.62;
+        let origin = surface_centre
+            + Vec3::new(
+                angle.cos() * radius * radial,
+                0.012,
+                angle.sin() * radius * radial,
+            );
+        // Expanding, thinning ripple ring.
+        let ring_alpha = (1.0 - life) * 0.30;
+        add_ring(
+            mesh,
+            origin,
+            (0.015 + life * 0.09) * radius.max(0.4),
+            0.005 + life * 0.003,
+            [
+                colour[0] * 0.85 + 0.15,
+                colour[1] * 0.85 + 0.15,
+                colour[2] * 0.85 + 0.15,
+                ring_alpha,
+            ],
+        );
+        // A few flung droplets on low ballistic arcs.
+        for droplet in 0..3_u32 {
+            let launch = seeded_unit(cycle_seed, slot * 8 + droplet, 215) * std::f32::consts::TAU;
+            let fling = 0.22 + seeded_unit(cycle_seed, slot * 8 + droplet, 216) * 0.34;
+            let up = 0.5 + seeded_unit(cycle_seed, slot * 8 + droplet, 217) * 0.38;
+            let t = life * 0.5;
+            let position = origin
+                + Vec3::new(
+                    launch.cos() * fling * t,
+                    up * t - 4.4 * t * t,
+                    launch.sin() * fling * t,
+                );
+            if position.y <= surface_centre.y {
+                continue;
+            }
+            add_sphere(
+                mesh,
+                position,
+                0.006 + seeded_unit(cycle_seed, slot * 8 + droplet, 218) * 0.005,
+                [colour[0], colour[1], colour[2], 0.42 * (1.0 - life)],
+                4,
+                6,
+            );
+        }
+    }
+}
+
+/// A ring of clinging foam bubbles at the liquid/glass contact line —
+/// gas-producing or agitated liquids collect a bubble collar there. Bubble
+/// membership, size, and slow drift are seeded; density follows intensity.
+fn add_foam_ring(
+    mesh: &mut Mesh,
+    surface_centre: Vec3,
+    radius: f32,
+    intensity: f32,
+    phase: f32,
+    seed: u64,
+) {
+    const BUBBLES: u32 = 42;
+    if intensity <= 0.03 {
+        return;
+    }
+    for bubble in 0..BUBBLES {
+        if seeded_unit(seed, bubble, 230) > intensity {
+            continue;
+        }
+        let drift = (phase * (0.05 + seeded_unit(seed, bubble, 231) * 0.04))
+            * if bubble % 2 == 0 { 1.0 } else { -1.0 };
+        let angle = seeded_unit(seed, bubble, 232) * std::f32::consts::TAU + drift;
+        let inset = 0.955 - seeded_unit(seed, bubble, 233) * 0.05;
+        let size = 0.007 + seeded_unit(seed, bubble, 234) * 0.009;
+        // A slow seeded breathing keeps the collar alive without popping.
+        let breathe = 1.0 + (phase * 1.7 + seed_phase(seed, 235 + bubble)).sin() * 0.12;
+        add_sphere(
+            mesh,
+            surface_centre
+                + Vec3::new(
+                    angle.cos() * radius * inset,
+                    0.006 + seeded_unit(seed, bubble, 236) * 0.008,
+                    angle.sin() * radius * inset,
+                ),
+            size * breathe,
+            [0.90, 0.95, 0.97, 0.34],
+            4,
+            6,
+        );
+    }
+}
+
+/// Procedural gas bubbles: seeded streams nucleate near the basin floor,
+/// rise with a helical wobble, grow slightly as pressure drops, and vanish
+/// into the free surface (the burst system covers the pops). Emission times
+/// are indexed, so any playhead reconstructs the same bubbles mid-flight.
+/// One agitated liquid surface: where the agitation sits, how strong it is,
+/// and how tightly its bubble columns cluster toward the centre.
+struct SurfaceAgitation {
+    surface_centre: Vec3,
+    floor_y: f32,
+    radius: f32,
+    intensity: f32,
+    /// 0 = columns across the whole floor (boiling); 1 = clustered under
+    /// the centre (a reacting lump).
+    centre_bias: f32,
+    colour: [f32; 4],
+}
+
+/// Everything an agitated surface implies: pops and flung droplets, a foam
+/// collar at the glass, and bubble columns rising from the floor.
+fn add_surface_agitation(
+    meshes: &mut SceneMeshes,
+    agitation: &SurfaceAgitation,
+    phase: f32,
+    seed: u64,
+) {
+    add_surface_bursts(
+        &mut meshes.translucent,
+        agitation.surface_centre,
+        agitation.radius,
+        agitation.intensity * 0.85,
+        phase,
+        seed.rotate_left(9),
+        agitation.colour,
+    );
+    add_foam_ring(
+        &mut meshes.translucent,
+        agitation.surface_centre,
+        agitation.radius,
+        agitation.intensity * 0.9,
+        phase,
+        seed,
+    );
+    add_bubble_streams(
+        &mut meshes.translucent,
+        agitation,
+        phase,
+        seed.rotate_left(17),
+    );
+}
+
+#[allow(
+    clippy::cast_possible_truncation,
+    clippy::cast_sign_loss,
+    clippy::cast_precision_loss
+)]
+fn add_bubble_streams(mesh: &mut Mesh, agitation: &SurfaceAgitation, phase: f32, seed: u64) {
+    const STREAMS: u32 = 16;
+    let intensity = agitation.intensity * 0.9;
+    let depth = agitation.surface_centre.y - agitation.floor_y;
+    if intensity <= 0.03 || depth <= 0.05 {
+        return;
+    }
+    for stream in 0..STREAMS {
+        if seeded_unit(seed, stream, 240) > intensity {
+            continue;
+        }
+        let angle = seeded_unit(seed, stream, 241) * std::f32::consts::TAU;
+        let radial = seeded_unit(seed, stream, 242).sqrt() * (1.0 - agitation.centre_bias) * 0.75;
+        let base = Vec3::new(
+            agitation.surface_centre.x + angle.cos() * agitation.radius * radial,
+            agitation.floor_y + 0.015,
+            agitation.surface_centre.z + angle.sin() * agitation.radius * radial,
+        );
+        let rise_time = 1.0 + seeded_unit(seed, stream, 243) * 0.9;
+        let interval = 0.5 + seeded_unit(seed, stream, 244) * 0.85;
+        let offset = seeded_unit(seed, stream, 245) * interval;
+        let first_emission = ((phase - rise_time - offset) / interval).ceil().max(0.0) as u64;
+        let last_emission = ((phase - offset) / interval).floor();
+        if last_emission < 0.0 {
+            continue;
+        }
+        for emission in first_emission..=(last_emission as u64) {
+            let age = phase - (emission as f32).mul_add(interval, offset);
+            if !(0.0..rise_time).contains(&age) {
+                continue;
+            }
+            let fraction = (age / rise_time).powf(0.85);
+            let bubble_seed = seed.wrapping_add(emission.wrapping_mul(0x9e37_79b9_7f4a_7c15));
+            let wobble_phase = age * 5.2 + seed_phase(bubble_seed, 246 + stream);
+            let wobble = 0.014 + seeded_unit(bubble_seed, stream, 247) * 0.012;
+            let position = base
+                + Vec3::new(
+                    wobble_phase.sin() * wobble,
+                    depth * fraction,
+                    wobble_phase.cos() * wobble,
+                );
+            add_sphere(
+                mesh,
+                position,
+                0.009 + fraction * 0.012 + seeded_unit(bubble_seed, stream, 248) * 0.005,
+                [0.90, 0.95, 0.98, 0.48],
+                4,
+                6,
+            );
+        }
+    }
+}
+
+/// Precipitate accumulating on the basin floor: a noise-bumped radial mound
+/// that grows with formation progress instead of appearing fully formed.
+#[allow(clippy::cast_precision_loss)]
+#[allow(clippy::too_many_arguments)]
+fn add_sediment_mound(
+    mesh: &mut Mesh,
+    floor_centre: Vec3,
+    radius: f32,
+    growth: f32,
+    peak: f32,
+    colour: [f32; 4],
+    seed: u64,
+) {
+    const RINGS: u16 = 5;
+    const SEGMENTS: u16 = 20;
+    if growth <= 0.01 {
+        return;
+    }
+    let peak = peak * growth;
+    let footprint = radius * (0.45 + growth * 0.3);
+    let height = |radial: f32, angle: f32| {
+        let falloff = (1.0 - radial * radial).max(0.0).powf(1.4);
+        let lumps = 0.72
+            + 0.28
+                * ((angle * 3.0 + seed_phase(seed, 250)).sin()
+                    * (radial * 6.5 + seed_phase(seed, 251)).cos())
+                .abs();
+        peak * falloff * lumps
+    };
+    let point = |radial: f32, angle: f32| {
+        floor_centre
+            + Vec3::new(
+                angle.cos() * footprint * radial,
+                height(radial, angle),
+                angle.sin() * footprint * radial,
+            )
+    };
+    let base = u32::try_from(mesh.vertices.len()).unwrap_or(u32::MAX);
+    mesh.vertices.push(Vertex {
+        position: point(0.0, 0.0).to_array(),
+        normal: Vec3::Y.to_array(),
+        color: colour,
+    });
+    let radial_step = 0.5 / f32::from(RINGS);
+    let angle_step = std::f32::consts::TAU * 0.5 / f32::from(SEGMENTS);
+    for ring in 1..=RINGS {
+        let radial = f32::from(ring) / f32::from(RINGS);
+        for segment in 0..SEGMENTS {
+            let angle = std::f32::consts::TAU * f32::from(segment) / f32::from(SEGMENTS);
+            let along_radius =
+                point((radial + radial_step).min(1.0), angle) - point(radial - radial_step, angle);
+            let along_rim = point(radial, angle + angle_step) - point(radial, angle - angle_step);
+            let normal = along_rim
+                .cross(along_radius)
+                .try_normalize()
+                .unwrap_or(Vec3::Y);
+            mesh.vertices.push(Vertex {
+                position: point(radial, angle).to_array(),
+                normal: normal.to_array(),
+                color: colour,
+            });
+        }
+    }
+    let ring_vertex = |ring: u16, segment: u16| -> u32 {
+        base + 1 + u32::from(ring - 1) * u32::from(SEGMENTS) + u32::from(segment % SEGMENTS)
+    };
+    for segment in 0..SEGMENTS {
+        mesh.indices.extend_from_slice(&[
+            base,
+            ring_vertex(1, segment),
+            ring_vertex(1, segment + 1),
+        ]);
+    }
+    for ring in 1..RINGS {
+        for segment in 0..SEGMENTS {
+            let inner_a = ring_vertex(ring, segment);
+            let inner_b = ring_vertex(ring, segment + 1);
+            let outer_a = ring_vertex(ring + 1, segment);
+            let outer_b = ring_vertex(ring + 1, segment + 1);
+            mesh.indices
+                .extend_from_slice(&[inner_a, outer_a, outer_b, inner_a, outer_b, inner_b]);
+        }
+    }
+}
+
+/// Faint schlieren wisps swaying around a dissolving solid: the densest
+/// solution sinks and shears into the bulk. Deliberately dim.
+fn add_dissolution_wisps(mesh: &mut Mesh, source: Vec3, reach: f32, phase: f32, seed: u64) {
+    const WISPS: u32 = 5;
+    for wisp in 0..WISPS {
+        let angle = seeded_unit(seed, wisp, 260) * std::f32::consts::TAU
+            + (phase * (0.16 + seeded_unit(seed, wisp, 261) * 0.12)).sin() * 0.5;
+        let distance = 0.05 + seeded_unit(seed, wisp, 262) * reach;
+        let sway = (phase * (0.7 + seeded_unit(seed, wisp, 263) * 0.5)
+            + seed_phase(seed, 264 + wisp))
+        .sin()
+            * 0.03;
+        let centre = source
+            + Vec3::new(
+                angle.cos() * distance + sway,
+                0.05 + seeded_unit(seed, wisp, 265) * 0.06,
+                angle.sin() * distance - sway,
+            );
+        add_shard(
+            mesh,
+            centre,
+            Vec3::new(0.010, 0.075 + seeded_unit(seed, wisp, 266) * 0.05, 0.010),
+            Quat::from_rotation_y(angle) * Quat::from_rotation_x(sway * 3.0),
+            [0.86, 0.92, 0.95, 0.11],
+            seed.wrapping_add(u64::from(wisp)),
+        );
+    }
+}
+
+/// Condensation on the inner glass above the liquid: seeded droplets whose
+/// visible population and size follow the vapour amount.
+fn add_glass_condensation(
+    mesh: &mut Mesh,
+    surface_centre: Vec3,
+    wall_radius: f32,
+    rim_y: f32,
+    vapour: f32,
+    seed: u64,
+) {
+    const DROPLETS: u32 = 46;
+    let head_room = rim_y - surface_centre.y;
+    if vapour <= 0.05 || head_room <= 0.08 {
+        return;
+    }
+    for droplet in 0..DROPLETS {
+        if seeded_unit(seed, droplet, 270) > vapour {
+            continue;
+        }
+        let angle = seeded_unit(seed, droplet, 271) * std::f32::consts::TAU;
+        let height = surface_centre.y
+            + 0.05
+            + seeded_unit(seed, droplet, 272) * (head_room - 0.09).max(0.01);
+        add_sphere(
+            mesh,
+            Vec3::new(
+                surface_centre.x + angle.cos() * wall_radius,
+                height,
+                surface_centre.z + angle.sin() * wall_radius,
+            ),
+            (0.005 + seeded_unit(seed, droplet, 273) * 0.007) * (0.6 + vapour * 0.4),
+            [0.88, 0.94, 0.97, 0.38],
+            3,
+            5,
+        );
+    }
+}
+
+/// The receding-waterline film: a faint wet band on the glass between the
+/// current level and the authored starting level. Only meaningful where the
+/// level drops (fuel burning down, solvent boiling off).
+fn add_high_water_mark(mesh: &mut Mesh, state: &LiquidState, top_offset: f32) {
+    let top = state.initial_level_y + top_offset;
+    let bottom = state.surface_centre.y + 0.015;
+    if top - bottom < 0.03 {
+        return;
+    }
+    add_cylinder_wall(
+        mesh,
+        Vec3::new(state.surface_centre.x, bottom, state.surface_centre.z),
+        Vec3::new(state.surface_centre.x, top, state.surface_centre.z),
+        state.radius + 0.004,
+        [0.62, 0.78, 0.86, 0.10],
+    );
+    // The old waterline itself reads slightly stronger than the film.
+    add_ring(
+        mesh,
+        Vec3::new(state.surface_centre.x, top, state.surface_centre.z),
+        state.radius + 0.004,
+        0.004,
+        [0.72, 0.85, 0.92, 0.16],
+    );
+}
+
+/// A small Worthington crown at the pour impact: a pulsing coronet of spikes
+/// thrown up around the stream while it lands.
+fn add_worthington_crown(mesh: &mut Mesh, impact: Vec3, strength: f32, phase: f32, seed: u64) {
+    const SPIKES: u16 = 9;
+    if strength <= 0.05 {
+        return;
+    }
+    let pulse = (phase * 2.6).fract();
+    let crown_radius = 0.045 + pulse * 0.02;
+    let lift = (1.0 - pulse) * 0.9 + 0.1;
+    for spike in 0..SPIKES {
+        let angle = std::f32::consts::TAU * f32::from(spike) / f32::from(SPIKES)
+            + seeded_unit(seed, u32::from(spike), 280) * 0.5;
+        let height =
+            (0.028 + seeded_unit(seed, u32::from(spike), 281) * 0.026) * lift * strength.min(1.0);
+        let base = impact
+            + Vec3::new(
+                angle.cos() * crown_radius,
+                0.012,
+                angle.sin() * crown_radius,
+            );
+        add_shard(
+            mesh,
+            base + Vec3::Y * height * 0.5,
+            Vec3::new(0.006, height, 0.006),
+            Quat::from_rotation_y(angle) * Quat::from_rotation_z(0.28),
+            [0.93, 0.96, 1.0, 0.50 * strength * (0.4 + lift * 0.6)],
+            seed.wrapping_add(u64::from(spike)),
+        );
+    }
 }
 
 const STIRRER_ENTRY_END: f32 = 0.24;
@@ -3491,7 +5321,9 @@ fn add_stirring_apparatus(
         6,
     );
 
-    if pose.activity > 0.001 {
+    // Always emitted with activity-scaled alpha: assemblies that keep the
+    // stirrer resident rely on constant topology across ordinals.
+    {
         let wake_center = Vec3::new(pose.lower.x, layout.liquid_surface + 0.015, pose.lower.z);
         for ring in 0..3_u8 {
             let ring_index = u32::from(ring);
@@ -3516,7 +5348,7 @@ fn add_stirring_apparatus(
     let film = (std::f32::consts::PI * withdrawal).sin().max(0.0)
         * (1.0 - pose.submerged)
         * pose.visibility;
-    if film > 0.001 {
+    {
         add_sphere(
             &mut meshes.translucent,
             pose.lower - axis * 0.012,
@@ -3752,6 +5584,7 @@ struct Mesh {
 #[derive(Default)]
 struct SceneMeshes {
     opaque: Mesh,
+    metallic: Mesh,
     translucent: Mesh,
     glass: Mesh,
     emissive: Mesh,
@@ -3759,25 +5592,48 @@ struct SceneMeshes {
 }
 
 impl SceneMeshes {
-    fn finish(self) -> (Vec<Vertex>, Vec<u32>, u32, u32, Vec<GasSplat>) {
+    fn finish(self, view_direction: Vec3) -> (Vec<GpuVertex>, Vec<u32>, u32, u32, Vec<GasSplat>) {
         let mut vertices = Vec::with_capacity(
             self.opaque.vertices.len()
+                + self.metallic.vertices.len()
                 + self.translucent.vertices.len()
                 + self.glass.vertices.len()
                 + self.emissive.vertices.len(),
         );
         let mut indices = Vec::with_capacity(
             self.opaque.indices.len()
+                + self.metallic.indices.len()
                 + self.translucent.indices.len()
                 + self.glass.indices.len()
                 + self.emissive.indices.len(),
         );
-        append_mesh(&mut vertices, &mut indices, self.opaque);
+        append_mesh(
+            &mut vertices,
+            &mut indices,
+            self.opaque,
+            MATERIAL_DIELECTRIC,
+        );
+        append_mesh(&mut vertices, &mut indices, self.metallic, MATERIAL_METAL);
         let opaque_index_count = u32::try_from(indices.len()).unwrap_or(u32::MAX);
-        append_mesh(&mut vertices, &mut indices, self.translucent);
-        append_mesh(&mut vertices, &mut indices, self.glass);
+        append_mesh(
+            &mut vertices,
+            &mut indices,
+            self.translucent,
+            MATERIAL_LIQUID,
+        );
+        append_mesh(&mut vertices, &mut indices, self.glass, MATERIAL_GLASS);
         let transparent_index_count = u32::try_from(indices.len()).unwrap_or(u32::MAX);
-        append_mesh(&mut vertices, &mut indices, self.emissive);
+        sort_transparent_triangles(
+            view_direction,
+            &vertices,
+            &mut indices[opaque_index_count as usize..transparent_index_count as usize],
+        );
+        append_mesh(
+            &mut vertices,
+            &mut indices,
+            self.emissive,
+            MATERIAL_EMISSIVE,
+        );
         (
             vertices,
             indices,
@@ -3788,14 +5644,48 @@ impl SceneMeshes {
     }
 }
 
-fn append_mesh(vertices: &mut Vec<Vertex>, indices: &mut Vec<u32>, mesh: Mesh) {
+fn append_mesh(vertices: &mut Vec<GpuVertex>, indices: &mut Vec<u32>, mesh: Mesh, material: u32) {
     let vertex_offset = u32::try_from(vertices.len()).unwrap_or(u32::MAX);
-    vertices.extend(mesh.vertices);
+    vertices.extend(mesh.vertices.into_iter().map(|vertex| GpuVertex {
+        position: vertex.position,
+        normal: vertex.normal,
+        color: vertex.color,
+        material,
+    }));
     indices.extend(
         mesh.indices
             .into_iter()
             .map(|index| index.saturating_add(vertex_offset)),
     );
+}
+
+/// Depth-sorts alpha-blended triangles back-to-front along the live view
+/// axis (camera cues, orbit and all) so liquid and glass layer correctly
+/// regardless of submission order. Deterministic: stable sort over exact
+/// centroid depths.
+fn sort_transparent_triangles(view_direction: Vec3, vertices: &[GpuVertex], indices: &mut [u32]) {
+    let mut triangles: Vec<(f32, [u32; 3])> = indices
+        .chunks_exact(3)
+        .map(|triangle| {
+            let centroid = triangle
+                .iter()
+                .map(|&index| {
+                    vertices
+                        .get(index as usize)
+                        .map_or(Vec3::ZERO, |vertex| Vec3::from_array(vertex.position))
+                })
+                .sum::<Vec3>()
+                / 3.0;
+            (
+                centroid.dot(view_direction),
+                [triangle[0], triangle[1], triangle[2]],
+            )
+        })
+        .collect();
+    triangles.sort_by(|left, right| right.0.total_cmp(&left.0));
+    for (slot, (_, triangle)) in indices.chunks_exact_mut(3).zip(triangles) {
+        slot.copy_from_slice(&triangle);
+    }
 }
 
 #[derive(Debug, Clone, Copy)]
@@ -3821,98 +5711,133 @@ fn animated_alkali_water_style(plan: &ScenePlan) -> AnimatedAlkaliWaterStyle {
     AnimatedAlkaliWaterStyle { activity, flame }
 }
 
-/// Retimes the authored drop/contact boundary while preserving the exact
-/// six-second absolute playhead and final frame.
-///
-/// Source contact occurs near frame 42/180. It is reached after 8% of runtime
-/// (about 0.48 s), leaving the remaining 92% for reaction and settling motion.
-/// The two cubic-Hermite spans share the same derivative at contact, so there
-/// is no playback-speed jump at the join.
-fn alkali_water_authored_progress(progress: f32) -> f32 {
-    const CONTACT_TIME: f32 = 0.08;
-    const CONTACT_FRAME: f32 = 42.0 / 179.0;
-    const CONTACT_TANGENT: f32 = 1.0;
-    let progress = progress.clamp(0.0, 1.0);
-    if progress <= CONTACT_TIME {
-        cubic_hermite_progress(
-            progress / CONTACT_TIME,
-            0.0,
-            CONTACT_FRAME,
-            CONTACT_TIME,
-            1.0,
-            CONTACT_TANGENT,
-        )
-    } else {
-        let span = 1.0 - CONTACT_TIME;
-        cubic_hermite_progress(
-            (progress - CONTACT_TIME) / span,
-            CONTACT_FRAME,
-            1.0,
-            span,
-            CONTACT_TANGENT,
-            0.72,
-        )
-    }
-}
 
-fn cubic_hermite_progress(
-    progress: f32,
-    start: f32,
-    end: f32,
-    span: f32,
-    start_tangent: f32,
-    end_tangent: f32,
-) -> f32 {
-    let progress_squared = progress * progress;
-    let progress_cubed = progress_squared * progress;
-    let start_basis = 2.0 * progress_cubed - 3.0 * progress_squared + 1.0;
-    let start_tangent_basis = progress_cubed - 2.0 * progress_squared + progress;
-    let end_basis = -2.0 * progress_cubed + 3.0 * progress_squared;
-    let end_tangent_basis = progress_cubed - progress_squared;
-    start_basis * start
-        + start_tangent_basis * span * start_tangent
-        + end_basis * end
-        + end_tangent_basis * span * end_tangent
-}
-
-fn add_animated_alkali_water_assembly(
-    meshes: &mut SceneMeshes,
-    plan: &ScenePlan,
-    layout: SceneLayout,
-    progress: f32,
-) {
-    let clip = alkali_water_clip();
-    debug_assert_eq!(clip.frames_per_second, 30);
-    let frame = clip.frame_at_progress(alkali_water_authored_progress(progress));
-    let style = animated_alkali_water_style(plan);
-    let seed = plan_seed(plan);
-    for (track_index, track) in clip.tracks.iter().enumerate() {
-        if !animated_track_enabled(track, track_index, style, seed) {
-            continue;
+fn explosive_metal_water_track_colour(
+    colour: ClipColour,
+    explosive: &chem_presentation::ExplosiveMetalWaterVisualProfile,
+    ordinal: u16,
+    ordinal_progress: f32,
+) -> [f32; 4] {
+    let rgba = |bound: &chem_presentation::BoundVisualColour, opacity| {
+        let (base, target, amount) =
+            bound_colour_endpoints(bound, opacity, ordinal, ordinal_progress);
+        mix_color(base, target, amount)
+    };
+    let contact_amount = match ordinal.cmp(&explosive.contact_ordinal) {
+        std::cmp::Ordering::Less => 0.0,
+        std::cmp::Ordering::Equal => normalized_exponential_response(ordinal_progress, 3.4),
+        std::cmp::Ordering::Greater => 1.0,
+    };
+    let water = rgba(&explosive.water_reactant, 0.34);
+    let hydroxide = rgba(&explosive.hydroxide_product, 0.34);
+    let liquid = mix_color(water, hydroxide, contact_amount);
+    let flame = flame_colours(FlamePalette::Natural);
+    match colour {
+        ClipColour::Glass => [0.62, 0.84, 0.94, 0.22],
+        ClipColour::Water => liquid,
+        ClipColour::WaterHighlight => alpha(mix_color(liquid, [0.94, 0.98, 1.0, 0.46], 0.52), 0.46),
+        ClipColour::ReactiveMetal => rgba(&explosive.metal_reactant, 1.0),
+        ClipColour::FlameOuter => flame.body_high,
+        ClipColour::FlameInner => flame.body_low,
+        ClipColour::FlameCore => flame.core,
+        ClipColour::FizzBubble | ClipColour::GasBubble => rgba(&explosive.hydrogen_product, 0.30),
+        ClipColour::Vapour | ClipColour::ProductPlume | ClipColour::GasCloud => {
+            rgba(&explosive.hydrogen_product, 0.15)
         }
-        let colour = animated_track_colour(track.colour, style);
-        let destination = match (track.pass, track.colour) {
-            (_, ClipColour::Glass) => &mut meshes.glass,
-            (ClipPass::Opaque, _) => &mut meshes.opaque,
-            (ClipPass::Translucent, _) => &mut meshes.translucent,
-            (ClipPass::Emissive, _) => &mut meshes.emissive,
-        };
-        append_animated_track(
-            destination,
-            clip,
-            track,
-            frame,
-            layout.bench_top,
-            style.activity,
-            colour,
-        );
+        ClipColour::IgnitionSpark => [1.0, 0.72, 0.12, 0.94],
+        ClipColour::CombustionSmoke => [0.20, 0.22, 0.24, 0.22],
+        ClipColour::MixtureA
+        | ClipColour::MixtureB
+        | ClipColour::SaltResidue
+        | ClipColour::Fuel
+        | ClipColour::Soot
+        | ClipColour::SootDeposit
+        | ClipColour::LiquidInitial
+        | ClipColour::LiquidAdded
+        | ClipColour::PrecipitateCloud
+        | ClipColour::Precipitate
+        | ClipColour::SolidReactant
+        | ClipColour::SolutionInitial
+        | ClipColour::SolutionFinal
+        | ClipColour::OriginalMetal
+        | ClipColour::DepositedMetal
+        | ClipColour::MetalErosion
+        | ClipColour::ReactantA
+        | ClipColour::ReactantB
+        | ClipColour::SynthesisProduct
+        | ClipColour::ReactionFront
+        | ClipColour::ReactionVessel
+        | ClipColour::MixingTool => [0.82, 0.86, 0.88, 0.20],
     }
+}
+
+/// Everything the neutralisation basin's state implies at one moment.
+#[derive(Clone, Copy)]
+struct NeutralisationLiquidLife {
+    bench_top: f32,
+    vessel_motion: Vec3,
+    liquid_colour: [f32; 4],
+    surface_colour: [f32; 4],
+    turbulence: f32,
+    boiling: f32,
+    vapour: f32,
+}
+
+/// The neutralisation basin rides the authored vessel motion; boiling pops
+/// the surface, steam condenses on the glass, and the boiled-off solvent
+/// leaves a receding waterline.
+fn add_neutralisation_liquid(
+    meshes: &mut SceneMeshes,
+    state: &LiquidState,
+    life: NeutralisationLiquidLife,
+    phase: f32,
+    seed: u64,
+) {
+    const MODEL_SCALE: f32 = 0.45;
+    let floor_y = state.floor_y + life.vessel_motion.y * MODEL_SCALE;
+    add_contained_liquid(
+        &mut meshes.translucent,
+        state.surface_centre,
+        floor_y,
+        state.radius,
+        life.liquid_colour,
+        life.turbulence,
+        phase,
+        seed,
+    );
+    add_surface_agitation(
+        meshes,
+        &SurfaceAgitation {
+            surface_centre: state.surface_centre,
+            floor_y,
+            radius: state.radius,
+            intensity: life.boiling,
+            centre_bias: 0.0,
+            colour: life.surface_colour,
+        },
+        phase,
+        seed,
+    );
+    add_glass_condensation(
+        &mut meshes.translucent,
+        state.surface_centre,
+        state.radius + 0.03,
+        life.bench_top + 1.8 + life.vessel_motion.y * MODEL_SCALE,
+        life.vapour,
+        seed.rotate_left(25),
+    );
+    add_high_water_mark(
+        &mut meshes.translucent,
+        state,
+        life.vessel_motion.y * MODEL_SCALE,
+    );
 }
 
 #[derive(Debug, Clone, Copy)]
 struct NeutralisationAssemblyMoment<'a> {
     plan: &'a ScenePlan,
     layout: SceneLayout,
+    stage: MacroscopicStage,
     progress: f32,
     post_process: PostProcessVisualState,
     stage_progress: f32,
@@ -3923,123 +5848,11 @@ struct NeutralisationAssemblyMoment<'a> {
     ordinal_progress: f32,
 }
 
-fn add_animated_neutralisation_assembly(
-    meshes: &mut SceneMeshes,
-    moment: NeutralisationAssemblyMoment<'_>,
-) {
-    let NeutralisationAssemblyMoment {
-        plan,
-        layout,
-        progress,
-        post_process,
-        stage_progress,
-        seed,
-        effect_colours,
-        ..
-    } = moment;
-    let clip = neutralisation_clip();
-    debug_assert_eq!(clip.frames_per_second, 30);
-    let frame = clip.frame_at_progress(progress);
-    let vessel_motion = neutralisation_vessel_motion(clip, frame);
-    let colours = neutralisation_colours(plan, effect_colours, frame);
-    append_shared_beaker(
-        &mut meshes.glass,
-        alkali_water_clip(),
-        layout.bench_top,
-        vessel_motion,
-    );
-    for track in &clip.tracks {
-        if track.module == ClipModule::VesselAnchor {
-            continue;
-        }
-        let colour = neutralisation_track_colour(track.colour, colours);
-        let destination = match (track.pass, track.colour) {
-            (_, ClipColour::Glass) => &mut meshes.glass,
-            (ClipPass::Opaque, _) => &mut meshes.opaque,
-            (ClipPass::Translucent, _) => &mut meshes.translucent,
-            (ClipPass::Emissive, _) => &mut meshes.emissive,
-        };
-        append_animated_track(
-            destination,
-            clip,
-            track,
-            frame,
-            layout.bench_top,
-            1.0,
-            colour,
-        );
-    }
-    add_neutralisation_supplemental_reactants(meshes, moment, vessel_motion);
-    add_neutralisation_reaction_gas(meshes, moment, vessel_motion);
-    if post_process.vapour > 0.002 {
-        let centre = Vec3::new(
-            layout.vessel_center.x,
-            layout.liquid_surface + vessel_motion.y * 0.45 + 0.30,
-            layout.vessel_center.z,
-        );
-        add_gas_density_field(
-            &mut meshes.gas,
-            centre,
-            Vec3::new(0.46, 0.74, 0.46),
-            [0.88, 0.92, 0.93, 0.34 * post_process.vapour],
-            seed.rotate_left(23),
-            stage_progress * 4.2,
-            post_process.vapour,
-            GasFlowControls::escaping(
-                post_process.vapour,
-                0.48 + post_process.boiling * 0.34,
-                0.92,
-                seed.rotate_left(23),
-            ),
-        );
-    }
-}
-
-fn add_animated_combustion_assembly(
-    meshes: &mut SceneMeshes,
-    assembly: &PresentationObject,
-    layout: SceneLayout,
-    progress: f32,
-) {
-    let incomplete = assembly.asset == AssetProfile::IncompleteCombustionAssembly;
-    let clip = if incomplete {
-        incomplete_combustion_clip()
-    } else {
-        complete_combustion_clip()
-    };
-    debug_assert_eq!(clip.frames_per_second, 30);
-    let frame = clip.frame_at_progress(progress);
-    append_shared_beaker(
-        &mut meshes.glass,
-        alkali_water_clip(),
-        layout.bench_top,
-        Vec3::ZERO,
-    );
-    let mut fuel = appearance_color(assembly.appearance);
-    fuel[3] = 0.32;
-    for track in &clip.tracks {
-        let colour = combustion_track_colour(track.colour, fuel, incomplete);
-        let destination = match (track.pass, track.colour) {
-            (_, ClipColour::Glass) => &mut meshes.glass,
-            (ClipPass::Opaque, _) => &mut meshes.opaque,
-            (ClipPass::Translucent, _) => &mut meshes.translucent,
-            (ClipPass::Emissive, _) => &mut meshes.emissive,
-        };
-        append_animated_track(
-            destination,
-            clip,
-            track,
-            frame,
-            layout.bench_top,
-            1.0,
-            colour,
-        );
-    }
-}
-
 #[allow(clippy::cast_precision_loss)]
 fn precipitation_clip_progress(plan: &ScenePlan, moment: RealWorldPosition) -> f32 {
-    const DURATION_MS: f32 = 6_000.0;
+    // Matches the stretched authored window compiled by chem-presentation's
+    // fit_authored_precipitation_duration (0.625x presentation speed).
+    const DURATION_MS: f32 = 9_600.0;
     let Some(precipitation) = &plan.precipitation else {
         return 0.0;
     };
@@ -4051,49 +5864,6 @@ fn precipitation_clip_progress(plan: &ScenePlan, moment: RealWorldPosition) -> f
     };
     let elapsed_ms = plan.timeline.elapsed_ms_at(moment).unwrap_or(0.0);
     ((elapsed_ms - start_ms as f32) / DURATION_MS).clamp(0.0, 1.0)
-}
-
-fn add_animated_precipitation_assembly(
-    meshes: &mut SceneMeshes,
-    plan: &ScenePlan,
-    layout: SceneLayout,
-    progress: f32,
-    ordinal: u16,
-    ordinal_progress: f32,
-) {
-    let precipitation = plan
-        .precipitation
-        .as_ref()
-        .expect("validated precipitation assembly has material bindings");
-    let clip = precipitation_clip();
-    debug_assert_eq!(clip.frame_count, 180);
-    debug_assert_eq!(clip.frames_per_second, 30);
-    let frame = clip.frame_at_progress(progress);
-    append_shared_beaker(
-        &mut meshes.glass,
-        alkali_water_clip(),
-        layout.bench_top,
-        Vec3::ZERO,
-    );
-    for track in &clip.tracks {
-        let colour =
-            precipitation_track_colour(track.colour, precipitation, ordinal, ordinal_progress);
-        let destination = match (track.pass, track.colour) {
-            (_, ClipColour::Glass) => &mut meshes.glass,
-            (ClipPass::Opaque, _) => &mut meshes.opaque,
-            (ClipPass::Translucent, _) => &mut meshes.translucent,
-            (ClipPass::Emissive, _) => &mut meshes.emissive,
-        };
-        append_animated_track(
-            destination,
-            clip,
-            track,
-            frame,
-            layout.bench_top,
-            1.0,
-            colour,
-        );
-    }
 }
 
 #[allow(clippy::cast_precision_loss)]
@@ -4133,45 +5903,68 @@ fn gas_evolution_clip_progress(plan: &ScenePlan, moment: RealWorldPosition) -> f
         .clamp(0.0, 1.0)
 }
 
-fn add_animated_gas_evolution_assembly(
+/// The gas-evolution receiving basin and everything its state implies: the
+/// pour-raised level, the mixed colour spreading from the stream, and the
+/// fizz that ramps once gas generation begins.
+#[allow(clippy::too_many_arguments)]
+fn add_gas_evolution_liquid(
     meshes: &mut SceneMeshes,
     plan: &ScenePlan,
-    layout: SceneLayout,
-    progress: f32,
+    gas_evolution: &chem_presentation::GasEvolutionVisualProfile,
+    state: &LiquidState,
+    pour: Option<&PourState>,
+    receiving_lift: f32,
+    frame: f32,
     ordinal: u16,
     ordinal_progress: f32,
 ) {
-    let gas_evolution = plan
-        .gas_evolution
-        .as_ref()
-        .expect("validated gas-evolution assembly has material bindings");
-    let clip = gas_evolution_clip(gas_evolution.variant);
-    debug_assert_eq!(clip.frame_count, 180);
-    debug_assert_eq!(clip.frames_per_second, 30);
-    let frame = clip.frame_at_progress(progress);
-    append_shared_beaker(
-        &mut meshes.glass,
-        alkali_water_clip(),
-        layout.bench_top,
-        Vec3::ZERO,
+    // Conservation made visible: the poured volume raises the level, the
+    // falling stream stirs the surface, and the mixed colour spreads from
+    // where the stream lands.
+    let endpoints = bound_colour_endpoints(
+        &gas_evolution.initial_reactant,
+        0.42,
+        ordinal,
+        ordinal_progress,
     );
-    for track in &clip.tracks {
-        let colour =
-            gas_evolution_track_colour(track.colour, gas_evolution, ordinal, ordinal_progress);
-        let destination = match (track.pass, track.colour) {
-            (_, ClipColour::Glass) => &mut meshes.glass,
-            (ClipPass::Opaque, _) => &mut meshes.opaque,
-            (ClipPass::Translucent, _) => &mut meshes.translucent,
-            (ClipPass::Emissive, _) => &mut meshes.emissive,
-        };
-        append_animated_track(
-            destination,
-            clip,
-            track,
-            frame,
-            layout.bench_top,
-            1.0,
-            colour,
+    add_receiving_liquid(
+        meshes,
+        state,
+        pour,
+        receiving_lift,
+        endpoints,
+        frame / 30.0 * 2.0,
+        plan_seed(plan),
+    );
+    // Escaping gas fizzes the surface and collects a foam collar once
+    // generation begins.
+    let fizz = match ordinal.cmp(&gas_evolution.generation_ordinal) {
+        std::cmp::Ordering::Less => 0.0,
+        std::cmp::Ordering::Equal => normalized_exponential_response(ordinal_progress, 3.4),
+        std::cmp::Ordering::Greater => 1.0,
+    };
+    let surface = state.surface_centre + Vec3::Y * receiving_lift;
+    add_surface_agitation(
+        meshes,
+        &SurfaceAgitation {
+            surface_centre: surface,
+            floor_y: (surface.y - 0.18).max(state.floor_y),
+            radius: state.radius,
+            intensity: fizz,
+            centre_bias: 0.35,
+            colour: endpoints.0,
+        },
+        frame / 30.0 * 2.0,
+        plan_seed(plan),
+    );
+    // Faint wisps of dissolving material sway around the reacting solid.
+    if fizz > 0.1 {
+        add_dissolution_wisps(
+            &mut meshes.translucent,
+            Vec3::new(surface.x, state.floor_y, surface.z),
+            state.radius * 0.35,
+            frame / 30.0 * 2.0,
+            plan_seed(plan).rotate_left(21),
         );
     }
 }
@@ -4192,89 +5985,46 @@ fn authored_reaction_clip_progress(plan: &ScenePlan, moment: RealWorldPosition) 
     (plan.timeline.elapsed_ms_at(moment).unwrap_or(0.0) / reaction_duration).clamp(0.0, 1.0)
 }
 
-fn add_animated_metal_displacement_assembly(
+/// The standing solution with the final-solution colour diffusing out from
+/// the immersed metal. The front's timing follows the clip like the authored
+/// rising column it replaces; its colour keeps the reviewed ordinal binding.
+fn add_displacement_solution(
     meshes: &mut SceneMeshes,
-    plan: &ScenePlan,
-    layout: SceneLayout,
+    state: &LiquidState,
+    colour: [f32; 4],
+    final_colour: [f32; 4],
     progress: f32,
-    ordinal: u16,
-    ordinal_progress: f32,
+    phase: f32,
+    seed: u64,
 ) {
-    let displacement = plan
-        .metal_displacement
-        .as_ref()
-        .expect("validated metal-displacement assembly has material bindings");
-    let clip = metal_displacement_clip();
-    debug_assert_eq!(clip.frame_count, 180);
-    debug_assert_eq!(clip.frames_per_second, 30);
-    let frame = clip.frame_at_progress(progress);
-    append_shared_beaker(
-        &mut meshes.glass,
-        alkali_water_clip(),
-        layout.bench_top,
-        Vec3::ZERO,
+    // The metal strip hangs into the solution at roughly this model-space
+    // offset (0.45 model units at MODEL_SCALE 0.45).
+    let source = Vec3::new(
+        0.45 * 0.45,
+        state.floor_y + (state.surface_centre.y - state.floor_y) * 0.55,
+        0.0,
     );
-    for track in &clip.tracks {
-        if !metal_displacement_track_visible(track.module, frame) {
-            continue;
-        }
-        let colour =
-            metal_displacement_track_colour(track.colour, displacement, ordinal, ordinal_progress);
-        let destination = match (track.pass, track.colour) {
-            (_, ClipColour::Glass) => &mut meshes.glass,
-            (ClipPass::Opaque, _) => &mut meshes.opaque,
-            (ClipPass::Translucent, _) => &mut meshes.translucent,
-            (ClipPass::Emissive, _) => &mut meshes.emissive,
-        };
-        let deposited = matches!(
-            track.module,
-            ClipModule::MetalDeposit | ClipModule::MetalFlakes
-        );
-        if deposited {
-            append_animated_track_adjusted(
-                destination,
-                clip,
-                track,
-                frame,
-                layout.bench_top,
-                1.0,
-                colour,
-                1.16,
-                0.012,
-            );
-            append_animated_track_adjusted(
-                &mut meshes.emissive,
-                clip,
-                track,
-                frame,
-                layout.bench_top,
-                1.0,
-                deposit_highlight_colour(colour),
-                1.22,
-                0.026,
-            );
-        } else {
-            append_animated_track(
-                destination,
-                clip,
-                track,
-                frame,
-                layout.bench_top,
-                1.0,
-                colour,
-            );
-        }
-    }
-}
-
-fn metal_displacement_track_visible(module: ClipModule, frame: f32) -> bool {
-    const DEPOSIT_START_FRAME: f32 = 53.0;
-    const FLAKE_START_FRAME: f32 = 103.0;
-    match module {
-        ClipModule::MetalDeposit => frame >= DEPOSIT_START_FRAME,
-        ClipModule::MetalFlakes => frame >= FLAKE_START_FRAME,
-        _ => true,
-    }
+    let appended_from = meshes.translucent.vertices.len();
+    add_contained_liquid(
+        &mut meshes.translucent,
+        state.surface_centre,
+        state.floor_y,
+        state.radius,
+        colour,
+        0.16,
+        phase,
+        seed,
+    );
+    apply_liquid_dye(
+        &mut meshes.translucent,
+        appended_from,
+        &LiquidDye {
+            source,
+            target: final_colour,
+            amount: progress,
+            reach: (state.radius * 2.0).hypot(state.surface_centre.y - state.floor_y),
+        },
+    );
 }
 
 fn metal_displacement_track_colour(
@@ -4316,45 +6066,6 @@ fn metal_displacement_track_colour(
         ClipColour::MetalErosion => [0.12, 0.13, 0.14, 1.0],
         ClipColour::Glass => [0.62, 0.84, 0.94, 0.22],
         _ => [0.76, 0.78, 0.80, 1.0],
-    }
-}
-
-fn add_animated_synthesis_combination_assembly(
-    meshes: &mut SceneMeshes,
-    plan: &ScenePlan,
-    layout: SceneLayout,
-    progress: f32,
-    ordinal: u16,
-    ordinal_progress: f32,
-) {
-    let synthesis = plan
-        .solid_solid_synthesis
-        .as_ref()
-        .expect("validated solid-solid synthesis assembly has material bindings");
-    let clip = synthesis_combination_clip();
-    debug_assert_eq!(clip.frame_count, 180);
-    debug_assert_eq!(clip.frames_per_second, 30);
-    let frame = clip.frame_at_progress(progress);
-    for track in &clip.tracks {
-        if track.module == ClipModule::SynthesisReactionFront && !synthesis.show_reaction_front {
-            continue;
-        }
-        let colour =
-            synthesis_combination_track_colour(track.colour, synthesis, ordinal, ordinal_progress);
-        let destination = match track.pass {
-            ClipPass::Opaque => &mut meshes.opaque,
-            ClipPass::Translucent => &mut meshes.translucent,
-            ClipPass::Emissive => &mut meshes.emissive,
-        };
-        append_animated_track(
-            destination,
-            clip,
-            track,
-            frame,
-            layout.bench_top,
-            1.0,
-            colour,
-        );
     }
 }
 
@@ -4400,95 +6111,13 @@ fn synthesis_combination_track_colour(
     }
 }
 
-fn add_animated_phase_synthesis_assembly(
-    meshes: &mut SceneMeshes,
-    plan: &ScenePlan,
-    layout: SceneLayout,
-    progress: f32,
-    ordinal: u16,
-    ordinal_progress: f32,
-) {
-    let synthesis = plan
-        .phase_synthesis
-        .as_ref()
-        .expect("validated phase-synthesis assembly has material bindings");
-    let clip = phase_synthesis_clip(synthesis.variant);
-    debug_assert_eq!(clip.frame_count, 180);
-    debug_assert_eq!(clip.frames_per_second, 30);
-    let frame = clip.frame_at_progress(progress);
-    for track in &clip.tracks {
-        if track.module == ClipModule::PhaseSynthesisReactionFront && !synthesis.show_reaction_front
-        {
-            continue;
-        }
-        let colour =
-            phase_synthesis_track_colour(track.colour, synthesis, ordinal, ordinal_progress);
-        let destination = match track.pass {
-            ClipPass::Opaque => &mut meshes.opaque,
-            ClipPass::Translucent => &mut meshes.translucent,
-            ClipPass::Emissive => &mut meshes.emissive,
-        };
-        append_animated_track(
-            destination,
-            clip,
-            track,
-            frame,
-            layout.bench_top,
-            1.0,
-            colour,
-        );
-    }
-}
-
-fn phase_synthesis_track_colour(
-    colour: ClipColour,
-    synthesis: &chem_presentation::PhaseSynthesisVisualProfile,
-    ordinal: u16,
-    ordinal_progress: f32,
-) -> [f32; 4] {
-    let rgba = |bound: &chem_presentation::BoundVisualColour, opacity| {
-        let base = [
-            f32::from(bound.base_colour.red) / 255.0,
-            f32::from(bound.base_colour.green) / 255.0,
-            f32::from(bound.base_colour.blue) / 255.0,
-        ];
-        let target = [
-            f32::from(bound.colour.red) / 255.0,
-            f32::from(bound.colour.green) / 255.0,
-            f32::from(bound.colour.blue) / 255.0,
-        ];
-        let amount = bound
-            .transition_ordinal
-            .map_or(1.0, |start| match ordinal.cmp(&start) {
-                std::cmp::Ordering::Less => 0.0,
-                std::cmp::Ordering::Equal => normalized_exponential_response(ordinal_progress, 3.4),
-                std::cmp::Ordering::Greater => 1.0,
-            });
-        [
-            base[0] + (target[0] - base[0]) * amount,
-            base[1] + (target[1] - base[1]) * amount,
-            base[2] + (target[2] - base[2]) * amount,
-            opacity,
-        ]
-    };
-    match colour {
-        ClipColour::SolidReactant => rgba(&synthesis.reactant_a, 1.0),
-        ClipColour::GasReactant => rgba(&synthesis.reactant_b, 0.15),
-        ClipColour::GasReactantA => rgba(&synthesis.reactant_a, 0.15),
-        ClipColour::GasReactantB => rgba(&synthesis.reactant_b, 0.17),
-        ClipColour::GasProduct => rgba(&synthesis.product, 0.18),
-        ClipColour::PhaseSynthesisReactionFront => [1.0, 0.28, 0.045, 0.52],
-        ClipColour::ReactionChamberGlass => [0.72, 0.88, 0.94, 0.20],
-        ClipColour::ChamberFrame => [0.30, 0.33, 0.36, 1.0],
-        _ => [0.78, 0.82, 0.84, 1.0],
-    }
-}
-
 fn deposit_highlight_colour(colour: [f32; 4]) -> [f32; 4] {
+    // A warm metallic glint: the lift is strongest in red and weakest in
+    // blue, so fresh deposit sparkles hot instead of washing to white.
     [
-        colour[0] + (1.0 - colour[0]) * 0.28,
-        colour[1] + (1.0 - colour[1]) * 0.28,
-        colour[2] + (1.0 - colour[2]) * 0.28,
+        colour[0] + (1.0 - colour[0]) * 0.50,
+        colour[1] + (1.0 - colour[1]) * 0.26,
+        colour[2] + (1.0 - colour[2]) * 0.08,
         0.24,
     ]
 }
@@ -4560,14 +6189,7 @@ fn gas_evolution_track_colour(
         | ClipColour::SynthesisProduct
         | ClipColour::ReactionFront
         | ClipColour::ReactionVessel
-        | ClipColour::MixingTool
-        | ClipColour::GasReactant
-        | ClipColour::GasProduct
-        | ClipColour::PhaseSynthesisReactionFront
-        | ClipColour::ReactionChamberGlass
-        | ClipColour::ChamberFrame
-        | ClipColour::GasReactantA
-        | ClipColour::GasReactantB => rgba(&gas_evolution.gas_product, 0.18),
+        | ClipColour::MixingTool => rgba(&gas_evolution.gas_product, 0.18),
     }
 }
 
@@ -4640,14 +6262,7 @@ fn precipitation_track_colour(
         | ClipColour::SynthesisProduct
         | ClipColour::ReactionFront
         | ClipColour::ReactionVessel
-        | ClipColour::MixingTool
-        | ClipColour::GasReactant
-        | ClipColour::GasProduct
-        | ClipColour::PhaseSynthesisReactionFront
-        | ClipColour::ReactionChamberGlass
-        | ClipColour::ChamberFrame
-        | ClipColour::GasReactantA
-        | ClipColour::GasReactantB => rgba(&precipitation.precipitate, 1.0),
+        | ClipColour::MixingTool => rgba(&precipitation.precipitate, 1.0),
     }
 }
 
@@ -4678,14 +6293,7 @@ fn combustion_track_colour(colour: ClipColour, fuel: [f32; 4], incomplete: bool)
         | ClipColour::SynthesisProduct
         | ClipColour::ReactionFront
         | ClipColour::ReactionVessel
-        | ClipColour::MixingTool
-        | ClipColour::GasReactant
-        | ClipColour::GasProduct
-        | ClipColour::PhaseSynthesisReactionFront
-        | ClipColour::ReactionChamberGlass
-        | ClipColour::ChamberFrame
-        | ClipColour::GasReactantA
-        | ClipColour::GasReactantB => fuel,
+        | ClipColour::MixingTool => fuel,
         ClipColour::FlameOuter if incomplete => [1.0, 0.24, 0.025, 0.58],
         ClipColour::FlameInner if incomplete => [1.0, 0.60, 0.06, 0.82],
         ClipColour::FlameCore if incomplete => [1.0, 0.92, 0.45, 0.96],
@@ -4794,46 +6402,233 @@ fn add_neutralisation_reaction_gas(
     }
 }
 
-fn neutralisation_vessel_motion(clip: &AnimatedClip, frame: f32) -> Vec3 {
-    let anchor = clip
-        .tracks
-        .iter()
-        .find(|track| track.module == ClipModule::VesselAnchor)
-        .expect("validated neutralisation clip has a vessel anchor");
-    clip.sample(anchor, 0, frame).position - clip.sample(anchor, 0, 0.0).position
+/// Fixed-lobe surface flame: constant topology, lobe sizes breathing
+/// through seeded cycles, scaling with `strength` and overall `scale`.
+#[allow(clippy::too_many_arguments)]
+fn add_surface_flame(
+    meshes: &mut SceneMeshes,
+    palette: FlamePalette,
+    source: Vec3,
+    strength: f32,
+    scale: f32,
+    phase: f32,
+    seed: u64,
+) {
+    const LOBES: u32 = 8;
+    let strength = strength * scale;
+    let colours = flame_colours(palette);
+    for lobe in 0..LOBES {
+        let rate = 1.1 + seeded_unit(seed, lobe, 311) * 0.9;
+        let age = (phase * rate + seeded_unit(seed, lobe, 312)).fract();
+        let flare = (std::f32::consts::PI * age).sin().max(0.0);
+        let angle = seeded_unit(seed, lobe, 313) * std::f32::consts::TAU;
+        let radial = seeded_unit(seed, lobe, 314).sqrt() * 0.05 * scale;
+        let sway = curl_like_flow(phase * 1.6, seed, lobe) * 0.05 * age;
+        let base =
+            source + Vec3::new(angle.cos() * radial, age * 0.10 * scale, angle.sin() * radial) + sway;
+        // Floors keep every lobe past add_flame_lobe's degenerate-geometry
+        // early-outs even at zero strength: constant topology, invisible size.
+        let height = ((0.12 + seeded_unit(seed, lobe, 315) * 0.18)
+            * (0.6 + 0.4 * flare)
+            * strength)
+            .max(0.02);
+        let width = ((0.032 + seeded_unit(seed, lobe, 316) * 0.030) * flare.max(0.05) * strength)
+            .max(0.002);
+        let tip = base + Vec3::Y * height;
+        let body = mix_color(
+            colours.body_low,
+            colours.body_high,
+            seeded_unit(seed, lobe, 317),
+        );
+        add_flame_lobe(
+            &mut meshes.translucent,
+            base,
+            tip,
+            width,
+            alpha(body, (flare * strength.min(1.0)).max(0.02)),
+        );
+        if lobe % 2 == 0 {
+            add_flame_lobe(
+                &mut meshes.emissive,
+                base + Vec3::Y * 0.006,
+                base.lerp(tip, 0.62),
+                (width * 0.45).max(0.002),
+                alpha(colours.core, (flare * strength.min(1.0) * 0.8).max(0.02)),
+            );
+        }
+    }
 }
 
-fn append_shared_beaker(
-    mesh: &mut Mesh,
-    shared_clip: &AnimatedClip,
-    bench_top: f32,
-    vessel_motion: Vec3,
-) {
-    const MODEL_SCALE: f32 = 0.45;
-    for track in shared_clip
-        .tracks
-        .iter()
-        .filter(|track| track.module == ClipModule::Beaker)
-    {
-        let vertex_offset = u32::try_from(mesh.vertices.len()).unwrap_or(u32::MAX);
-        mesh.vertices.reserve(track.vertex_count);
-        mesh.indices.reserve(track.indices.len());
-        for vertex_index in 0..track.vertex_count {
-            let vertex = shared_clip.sample(track, vertex_index, 0.0);
+/// A shallow tapered ceramic dish, opaque, sitting on the bench. Shared by
+/// the solids and combustion scenes; `radius`/`height` set the footprint.
+#[allow(clippy::cast_precision_loss)]
+fn add_ceramic_dish(mesh: &mut Mesh, bench_top: f32, radius: f32, height: f32, colour: [f32; 4]) {
+    const SEGMENTS: u32 = 28;
+    let dimmed = [colour[0] * 0.66, colour[1] * 0.64, colour[2] * 0.62, 1.0];
+    let inner_colour = [colour[0] * 0.55, colour[1] * 0.54, colour[2] * 0.52, 1.0];
+    let floor_y = height * 0.31;
+    let base_vertex = u32::try_from(mesh.vertices.len()).unwrap_or(u32::MAX);
+    // Profile rings: outer base -> outer rim -> inner rim -> inner floor.
+    let profile: [(f32, f32, [f32; 4], f32); 4] = [
+        (radius * 0.70, height * 0.08, dimmed, -0.6),
+        (radius, height, dimmed, 0.35),
+        (radius * 0.93, height - 0.012, inner_colour, 0.7),
+        (radius * 0.62, floor_y, inner_colour, 0.55),
+    ];
+    for (ring_radius, ring_height, ring_colour, normal_y) in profile {
+        for segment in 0..=SEGMENTS {
+            let angle = std::f32::consts::TAU * segment as f32 / SEGMENTS as f32;
+            let radial = Vec3::new(angle.cos(), 0.0, angle.sin());
+            let normal = (radial * (1.0 - normal_y.abs()) + Vec3::Y * normal_y).normalize_or_zero();
             mesh.vertices.push(Vertex {
-                position: ((vertex.position + vessel_motion) * MODEL_SCALE + Vec3::Y * bench_top)
+                position: (radial * ring_radius + Vec3::new(0.0, bench_top + ring_height, 0.0))
                     .to_array(),
-                normal: vertex.normal.to_array(),
-                color: [0.62, 0.84, 0.94, 0.22],
+                normal: normal.to_array(),
+                color: ring_colour,
             });
         }
-        mesh.indices.extend(
-            track
-                .indices
-                .iter()
-                .map(|index| index.saturating_add(vertex_offset)),
+    }
+    for ring in 0..3_u32 {
+        for segment in 0..SEGMENTS {
+            let a = base_vertex + ring * (SEGMENTS + 1) + segment;
+            let b = a + SEGMENTS + 1;
+            mesh.indices.extend_from_slice(&[a, b, a + 1, a + 1, b, b + 1]);
+        }
+    }
+    // Inner floor fan.
+    let centre_vertex = u32::try_from(mesh.vertices.len()).unwrap_or(u32::MAX);
+    mesh.vertices.push(Vertex {
+        position: [0.0, bench_top + floor_y, 0.0],
+        normal: Vec3::Y.to_array(),
+        color: inner_colour,
+    });
+    let floor_ring_start = base_vertex + 3 * (SEGMENTS + 1);
+    for segment in 0..SEGMENTS {
+        mesh.indices.extend_from_slice(&[
+            centre_vertex,
+            floor_ring_start + segment + 1,
+            floor_ring_start + segment,
+        ]);
+    }
+}
+
+/// Fixed-population condensation mist beading on a cool wall band: every
+/// droplet is always emitted, its size scaled by `mist`, so the topology
+/// never churns while the fogging fades in and out.
+fn add_condensation_mist(
+    mesh: &mut Mesh,
+    centre: Vec3,
+    wall_radius: f32,
+    band_bottom: f32,
+    band_top: f32,
+    mist: f32,
+    seed: u64,
+) {
+    const DROPLETS: u32 = 30;
+    for droplet in 0..DROPLETS {
+        let angle = seeded_unit(seed, droplet, 541) * std::f32::consts::TAU;
+        let height = band_bottom
+            + seeded_unit(seed, droplet, 542) * (band_top - band_bottom).max(0.01);
+        let size = (0.006 + seeded_unit(seed, droplet, 543) * 0.008) * mist;
+        add_sphere(
+            mesh,
+            Vec3::new(
+                centre.x + angle.cos() * wall_radius,
+                height,
+                centre.z + angle.sin() * wall_radius,
+            ),
+            size.max(0.000_5),
+            [0.88, 0.94, 0.97, 0.42],
+            3,
+            5,
         );
     }
+}
+
+/// Fixed-population gas puffs drifting up from `surface` and thinning out.
+fn add_rising_plume(
+    mesh: &mut Mesh,
+    surface: Vec3,
+    strength: f32,
+    colour: [f32; 4],
+    phase: f32,
+    seed: u64,
+) {
+    const PUFFS: u32 = 12;
+    for puff in 0..PUFFS {
+        let rate = 0.35 + seeded_unit(seed, puff, 331) * 0.4;
+        let age = (phase * rate + seeded_unit(seed, puff, 332)).fract();
+        let angle = seeded_unit(seed, puff, 333) * std::f32::consts::TAU;
+        let radial = seeded_unit(seed, puff, 334).sqrt() * 0.34;
+        let drift = curl_like_flow(phase * 0.7, seed, puff) * 0.10 * age;
+        let position = surface
+            + Vec3::new(angle.cos() * radial, 0.04 + age * 0.58, angle.sin() * radial)
+            + Vec3::new(drift.x, 0.0, drift.z);
+        let size = (0.038 + 0.068 * age) * strength;
+        let fade = alpha(colour, colour[3] * (1.0 - age) * strength);
+        add_sphere(mesh, position, size.max(0.000_5), fade, 4, 7);
+    }
+}
+
+/// Fixed-population ignition sparks darting up around a flame source.
+fn add_ignition_sparks(mesh: &mut Mesh, source: Vec3, strength: f32, phase: f32, seed: u64) {
+    const SPARKS: u32 = 10;
+    for spark in 0..SPARKS {
+        let rate = 1.4 + seeded_unit(seed, spark, 371) * 1.3;
+        let age = (phase * rate + seeded_unit(seed, spark, 372)).fract();
+        let angle = seeded_unit(seed, spark, 373) * std::f32::consts::TAU;
+        let radial = age * (0.08 + seeded_unit(seed, spark, 374) * 0.16);
+        let position = source
+            + Vec3::new(
+                angle.cos() * radial,
+                0.03 + age * (0.16 + seeded_unit(seed, spark, 375) * 0.14),
+                angle.sin() * radial,
+            );
+        let size = (0.006 + seeded_unit(seed, spark, 376) * 0.006) * (1.0 - age) * strength;
+        add_sphere(
+            mesh,
+            position,
+            size.max(0.000_5),
+            [1.0, 0.72, 0.12, 0.94 * (1.0 - age).max(0.05)],
+            3,
+            5,
+        );
+    }
+}
+
+/// The procedural laboratory beaker every reaction assembly shares.
+/// `vessel_motion` stays in clip-model units so assemblies that ride an
+/// authored lift keep their amplitude.
+fn add_assembly_beaker(mesh: &mut Mesh, bench_top: f32, vessel_motion: Vec3) {
+    const MODEL_SCALE: f32 = 0.45;
+    const GLASS: [f32; 4] = [0.62, 0.84, 0.94, 0.22];
+    const RADIUS: f32 = 0.94;
+    let motion = vessel_motion * MODEL_SCALE;
+    let bottom = Vec3::new(motion.x, bench_top + 0.02 + motion.y, motion.z);
+    let top = Vec3::new(motion.x, bench_top + 1.80 + motion.y, motion.z);
+    add_cylinder_wall(mesh, bottom, top, RADIUS, GLASS);
+    add_ring(mesh, top, RADIUS, 0.022, [0.62, 0.84, 0.94, 0.24]);
+    add_ring(
+        mesh,
+        bottom + Vec3::Y * 0.012,
+        RADIUS * 0.985,
+        0.020,
+        [0.52, 0.76, 0.88, 0.16],
+    );
+    add_disc(
+        mesh,
+        bottom + Vec3::Y * 0.016,
+        RADIUS * 0.97,
+        [0.48, 0.72, 0.84, 0.10],
+    );
+    add_sphere(
+        mesh,
+        top + Vec3::new(RADIUS * 0.93, 0.02, 0.0),
+        0.05,
+        GLASS,
+        4,
+        6,
+    );
 }
 
 #[derive(Debug, Clone, Copy)]
@@ -4921,14 +6716,7 @@ fn neutralisation_track_colour(colour: ClipColour, colours: NeutralisationColour
         | ClipColour::SynthesisProduct
         | ClipColour::ReactionFront
         | ClipColour::ReactionVessel
-        | ClipColour::MixingTool
-        | ClipColour::GasReactant
-        | ClipColour::GasProduct
-        | ClipColour::PhaseSynthesisReactionFront
-        | ClipColour::ReactionChamberGlass
-        | ClipColour::ChamberFrame
-        | ClipColour::GasReactantA
-        | ClipColour::GasReactantB => colours.salt,
+        | ClipColour::MixingTool => colours.salt,
         ClipColour::ReactiveMetal => [0.88, 0.90, 0.92, 1.0],
         ClipColour::Vapour | ClipColour::ProductPlume | ClipColour::GasCloud => {
             [0.86, 0.90, 0.92, 0.16]
@@ -4940,220 +6728,685 @@ fn neutralisation_track_colour(colour: ClipColour, colours: NeutralisationColour
     }
 }
 
-fn animated_track_enabled(
-    track: &ClipTrack,
-    track_index: usize,
-    style: AnimatedAlkaliWaterStyle,
-    seed: u64,
-) -> bool {
-    if track.module == ClipModule::Flame {
-        return style.flame.is_some();
-    }
-    let retention = match track.module {
-        ClipModule::Bubbles => style.activity,
-        ClipModule::Splashes => ((style.activity - 0.18) / 0.82).clamp(0.18, 1.0),
-        ClipModule::Vapour => (style.activity * 0.86).clamp(0.28, 1.0),
-        ClipModule::Water if track.colour == ClipColour::WaterHighlight => {
-            (0.34 + style.activity * 0.66).clamp(0.0, 1.0)
-        }
-        ClipModule::Beaker | ClipModule::Water | ClipModule::Metal => 1.0,
-        ClipModule::Mixing
-        | ClipModule::Salt
-        | ClipModule::Stirrer
-        | ClipModule::VesselAnchor
-        | ClipModule::Sparks
-        | ClipModule::Plume
-        | ClipModule::Soot
-        | ClipModule::PrecipitateCloud
-        | ClipModule::FallingPrecipitate
-        | ClipModule::PouringVessel
-        | ClipModule::Sediment
-        | ClipModule::SurfaceBursts
-        | ClipModule::SolidReactant
-        | ClipModule::InitialSolution
-        | ClipModule::FinalSolution
-        | ClipModule::OriginalMetal
-        | ClipModule::MetalErosion
-        | ClipModule::MetalDeposit
-        | ClipModule::MetalFlakes
-        | ClipModule::SynthesisReactantA
-        | ClipModule::SynthesisReactantB
-        | ClipModule::SynthesisProduct
-        | ClipModule::SynthesisReactionFront
-        | ClipModule::SynthesisVessel
-        | ClipModule::SynthesisMixingTool
-        | ClipModule::PhaseGasReactant
-        | ClipModule::PhaseGasReactantA
-        | ClipModule::PhaseGasReactantB
-        | ClipModule::PhaseGasProduct
-        | ClipModule::PhaseSynthesisReactionFront
-        | ClipModule::ReactionChamberGlass
-        | ClipModule::ReactionChamberFrame => 0.0,
-        ClipModule::Flame => unreachable!("flame handled above"),
-    };
-    let index = u32::try_from(track_index).unwrap_or(u32::MAX);
-    seeded_unit(seed, index, 211) <= retention
+/// Physical pour state for one clip frame, in clip space.
+#[derive(Debug, Clone, Copy)]
+struct PourFrameState {
+    present: bool,
+    base: Vec3,
+    axis: Vec3,
+    radius: f32,
+    height: f32,
+    lip: Vec3,
+    downhill: Vec3,
+    plane_y: f32,
+    /// Normalized 0..1 outflow.
+    flow: f32,
+    /// Remaining liquid as a fraction of vessel height.
+    fraction: f32,
+    /// 0..1 of the initial charge that has been poured out.
+    poured: f32,
 }
 
-fn animated_track_colour(colour: ClipColour, style: AnimatedAlkaliWaterStyle) -> [f32; 4] {
-    let flame = flame_colours(style.flame.unwrap_or(FlamePalette::Natural));
-    match colour {
-        ClipColour::Glass => [0.62, 0.84, 0.94, 0.22],
-        ClipColour::Water => [0.34, 0.64, 0.80, 0.34],
-        ClipColour::WaterHighlight => [0.72, 0.90, 0.98, 0.46],
-        ClipColour::ReactiveMetal => [0.88, 0.90, 0.92, 1.0],
-        ClipColour::FlameOuter => flame.body_high,
-        ClipColour::FlameInner => flame.body_low,
-        ClipColour::FlameCore => flame.core,
-        ClipColour::FizzBubble | ClipColour::GasBubble => [0.80, 0.94, 1.0, 0.30 * style.activity],
-        ClipColour::Vapour => [0.84, 0.88, 0.92, 0.13 + style.activity * 0.06],
-        ClipColour::MixtureA
-        | ClipColour::MixtureB
-        | ClipColour::SaltResidue
-        | ClipColour::LiquidInitial
-        | ClipColour::LiquidAdded
-        | ClipColour::PrecipitateCloud
-        | ClipColour::Precipitate
-        | ClipColour::SolidReactant
-        | ClipColour::SolutionInitial
-        | ClipColour::SolutionFinal
-        | ClipColour::OriginalMetal
-        | ClipColour::DepositedMetal
-        | ClipColour::MetalErosion
-        | ClipColour::ReactantA
-        | ClipColour::ReactantB
-        | ClipColour::SynthesisProduct
-        | ClipColour::ReactionFront
-        | ClipColour::ReactionVessel
-        | ClipColour::MixingTool
-        | ClipColour::GasReactant
-        | ClipColour::GasProduct
-        | ClipColour::PhaseSynthesisReactionFront
-        | ClipColour::ReactionChamberGlass
-        | ClipColour::ChamberFrame
-        | ClipColour::GasReactantA
-        | ClipColour::GasReactantB => [0.82, 0.86, 0.88, 0.20],
-        ClipColour::Fuel => [0.88, 0.82, 0.54, 0.30],
-        ClipColour::IgnitionSpark => [1.0, 0.72, 0.12, 0.94],
-        ClipColour::ProductPlume | ClipColour::GasCloud => [0.86, 0.90, 0.92, 0.16],
-        ClipColour::CombustionSmoke => [0.10, 0.105, 0.11, 0.46],
-        ClipColour::Soot => [0.055, 0.050, 0.047, 0.96],
-        ClipColour::SootDeposit => [0.075, 0.068, 0.062, 0.48],
-    }
+struct PourTable {
+    frames: Vec<PourFrameState>,
+    first_flow: Option<usize>,
 }
 
-fn append_animated_track(
-    mesh: &mut Mesh,
-    clip: &AnimatedClip,
-    track: &ClipTrack,
-    frame: f32,
-    bench_top: f32,
-    activity: f32,
-    colour: [f32; 4],
-) {
-    append_animated_track_adjusted(
-        mesh, clip, track, frame, bench_top, activity, colour, 1.0, 0.0,
-    );
+/// How full the pouring vessel starts, as a fraction of its height.
+const POUR_INITIAL_FILL: f32 = 0.62;
+
+/// Frame windows for an authored pour: (start, end) pairs in virtual
+/// 30 fps clip frames.
+struct PourSchedule {
+    approach: (f32, f32),
+    tilt_in: (f32, f32),
+    tilt_out: (f32, f32),
+    retreat: (f32, f32),
 }
 
-#[allow(clippy::too_many_arguments, clippy::cast_precision_loss)]
-fn append_animated_track_adjusted(
-    mesh: &mut Mesh,
-    clip: &AnimatedClip,
-    track: &ClipTrack,
-    frame: f32,
-    bench_top: f32,
-    activity: f32,
-    colour: [f32; 4],
-    local_scale: f32,
-    normal_offset: f32,
-) {
-    const MODEL_SCALE: f32 = 0.45;
-    let centre = if (local_scale - 1.0).abs() <= f32::EPSILON {
-        Vec3::ZERO
-    } else {
-        (0..track.vertex_count).fold(Vec3::ZERO, |sum, vertex_index| {
-            sum + clip.sample(track, vertex_index, frame).position
-        }) / track.vertex_count.max(1) as f32
-    };
-    let vertex_offset = u32::try_from(mesh.vertices.len()).unwrap_or(u32::MAX);
-    mesh.vertices.reserve(track.vertex_count);
-    mesh.indices.reserve(track.indices.len());
-    for vertex_index in 0..track.vertex_count {
-        let current = clip.sample(track, vertex_index, frame);
-        let initial = if matches!(track.module, ClipModule::Water | ClipModule::Metal) {
-            clip.sample(track, vertex_index, 0.0)
+/// Authored pose of the pouring vessel at a virtual clip frame, in model
+/// units: hover in from rest, tip over the beaker rim, hold the pour, right
+/// itself, and retreat to rest.
+fn scheduled_pour_pose(schedule: &PourSchedule, frame: f32) -> (Vec3, Vec3) {
+    let ramp = |(start, end): (f32, f32)| smooth01((frame - start) / (end - start));
+    let tilt = (ramp(schedule.tilt_in) - ramp(schedule.tilt_out)).max(0.0) * 1.22;
+    let axis = Vec3::new(-tilt.sin(), tilt.cos(), 0.0);
+    let toward = ramp(schedule.approach) - ramp(schedule.retreat);
+    let base = Vec3::new(2.90 - 0.40 * toward, 4.95 - 0.15 * toward, 0.0);
+    (base, axis)
+}
+
+/// The same weir-law integration the baked clips went through, run over an
+/// authored pose schedule: the visible pour follows from choreography alone.
+fn build_scheduled_pour_table(schedule: &PourSchedule) -> PourTable {
+    const FLOW_GAIN: f32 = 1.4;
+    const FRAME_DT: f32 = 1.0 / 30.0;
+    const RADIUS: f32 = 0.75;
+    const HEIGHT: f32 = 1.55;
+    const FRAMES: u16 = 180;
+    let mut fraction = POUR_INITIAL_FILL;
+    let mut frames = Vec::with_capacity(usize::from(FRAMES));
+    let mut first_flow = None;
+    for frame in 0..FRAMES {
+        let (base, axis) = scheduled_pour_pose(schedule, f32::from(frame));
+        let rim_centre = base + axis * HEIGHT;
+        let downhill = (Vec3::NEG_Y - axis * Vec3::NEG_Y.dot(axis)).normalize_or_zero();
+        let tilted = downhill.length_squared() > 0.5;
+        let lip = if tilted {
+            rim_centre + downhill * RADIUS
         } else {
-            current
+            rim_centre
         };
-        let ClipVertex {
-            mut position,
-            normal,
-        } = current;
-        match track.module {
-            ClipModule::Water => {
-                position = initial.position.lerp(position, 0.28 + activity * 0.72);
-            }
-            ClipModule::Metal => {
-                position.x = initial.position.x + (position.x - initial.position.x) * activity;
-                position.z = initial.position.z + (position.z - initial.position.z) * activity;
-            }
-            ClipModule::Beaker
-            | ClipModule::Flame
-            | ClipModule::Bubbles
-            | ClipModule::Splashes
-            | ClipModule::Vapour
-            | ClipModule::Mixing
-            | ClipModule::Salt
-            | ClipModule::Stirrer
-            | ClipModule::Sparks
-            | ClipModule::Plume
-            | ClipModule::Soot
-            | ClipModule::PrecipitateCloud
-            | ClipModule::FallingPrecipitate
-            | ClipModule::PouringVessel
-            | ClipModule::Sediment
-            | ClipModule::SurfaceBursts
-            | ClipModule::SolidReactant
-            | ClipModule::InitialSolution
-            | ClipModule::FinalSolution
-            | ClipModule::OriginalMetal
-            | ClipModule::MetalErosion
-            | ClipModule::MetalDeposit
-            | ClipModule::MetalFlakes
-            | ClipModule::SynthesisReactantA
-            | ClipModule::SynthesisReactantB
-            | ClipModule::SynthesisProduct
-            | ClipModule::SynthesisReactionFront
-            | ClipModule::SynthesisVessel
-            | ClipModule::SynthesisMixingTool
-            | ClipModule::PhaseGasReactant
-            | ClipModule::PhaseGasReactantA
-            | ClipModule::PhaseGasReactantB
-            | ClipModule::PhaseGasProduct
-            | ClipModule::PhaseSynthesisReactionFront
-            | ClipModule::ReactionChamberGlass
-            | ClipModule::ReactionChamberFrame => {}
-            ClipModule::VesselAnchor => {
-                unreachable!("anchor tracks are not renderable geometry");
-            }
+        let plane_y = base.y + fraction * HEIGHT * axis.y.clamp(0.15, 1.0);
+        let flow_raw = if tilted && fraction > 0.02 {
+            (plane_y - lip.y).max(0.0).powf(1.5) * FLOW_GAIN
+        } else {
+            0.0
+        };
+        let flow = (flow_raw * 3.0).clamp(0.0, 1.0);
+        if flow > 0.0 && first_flow.is_none() {
+            first_flow = Some(usize::from(frame));
         }
-        if (local_scale - 1.0).abs() > f32::EPSILON {
-            position = centre + (position - centre) * local_scale;
-        }
-        position += normal * normal_offset;
-        mesh.vertices.push(Vertex {
-            position: (position * MODEL_SCALE + Vec3::Y * bench_top).to_array(),
-            normal: normal.to_array(),
-            color: colour,
+        fraction = (fraction - flow_raw * FRAME_DT).max(0.02);
+        frames.push(PourFrameState {
+            present: true,
+            base,
+            axis,
+            radius: RADIUS,
+            height: HEIGHT,
+            lip,
+            downhill: if tilted { downhill } else { Vec3::X },
+            plane_y,
+            flow,
+            fraction,
+            poured: (POUR_INITIAL_FILL - fraction) / POUR_INITIAL_FILL,
         });
     }
-    mesh.indices.extend(
-        track
-            .indices
-            .iter()
-            .map(|index| index.saturating_add(vertex_offset)),
+    PourTable { frames, first_flow }
+}
+
+/// The small pouring vessel's glass: a basis-aware open cylinder with a
+/// brighter rim band and a base disc, valid at any tilt.
+#[allow(clippy::cast_precision_loss)]
+fn add_pouring_vessel_glass(mesh: &mut Mesh, state: &PourState) {
+    const SEGMENTS: u32 = 24;
+    // Subdivided rows: tall translucent wall quads sort per-triangle against
+    // the surfaces behind them and paint picket-shaped wedges (the same
+    // failure the beaker wall had); short rows keep centroid ordering stable.
+    const ROWS: u32 = 10;
+    const GLASS: [f32; 4] = [0.62, 0.84, 0.94, 0.22];
+    const RIM: [f32; 4] = [0.66, 0.86, 0.95, 0.30];
+    let axis = state.axis;
+    let mut e1 = axis.cross(Vec3::Y);
+    if e1.length_squared() < 1e-4 {
+        e1 = axis.cross(Vec3::X);
+    }
+    let e1 = e1.normalize_or_zero();
+    let e2 = axis.cross(e1).normalize_or_zero();
+    let top = state.base + axis * state.height;
+    let base_vertex = u32::try_from(mesh.vertices.len()).unwrap_or(u32::MAX);
+    for segment in 0..=SEGMENTS {
+        let angle = std::f32::consts::TAU * segment as f32 / SEGMENTS as f32;
+        let radial = e1 * angle.cos() + e2 * angle.sin();
+        for row in 0..=ROWS {
+            let level = state.base + axis * (state.height * 0.94 * row as f32 / ROWS as f32);
+            mesh.vertices.push(Vertex {
+                position: (level + radial * state.radius).to_array(),
+                normal: radial.to_array(),
+                color: GLASS,
+            });
+        }
+        mesh.vertices.push(Vertex {
+            position: (top + radial * state.radius).to_array(),
+            normal: radial.to_array(),
+            color: RIM,
+        });
+    }
+    for segment in 0..SEGMENTS {
+        let column = base_vertex + segment * (ROWS + 2);
+        let next = base_vertex + (segment + 1) * (ROWS + 2);
+        for level in 0..=ROWS {
+            let (a, b, c, d) = (column + level, next + level, column + level + 1, next + level + 1);
+            mesh.indices.extend_from_slice(&[a, c, b, b, c, d]);
+        }
+    }
+    // Base disc fan.
+    let centre_vertex = u32::try_from(mesh.vertices.len()).unwrap_or(u32::MAX);
+    let floor_colour = [0.48, 0.72, 0.84, 0.14];
+    mesh.vertices.push(Vertex {
+        position: (state.base + axis * 0.01).to_array(),
+        normal: axis.to_array(),
+        color: floor_colour,
+    });
+    for segment in 0..=SEGMENTS {
+        let angle = std::f32::consts::TAU * segment as f32 / SEGMENTS as f32;
+        let radial = e1 * angle.cos() + e2 * angle.sin();
+        mesh.vertices.push(Vertex {
+            position: (state.base + axis * 0.01 + radial * (state.radius * 0.96)).to_array(),
+            normal: axis.to_array(),
+            color: floor_colour,
+        });
+    }
+    for segment in 0..SEGMENTS {
+        mesh.indices.extend_from_slice(&[
+            centre_vertex,
+            centre_vertex + 1 + segment,
+            centre_vertex + 2 + segment,
+        ]);
+    }
+}
+
+/// World-space pour state at a fractional clip frame.
+#[derive(Debug, Clone, Copy)]
+struct PourState {
+    base: Vec3,
+    axis: Vec3,
+    radius: f32,
+    height: f32,
+    lip: Vec3,
+    downhill: Vec3,
+    plane_y: f32,
+    flow: f32,
+    fraction: f32,
+    poured: f32,
+    /// Clip seconds since outflow began (for the falling-front animation).
+    flow_elapsed: f32,
+}
+
+// Frame indices are bounded by the 180-frame tables, so the casts are exact.
+#[allow(
+    clippy::cast_precision_loss,
+    clippy::cast_possible_truncation,
+    clippy::cast_sign_loss
+)]
+fn pour_state_from(table: &PourTable, frame: f32, bench_top: f32) -> Option<PourState> {
+    const MODEL_SCALE: f32 = 0.45;
+    let floor = (frame.floor().max(0.0) as usize).min(table.frames.len() - 1);
+    let ceil = (floor + 1).min(table.frames.len() - 1);
+    let blend = (frame - floor as f32).clamp(0.0, 1.0);
+    let a = table.frames[floor];
+    let b = table.frames[ceil];
+    let state = match (a.present, b.present) {
+        (false, false) => return None,
+        (true, false) => a,
+        (false, true) => b,
+        (true, true) => PourFrameState {
+            present: true,
+            base: a.base.lerp(b.base, blend),
+            axis: a.axis.lerp(b.axis, blend).normalize_or_zero(),
+            radius: a.radius + (b.radius - a.radius) * blend,
+            height: a.height + (b.height - a.height) * blend,
+            lip: a.lip.lerp(b.lip, blend),
+            downhill: a.downhill.lerp(b.downhill, blend).normalize_or_zero(),
+            plane_y: a.plane_y + (b.plane_y - a.plane_y) * blend,
+            flow: a.flow + (b.flow - a.flow) * blend,
+            fraction: a.fraction + (b.fraction - a.fraction) * blend,
+            poured: a.poured + (b.poured - a.poured) * blend,
+        },
+    };
+    let to_world = |position: Vec3| position * MODEL_SCALE + Vec3::Y * bench_top;
+    let flow_elapsed = table
+        .first_flow
+        .map_or(0.0, |first| ((frame - first as f32) / 30.0).max(0.0));
+    Some(PourState {
+        base: to_world(state.base),
+        axis: state.axis,
+        radius: state.radius * MODEL_SCALE,
+        height: state.height * MODEL_SCALE,
+        lip: to_world(state.lip),
+        downhill: state.downhill,
+        plane_y: state.plane_y * MODEL_SCALE + bench_top,
+        flow: state.flow,
+        fraction: state.fraction,
+        poured: state.poured,
+        flow_elapsed,
+    })
+}
+
+/// A dye front spreading through standing liquid from a physical source —
+/// the pour impact, a reacting solid — so colour arrives where chemistry
+/// happens instead of the whole volume lerping at once.
+#[derive(Debug, Clone, Copy)]
+struct LiquidDye {
+    source: Vec3,
+    target: [f32; 4],
+    /// 0..1 mixing completion; the front has covered the basin at 1.
+    amount: f32,
+    /// Farthest basin point from the source, for front normalization.
+    reach: f32,
+}
+
+/// Recolours the contained-liquid vertices appended after `start`: a
+/// diffusion-like front (fast at first, slowing) with a noise-wobbled edge.
+/// Deterministic per vertex, so scrubbing reproduces the same spread.
+fn apply_liquid_dye(mesh: &mut Mesh, start: usize, dye: &LiquidDye) {
+    if dye.amount <= f32::EPSILON || dye.reach <= f32::EPSILON {
+        return;
+    }
+    let front = dye.amount.powf(0.65) * dye.reach * 1.18;
+    // A smooth front, no per-vertex jitter: the tall two-row wall quads turn
+    // any jittered coverage into tapered wedge artifacts under interpolation.
+    let softness = (dye.reach * 0.30).max(0.05);
+    for vertex in &mut mesh.vertices[start..] {
+        let position = Vec3::from_array(vertex.position);
+        let distance = position.distance(dye.source);
+        let coverage = smooth01((front - distance) / softness + 0.5);
+        vertex.color = mix_color(
+            vertex.color,
+            [dye.target[0], dye.target[1], dye.target[2], vertex.color[3]],
+            coverage,
+        );
+    }
+}
+
+/// Renders the receiving basin with pour-driven surface turbulence, then
+/// spreads the mixed colour from where the stream lands.
+fn add_receiving_liquid(
+    meshes: &mut SceneMeshes,
+    state: &LiquidState,
+    pour: Option<&PourState>,
+    receiving_lift: f32,
+    endpoints: ([f32; 4], [f32; 4], f32),
+    phase: f32,
+    seed: u64,
+) {
+    let (base, target, amount) = endpoints;
+    let turbulence = pour.map_or(0.2, |pour| (0.2 + pour.flow * 0.9).min(1.0));
+    let appended_from = meshes.translucent.vertices.len();
+    add_contained_liquid(
+        &mut meshes.translucent,
+        state.surface_centre + Vec3::Y * receiving_lift,
+        state.floor_y,
+        state.radius,
+        base,
+        turbulence,
+        phase,
+        seed,
     );
+    let source = pour.map_or(state.surface_centre, |pour| {
+        Vec3::new(
+            pour.lip.x + pour.downhill.x * 0.12,
+            state.surface_centre.y + receiving_lift,
+            pour.lip.z + pour.downhill.z * 0.12,
+        )
+    });
+    apply_liquid_dye(
+        &mut meshes.translucent,
+        appended_from,
+        &LiquidDye {
+            source,
+            target,
+            amount,
+            reach: (state.radius * 2.0).hypot(state.surface_centre.y - state.floor_y),
+        },
+    );
+}
+
+/// Splits a reviewed bound colour into its endpoints and the ordinal-driven
+/// mixing amount, so callers can place the change in space instead of
+/// applying the blended value uniformly.
+fn bound_colour_endpoints(
+    bound: &chem_presentation::BoundVisualColour,
+    opacity: f32,
+    ordinal: u16,
+    ordinal_progress: f32,
+) -> ([f32; 4], [f32; 4], f32) {
+    let base = [
+        f32::from(bound.base_colour.red) / 255.0,
+        f32::from(bound.base_colour.green) / 255.0,
+        f32::from(bound.base_colour.blue) / 255.0,
+        opacity,
+    ];
+    let target = [
+        f32::from(bound.colour.red) / 255.0,
+        f32::from(bound.colour.green) / 255.0,
+        f32::from(bound.colour.blue) / 255.0,
+        opacity,
+    ];
+    let amount = bound
+        .transition_ordinal
+        .map_or(1.0, |start| match ordinal.cmp(&start) {
+            std::cmp::Ordering::Less => 0.0,
+            std::cmp::Ordering::Equal => normalized_exponential_response(ordinal_progress, 3.4),
+            std::cmp::Ordering::Greater => 1.0,
+        });
+    (base, target, amount)
+}
+
+
+/// World-space standing-liquid state at a fractional clip frame.
+#[derive(Debug, Clone, Copy)]
+struct LiquidState {
+    surface_centre: Vec3,
+    floor_y: f32,
+    radius: f32,
+    colour: ClipColour,
+    /// The authored starting level: the high-water mark for scenes whose
+    /// level only ever drops (burn-down, evaporation).
+    initial_level_y: f32,
+}
+
+/// The liquid inside the pouring vessel: a cylinder clipped by the
+/// horizontal liquid plane, so the surface stays level and creeps toward
+/// the lip as the vessel tips.
+#[allow(clippy::cast_precision_loss)]
+fn add_vessel_liquid(mesh: &mut Mesh, state: &PourState, colour: [f32; 4]) {
+    const SEGMENTS: u32 = 20;
+    // Subdivided rows for the same reason as the vessel glass: one tall
+    // translucent band sort-flaps against the base disc behind it.
+    const ROWS: u32 = 6;
+    if state.fraction <= 0.03 || state.height <= 0.01 {
+        return;
+    }
+    let axis = state.axis;
+    let mut e1 = axis.cross(Vec3::Y);
+    if e1.length_squared() < 1e-4 {
+        e1 = axis.cross(Vec3::X);
+    }
+    let e1 = e1.normalize_or_zero();
+    let e2 = axis.cross(e1).normalize_or_zero();
+    let inner = state.radius * 0.88;
+    let axis_y = axis.y.clamp(0.15, 1.0);
+    let liquid_colour = [colour[0], colour[1], colour[2], (colour[3] + 0.34).min(0.9)];
+    let base_vertex = u32::try_from(mesh.vertices.len()).unwrap_or(u32::MAX);
+    let mut tops = Vec::with_capacity(SEGMENTS as usize);
+    for segment in 0..SEGMENTS {
+        let angle = std::f32::consts::TAU * segment as f32 / SEGMENTS as f32;
+        let radial = e1 * angle.cos() + e2 * angle.sin();
+        let bottom = state.base + radial * inner;
+        let along = ((state.plane_y - bottom.y) / axis_y).clamp(0.015, state.height * 0.96);
+        let top = bottom + axis * along;
+        tops.push(top);
+        for row in 0..=ROWS {
+            mesh.vertices.push(Vertex {
+                position: bottom.lerp(top, row as f32 / ROWS as f32).to_array(),
+                normal: radial.to_array(),
+                color: liquid_colour,
+            });
+        }
+    }
+    for segment in 0..SEGMENTS {
+        let next = (segment + 1) % SEGMENTS;
+        let column = base_vertex + segment * (ROWS + 1);
+        let neighbour = base_vertex + next * (ROWS + 1);
+        for row in 0..ROWS {
+            let (b0, t0, b1, t1) =
+                (column + row, column + row + 1, neighbour + row, neighbour + row + 1);
+            mesh.indices.extend_from_slice(&[b0, t0, b1, b1, t0, t1]);
+        }
+    }
+    // Level surface fan.
+    let surface_centre = tops.iter().copied().sum::<Vec3>() / tops.len() as f32;
+    let centre_vertex = u32::try_from(mesh.vertices.len()).unwrap_or(u32::MAX);
+    let surface_colour = [
+        (colour[0] * 0.85 + 0.15),
+        (colour[1] * 0.85 + 0.15),
+        (colour[2] * 0.85 + 0.15),
+        (colour[3] + 0.40).min(0.92),
+    ];
+    mesh.vertices.push(Vertex {
+        position: surface_centre.to_array(),
+        normal: Vec3::Y.to_array(),
+        color: surface_colour,
+    });
+    for top in &tops {
+        mesh.vertices.push(Vertex {
+            position: top.to_array(),
+            normal: Vec3::Y.to_array(),
+            color: surface_colour,
+        });
+    }
+    for segment in 0..SEGMENTS {
+        let next = (segment + 1) % SEGMENTS;
+        mesh.indices.extend_from_slice(&[
+            centre_vertex,
+            centre_vertex + 1 + segment,
+            centre_vertex + 1 + next,
+        ]);
+    }
+}
+
+/// Endpoints handed to the stream renderer.
+#[derive(Debug, Clone, Copy)]
+struct PourAnchors {
+    spout: Vec3,
+    impact: Vec3,
+    strength: f32,
+}
+
+/// Renders everything the pour's physical state implies: the liquid inside
+/// the tipping vessel, and — only while the spill condition holds — a
+/// ballistic stream from the lip to the receiving surface.
+fn add_state_driven_pour(
+    meshes: &mut SceneMeshes,
+    state: &PourState,
+    colour: [f32; 4],
+    receiving_surface: f32,
+    phase: f32,
+    seed: u64,
+) {
+    const POUR_GRAVITY: f32 = 6.0;
+    add_vessel_liquid(&mut meshes.translucent, state, colour);
+    if state.flow <= 0.001 {
+        return;
+    }
+    let drop_height = state.lip.y - receiving_surface;
+    if drop_height < 0.05 {
+        return;
+    }
+    let fall_time = (2.0 * drop_height / POUR_GRAVITY).sqrt();
+    let lip_velocity = 0.10 + 0.30 * state.flow;
+    let landing = state.lip + state.downhill * (lip_velocity * fall_time);
+    let anchors = PourAnchors {
+        spout: state.lip + state.downhill * 0.012,
+        impact: Vec3::new(landing.x, receiving_surface, landing.z),
+        strength: state.flow,
+    };
+    // Clip time runs at 0.625x presentation speed; the falling front covers
+    // the arc in real fall time.
+    let front = (state.flow_elapsed * 1.6 / fall_time).min(1.0);
+    add_pour_stream(meshes, anchors, colour, front, phase, seed);
+}
+
+/// A physics-informed poured stream: constant horizontal velocity with a
+/// parabolic drop, continuity necking as the liquid accelerates, a slight
+/// travelling wobble, and a flared foot that meets the receiving surface
+/// with ripples, splash droplets, and froth. Deterministic in (anchors,
+/// phase, seed).
+#[allow(clippy::cast_precision_loss)]
+fn add_pour_stream(
+    meshes: &mut SceneMeshes,
+    anchors: PourAnchors,
+    colour: [f32; 4],
+    front: f32,
+    phase: f32,
+    seed: u64,
+) {
+    const SEGMENTS: u32 = 14;
+    const SIDES: u32 = 8;
+    let front = front.clamp(0.05, 1.0);
+    let landed = front >= 0.999;
+    let drop = (anchors.spout.y - anchors.impact.y).max(0.05);
+    let horizontal = Vec3::new(
+        anchors.impact.x - anchors.spout.x,
+        0.0,
+        anchors.impact.z - anchors.spout.z,
+    );
+    let strength = anchors.strength;
+    let base_radius = 0.020 + 0.026 * strength;
+    let curve = |u: f32| {
+        // Constant lip velocity horizontally; gravity squares the drop.
+        anchors.spout + horizontal * u + Vec3::Y * (-drop * u * u)
+    };
+    let mesh = &mut meshes.translucent;
+    let base_vertex = u32::try_from(mesh.vertices.len()).unwrap_or(u32::MAX);
+    for segment in 0..=SEGMENTS {
+        let u = segment as f32 / SEGMENTS as f32 * front;
+        let centre = curve(u);
+        let tangent = (curve((u + 0.02).min(1.0)) - curve((u - 0.02).max(0.0))).normalize_or_zero();
+        let right = tangent.cross(Vec3::Y).normalize_or_zero();
+        let right = if right.length_squared() < 0.5 {
+            Vec3::X
+        } else {
+            right
+        };
+        let binormal = right.cross(tangent).normalize_or_zero();
+        // Continuity: the stream thins as it accelerates under gravity.
+        let neck = (1.0 + 3.0 * u * u).powf(-0.25);
+        let wobble = 1.0 + 0.09 * (u * 21.0 - phase * 8.0 + seed as f32 % 6.0).sin() * u;
+        let foot_flare = if landed {
+            1.0 + 0.65 * ((u - 0.9) / 0.1).clamp(0.0, 1.0)
+        } else {
+            1.0
+        };
+        let radius = base_radius * neck * wobble * foot_flare;
+        // The stream leaves the lip as a slightly flattened sheet and pulls
+        // round within the first quarter of the fall.
+        let sheet = 1.0 - ((0.25 - u) / 0.25).clamp(0.0, 1.0) * 0.35;
+        let froth = ((u - 0.86) / 0.14).clamp(0.0, 1.0) * 0.4;
+        let ring_colour = [
+            colour[0] + (1.0 - colour[0]) * froth,
+            colour[1] + (1.0 - colour[1]) * froth,
+            colour[2] + (1.0 - colour[2]) * froth,
+            (colour[3] + 0.30 + froth * 0.2).min(0.95),
+        ];
+        let sway = right * (0.010 * (u * 13.0 - phase * 6.0).sin() * u);
+        for side in 0..SIDES {
+            let angle = std::f32::consts::TAU * side as f32 / SIDES as f32;
+            let normal =
+                (right * (angle.cos() * sheet) + binormal * angle.sin()).normalize_or_zero();
+            let offset =
+                right * (angle.cos() * radius * 1.15) + binormal * (angle.sin() * radius * sheet);
+            mesh.vertices.push(Vertex {
+                position: (centre + sway + offset).to_array(),
+                normal: normal.to_array(),
+                color: ring_colour,
+            });
+        }
+    }
+    for segment in 0..SEGMENTS {
+        for side in 0..SIDES {
+            let current = base_vertex + segment * SIDES + side;
+            let next_side = base_vertex + segment * SIDES + (side + 1) % SIDES;
+            let above = current + SIDES;
+            let above_next = next_side + SIDES;
+            mesh.indices
+                .extend_from_slice(&[current, above, next_side, next_side, above, above_next]);
+        }
+    }
+    // Splash effects appear only once the falling front has reached the
+    // receiving liquid; before that, surface tension gathers the leading
+    // edge into a teardrop head, fatter than the necked stream behind it.
+    if landed {
+        add_pour_impact(meshes, anchors, phase, seed);
+    } else {
+        let bright = [
+            colour[0] * 0.6 + 0.4,
+            colour[1] * 0.6 + 0.4,
+            colour[2] * 0.6 + 0.4,
+            (colour[3] + 0.35).min(0.9),
+        ];
+        let head = curve(front);
+        add_sphere(&mut meshes.translucent, head, base_radius * 2.2, bright, 4, 6);
+        add_sphere(
+            &mut meshes.translucent,
+            head.lerp(curve((front - 0.07).max(0.0)), 0.55),
+            base_radius * 1.45,
+            bright,
+            4,
+            6,
+        );
+    }
+}
+
+/// Faint refractive swirls left behind once a pour has mixed: ribbons of
+/// slightly lightened liquid circling the mixing region below the surface,
+/// fading as the solutions homogenize. Fixed population; sizes floored.
+#[allow(clippy::cast_precision_loss)]
+fn add_schlieren_swirls(
+    mesh: &mut Mesh,
+    centre: Vec3,
+    radius: f32,
+    strength: f32,
+    phase: f32,
+    seed: u64,
+) {
+    const RIBBONS: u32 = 4;
+    const KNOTS: u32 = 6;
+    const SHEEN: [f32; 4] = [0.92, 0.96, 1.0, 0.15];
+    for ribbon in 0..RIBBONS {
+        let spin = if ribbon % 2 == 0 { 0.24 } else { -0.19 };
+        let base_angle = seeded_unit(seed, ribbon, 531) * std::f32::consts::TAU + phase * spin;
+        let band = radius * (0.22 + seeded_unit(seed, ribbon, 532) * 0.5);
+        let depth = 0.05 + seeded_unit(seed, ribbon, 533) * 0.15;
+        for knot in 0..KNOTS {
+            let t = knot as f32 / (KNOTS - 1) as f32;
+            let angle = base_angle + t * 1.7;
+            let position = Vec3::new(
+                centre.x + angle.cos() * band * (1.0 - t * 0.18),
+                centre.y - depth - t * 0.06,
+                centre.z + angle.sin() * band * (1.0 - t * 0.18),
+            );
+            let size = (0.030 + 0.022 * (std::f32::consts::PI * t).sin()) * strength;
+            add_sphere(
+                mesh,
+                position,
+                size.max(0.000_5),
+                alpha(SHEEN, SHEEN[3] * strength * (1.0 - t * 0.45)),
+                4,
+                6,
+            );
+        }
+    }
+}
+
+/// Impact effects at the stream's foot: expanding ripples, seeded splash
+/// droplets, and a froth patch, all scaled by pour strength and phased by
+/// the deterministic clock.
+#[allow(clippy::cast_precision_loss)]
+fn add_pour_impact(meshes: &mut SceneMeshes, anchors: PourAnchors, phase: f32, seed: u64) {
+    let strength = anchors.strength;
+    let impact = anchors.impact;
+    for ring in 0..2 {
+        let ring_phase = (phase * 0.9 + ring as f32 * 0.5).fract();
+        let radius = 0.08 + ring_phase * 0.30 * (0.6 + strength * 0.4);
+        let alpha = (1.0 - ring_phase) * 0.30 * strength;
+        add_ring(
+            &mut meshes.translucent,
+            impact + Vec3::Y * 0.012,
+            radius,
+            0.008,
+            [0.92, 0.96, 1.0, alpha],
+        );
+    }
+    add_disc(
+        &mut meshes.translucent,
+        impact + Vec3::Y * 0.018,
+        0.075 + 0.02 * (phase * 11.0).sin().abs(),
+        [0.95, 0.97, 1.0, 0.30 * strength],
+    );
+    add_worthington_crown(&mut meshes.translucent, impact, strength, phase, seed);
+    for droplet in 0..6_u32 {
+        let launch = seeded_unit(seed, droplet, 61);
+        let droplet_phase = (phase * 1.5 + launch).fract();
+        let direction = std::f32::consts::TAU * seeded_unit(seed, droplet, 62);
+        let reach = 0.05 + 0.20 * droplet_phase * (0.5 + strength * 0.5);
+        let arc = 0.16 * droplet_phase - 0.30 * droplet_phase * droplet_phase;
+        let centre = impact
+            + Vec3::new(
+                direction.cos() * reach,
+                arc.max(0.0) + 0.02,
+                direction.sin() * reach,
+            );
+        add_sphere(
+            &mut meshes.translucent,
+            centre,
+            0.011 + 0.007 * seeded_unit(seed, droplet, 63),
+            [0.94, 0.97, 1.0, (1.0 - droplet_phase) * 0.7 * strength],
+            3,
+            5,
+        );
+    }
 }
 
 fn add_imported_metal(mesh: &mut Mesh, base_center: Vec3, scale: Vec3, color: [f32; 4]) {
@@ -5260,9 +7513,14 @@ fn add_cylinder(mesh: &mut Mesh, start: Vec3, end: Vec3, radius: f32, color: [f3
 }
 
 fn add_cylinder_wall(mesh: &mut Mesh, bottom: Vec3, top: Vec3, radius: f32, color: [f32; 4]) {
+    // Multiple rows keep the translucent sort coherent: tall wall triangles
+    // span such a depth range that centroid ordering against horizontal
+    // surfaces behind them flips per-triangle, blending wedge artifacts.
     const SIDES: u16 = 32;
+    const ROWS: u16 = 12;
     let base = u32::try_from(mesh.vertices.len()).unwrap_or(u32::MAX);
-    for level in [bottom, top] {
+    for row in 0..=ROWS {
+        let level = bottom.lerp(top, f32::from(row) / f32::from(ROWS));
         for side in 0..=SIDES {
             let angle = std::f32::consts::TAU * f32::from(side) / f32::from(SIDES);
             let normal = Vec3::new(angle.cos(), 0.0, angle.sin());
@@ -5273,11 +7531,13 @@ fn add_cylinder_wall(mesh: &mut Mesh, bottom: Vec3, top: Vec3, radius: f32, colo
             });
         }
     }
-    for side in 0..SIDES {
-        let lower = base + u32::from(side);
-        let upper = base + u32::from(SIDES) + 1 + u32::from(side);
-        mesh.indices
-            .extend_from_slice(&[lower, upper, lower + 1, lower + 1, upper, upper + 1]);
+    for row in 0..ROWS {
+        for side in 0..SIDES {
+            let lower = base + u32::from(row) * (u32::from(SIDES) + 1) + u32::from(side);
+            let upper = lower + u32::from(SIDES) + 1;
+            mesh.indices
+                .extend_from_slice(&[lower, upper, lower + 1, lower + 1, upper, upper + 1]);
+        }
     }
 }
 
@@ -5377,8 +7637,11 @@ fn add_box(mesh: &mut Mesh, center: Vec3, size: Vec3, color: [f32; 4]) {
                 color,
             });
         }
+        // Wound so each face's front matches its declared outward normal;
+        // the previous inside-out winding meant back-face culling removed
+        // every box (including the bench) when viewed from outside.
         mesh.indices
-            .extend_from_slice(&[base, base + 1, base + 2, base, base + 2, base + 3]);
+            .extend_from_slice(&[base, base + 2, base + 1, base, base + 3, base + 2]);
     }
 }
 
@@ -5440,8 +7703,190 @@ mod tests {
             run.frames(),
             run.macroscopic(),
         )
-        .expect("trusted observations select a presentation profile");
-        compile_real_world_plan(run.frames(), &profile).expect("plan compiles from trusted frames")
+        .expect("validated observations select a presentation profile");
+        compile_real_world_plan(run.frames(), &profile)
+            .expect("plan compiles from validated frames")
+    }
+
+    /// Two builds of the same (plan, moment) must agree to the byte: scenes
+    /// are pure functions of the playhead, with no hidden clock or RNG.
+    fn assert_scene_rebuild_is_byte_identical(plan: &ScenePlan, label: &str) {
+        let duration = plan.timeline.duration_ms();
+        for quarter in 1..4_u64 {
+            let moment = plan
+                .timeline
+                .locate(duration * quarter / 4)
+                .expect("playhead within timeline");
+            let first = build_scene_at(plan, moment, (0.0, 0.0));
+            let second = build_scene_at(plan, moment, (0.0, 0.0));
+            assert!(
+                bytemuck::cast_slice::<GpuVertex, u8>(&first.0)
+                    == bytemuck::cast_slice::<GpuVertex, u8>(&second.0),
+                "{label} q{quarter}: vertices differ between identical builds"
+            );
+            assert!(
+                first.1 == second.1,
+                "{label} q{quarter}: indices differ between identical builds"
+            );
+            assert!(
+                (first.2, first.3) == (second.2, second.3),
+                "{label} q{quarter}: mesh bucket boundaries differ"
+            );
+            assert!(
+                bytemuck::cast_slice::<GasSplat, u8>(&first.4)
+                    == bytemuck::cast_slice::<GasSplat, u8>(&second.4),
+                "{label} q{quarter}: gas splats differ between identical builds"
+            );
+        }
+    }
+
+    #[test]
+    fn every_request_backed_scene_is_a_pure_function_of_its_playhead() {
+        for request in chemistry::ReactionRequest::ALL {
+            let plan = plan_for(request);
+            assert_scene_rebuild_is_byte_identical(&plan, &request.id());
+        }
+    }
+
+    #[test]
+    fn every_dynamic_fixture_scene_is_a_pure_function_of_its_playhead() {
+        for fixture in [
+            "combustion-methane",
+            "combustion-methane-incomplete",
+            "displacement-zinc-copper",
+            "synthesis-iron-sulfur",
+        ] {
+            let outcome =
+                crate::smoke_dynamic_presentation(fixture).expect("smoke fixture compiles");
+            let frames = match &outcome {
+                crate::DynamicPresentationOutcome::ReviewedFamily(outcome) => outcome.frames(),
+                crate::DynamicPresentationOutcome::Escalated(outcome) => outcome.frames(),
+                crate::DynamicPresentationOutcome::Static { .. } => {
+                    panic!("{fixture}: smoke fixture must yield an animation")
+                }
+            };
+            let profile =
+                crate::dynamic_presentation_profile(frames, outcome.static_outcome(), None)
+                    .expect("smoke fixture profile compiles");
+            let plan = compile_real_world_plan(frames, &profile)
+                .expect("smoke fixture plan compiles");
+            assert_scene_rebuild_is_byte_identical(&plan, fixture);
+        }
+    }
+
+    #[test]
+    #[ignore = "manual perf probe: cargo test -p chemspec-app -- --ignored --nocapture bench_scene"]
+    fn bench_scene_rebuild() {
+        let request = chemistry::ReactionRequest::from_id("alkali-water-potassium")
+            .expect("smoke reaction id resolves");
+        let plan = plan_for(request);
+        let duration = plan.timeline.duration_ms();
+        let runs: u64 = 200;
+        let start = std::time::Instant::now();
+        for run in 0..runs {
+            let playhead = duration * run / runs;
+            let moment = plan
+                .timeline
+                .locate(playhead)
+                .expect("playhead within timeline");
+            let _ = build_scene_at(&plan, moment, (0.0, 0.0));
+        }
+        eprintln!(
+            "scene rebuild across playhead: avg {:?}",
+            start.elapsed() / u32::try_from(runs).expect("small run count")
+        );
+    }
+
+    #[test]
+    fn pour_tables_spill_only_when_tilted_and_conserve_volume() {
+        for table in [
+            gas_evolution::procedural_pour_table(),
+            precipitation::procedural_pour_table(),
+        ] {
+            let mut previous_fraction = POUR_INITIAL_FILL;
+            let mut saw_flow = false;
+            for state in &table.frames {
+                assert!(
+                    state.fraction <= previous_fraction + 1e-5,
+                    "poured liquid never returns to the vessel"
+                );
+                if state.flow > 0.0 {
+                    saw_flow = true;
+                    let tilt = state.axis.dot(Vec3::Y).clamp(-1.0, 1.0).acos();
+                    assert!(
+                        tilt > 0.2,
+                        "liquid must not leave an upright vessel (tilt {tilt})"
+                    );
+                    assert!(
+                        state.plane_y > state.lip.y,
+                        "flow requires the liquid plane above the lip"
+                    );
+                } else {
+                    assert!(
+                        (state.fraction - previous_fraction).abs() < 1e-5,
+                        "volume is conserved while not pouring"
+                    );
+                }
+                previous_fraction = state.fraction;
+            }
+            assert!(saw_flow, "the authored tilt window produces a pour");
+            assert!(
+                table.frames.iter().map(|s| s.fraction).fold(1.0, f32::min) < 0.5,
+                "a visible share of the charge pours out"
+            );
+        }
+    }
+
+    #[test]
+    fn the_camera_glides_into_the_final_pose_without_a_cut() {
+        let plan = plan_for(chemistry::ReactionRequest::alkali_water(
+            chemistry::AlkaliMetal::Potassium,
+        ));
+        let final_beat_index = plan.timeline.beats.len() - 1;
+        let final_beat = plan.timeline.beats[final_beat_index].clone();
+        let moment = |beat_progress: f32| RealWorldPosition {
+            beat_index: final_beat_index,
+            ordinal: final_beat.end_ordinal,
+            ordinal_progress: beat_progress,
+            beat_progress,
+            stage: final_beat.stage,
+        };
+
+        // The glide approaches the arrival monotonically through the beat.
+        // No cut anywhere in the closing beat: fine steps stay small.
+        let mut previous = camera_cue_adjustment(&plan, moment(0.0));
+        for step in 1..=50_u16 {
+            let pose = camera_cue_adjustment(&plan, moment(f32::from(step) / 50.0));
+            assert!(
+                (pose.distance_scale - previous.distance_scale).abs() < 0.02,
+                "distance cut at step {step}"
+            );
+            assert!(
+                (pose.yaw_offset - previous.yaw_offset).abs() < 0.06,
+                "yaw cut at step {step}"
+            );
+            previous = pose;
+        }
+        let arrived = camera_cue_adjustment(&plan, moment(1.0));
+        assert!((arrived.distance_scale - HERO_ARRIVAL.distance_scale).abs() < 1e-3);
+        assert!((arrived.pitch_offset - HERO_ARRIVAL.pitch_offset).abs() < 1e-3);
+
+        // No cut at the schedule boundary: the last playable instant and the
+        // held completed pose are the same frame.
+        let boundary = camera_cue_adjustment(&plan, moment(0.999));
+        let held = camera_cue_adjustment(
+            &plan,
+            RealWorldPosition {
+                beat_index: final_beat_index + 3,
+                ordinal: final_beat.end_ordinal.saturating_add(3),
+                ordinal_progress: 1.0,
+                beat_progress: 1.0,
+                stage: final_beat.stage,
+            },
+        );
+        assert!((boundary.distance_scale - held.distance_scale).abs() < 5e-3);
+        assert!((boundary.pitch_offset - held.pitch_offset).abs() < 5e-3);
+        assert!((held.distance_scale - HERO_ARRIVAL.distance_scale).abs() < f32::EPSILON);
     }
 
     fn test_material(
@@ -5459,6 +7904,7 @@ mod tests {
             phase,
             representation,
             colour: None,
+            explosive_water_contact: None,
         }
     }
 
@@ -5558,7 +8004,7 @@ mod tests {
             chemistry::Halogen::Chlorine,
         ));
         let camera = fixed_camera_pose(&plan);
-        assert_eq!(std::mem::size_of::<FixedCameraState>(), 0);
+        assert!(std::mem::size_of::<OrbitState>() > 0);
         assert!(camera.pitch < -0.5);
         assert_eq!(camera, fixed_camera_pose(&plan));
 
@@ -5729,8 +8175,8 @@ mod tests {
         );
         assert_eq!(formed.1, repeated.1);
         assert_eq!(
-            bytemuck::cast_slice::<Vertex, u8>(&formed.0),
-            bytemuck::cast_slice::<Vertex, u8>(&repeated.0)
+            bytemuck::cast_slice::<GpuVertex, u8>(&formed.0),
+            bytemuck::cast_slice::<GpuVertex, u8>(&repeated.0)
         );
     }
 
@@ -5890,7 +8336,7 @@ mod tests {
                         seed: 91,
                     }),
                 );
-                let (vertices, _, _, _, gas_splats) = meshes.finish();
+                let (vertices, _, _, _, gas_splats) = meshes.finish(fixed_view_direction());
                 if asset == AssetProfile::GasCloud {
                     gas_splats
                         .into_iter()
@@ -6334,10 +8780,36 @@ mod tests {
                     .iter()
                     .any(|object| object.asset == AssetProfile::ReactiveMetalWaterAssembly);
             if uses_authored_gas_assembly {
-                assert!(
-                    scene.4.is_empty(),
-                    "an authored gas assembly must not be overlaid with procedural gas"
-                );
+                // The assembly owns its gas look: the generic overlay must
+                // not run on top of it. Gas-evolution scenes emit their own
+                // dense-product haze splats (developed by late reaction —
+                // at generation onset the fluid volume is still empty); the
+                // alkali assembly (which wins the dispatch when both are
+                // present) emits none.
+                let routes_to_alkali = plan
+                    .objects
+                    .iter()
+                    .any(|object| object.asset == AssetProfile::ReactiveMetalWaterAssembly);
+                if plan.gas_evolution.is_some() && !routes_to_alkali {
+                    let late = build_scene_with_stage(
+                        &plan,
+                        final_ordinal,
+                        0.9,
+                        MacroscopicStage::Reaction,
+                        0.9,
+                        Some(0.85),
+                        fixed_view_direction(),
+                    );
+                    assert!(
+                        !late.4.is_empty(),
+                        "the gas-evolution assembly supplies its own dense-gas haze"
+                    );
+                } else {
+                    assert!(
+                        scene.4.is_empty(),
+                        "an authored gas assembly must not be overlaid with procedural gas"
+                    );
+                }
                 assert!(
                     scene.0.len() > 1_000,
                     "the authored reaction should supply its own visible geometry"
@@ -6533,8 +9005,8 @@ mod tests {
         let first = build_scene(&plan, 3, 0.5);
         let second = build_scene(&plan, 3, 0.5);
         assert_eq!(
-            bytemuck::cast_slice::<Vertex, u8>(&first.0),
-            bytemuck::cast_slice::<Vertex, u8>(&second.0)
+            bytemuck::cast_slice::<GpuVertex, u8>(&first.0),
+            bytemuck::cast_slice::<GpuVertex, u8>(&second.0)
         );
         assert_eq!(first.1, second.1);
         assert!(first.2 > 0, "the scene must contain opaque depth geometry");
@@ -6881,8 +9353,8 @@ mod tests {
         let reacting = build_scene(&plan, reacting_ordinal, 0.5);
         assert_eq!(reacting.0.len(), before.0.len());
         assert_ne!(
-            bytemuck::cast_slice::<Vertex, u8>(&reacting.0),
-            bytemuck::cast_slice::<Vertex, u8>(&before.0),
+            bytemuck::cast_slice::<GpuVertex, u8>(&reacting.0),
+            bytemuck::cast_slice::<GpuVertex, u8>(&before.0),
             "authored tracks should deform and move continuously without entity churn"
         );
         assert!(plan.effects.iter().any(|effect| {
@@ -6895,76 +9367,26 @@ mod tests {
     }
 
     #[test]
-    fn alkali_water_time_remap_stays_independent_of_chemistry_beat_boundaries() {
+    fn authored_clip_advances_uniformly_across_chemistry_beat_boundaries() {
         let plan = canonical_plan();
         let duration = plan.timeline.duration_ms();
-        let clip = alkali_water_clip();
-        for (quarter, expected_progress) in
-            [(0_u64, 0.0_f32), (1, 0.25), (2, 0.5), (3, 0.75), (4, 1.0)]
-        {
-            let elapsed = duration.saturating_mul(quarter) / 4;
-            let moment = plan
-                .timeline
-                .locate(elapsed)
-                .expect("quarter-time sample exists");
-            let timeline_progress = plan.timeline.normalized_progress_at(moment);
-            let sampled = clip.frame_at_progress(alkali_water_authored_progress(timeline_progress));
-            let expected =
-                clip.frame_at_progress(alkali_water_authored_progress(expected_progress));
-            assert!(
-                (sampled - expected).abs() < 0.05,
-                "unequal chemistry beats must not distort the absolute time remap"
-            );
-        }
-    }
-
-    #[test]
-    fn alkali_water_time_remap_advances_opening_without_a_midpoint_ramp() {
-        assert!(alkali_water_authored_progress(0.0).abs() <= f32::EPSILON);
-        assert!((alkali_water_authored_progress(1.0) - 1.0).abs() <= f32::EPSILON);
-        assert!(
-            alkali_water_authored_progress(0.08) >= 42.0 / 179.0,
-            "the metal must reach its authored contact frame within about half a second"
-        );
-
-        let mut progress = 0.0_f32;
-        let samples = (0..=100)
-            .map(|_| {
-                let sample = alkali_water_authored_progress(progress.min(1.0));
-                progress += 0.01;
-                sample
+        let frames = (0..=4_u64)
+            .map(|quarter| {
+                let elapsed = duration.saturating_mul(quarter) / 4;
+                let moment = plan
+                    .timeline
+                    .locate(elapsed)
+                    .expect("quarter-time sample exists");
+                plan.timeline.normalized_progress_at(moment) * 179.0
             })
             .collect::<Vec<_>>();
-        assert!(
-            samples.windows(2).all(|window| window[1] > window[0]),
-            "absolute seeking must remain strictly monotonic"
-        );
-        let deltas = samples
+        let deltas = frames
             .windows(2)
             .map(|window| window[1] - window[0])
             .collect::<Vec<_>>();
-        let reaction_deltas = &deltas[8..];
-        let (slowest, fastest) = reaction_deltas
-            .iter()
-            .copied()
-            .fold((f32::MAX, f32::MIN), |(slowest, fastest), delta| {
-                (slowest.min(delta), fastest.max(delta))
-            });
         assert!(
-            fastest - slowest < 0.0035,
-            "post-contact frames must remain evenly distributed instead of accelerating late"
-        );
-        assert!(
-            reaction_deltas.last() <= reaction_deltas.get(45),
-            "the ending must not run faster than the middle of the reaction"
-        );
-        let before_contact =
-            alkali_water_authored_progress(0.08) - alkali_water_authored_progress(0.079);
-        let after_contact =
-            alkali_water_authored_progress(0.081) - alkali_water_authored_progress(0.08);
-        assert!(
-            (before_contact - after_contact).abs() < 0.0003,
-            "the contact join must remain velocity-continuous"
+            deltas.iter().all(|delta| (*delta - deltas[0]).abs() < 0.05),
+            "unequal chemistry beats must not alter authored clip speed: {deltas:?}"
         );
     }
 
@@ -7018,7 +9440,7 @@ mod tests {
             let before = build_scene(&plan, transition.start_ordinal, 0.0);
             let visible = build_scene(&plan, transition.start_ordinal, 1.0);
 
-            let has_expected_colour = |vertex: &Vertex| {
+            let has_expected_colour = |vertex: &GpuVertex| {
                 vertex.color[..3]
                     .iter()
                     .zip(expected[..3].iter())
@@ -7030,35 +9452,44 @@ mod tests {
     }
 
     #[test]
-    fn phase_unknown_halogen_displacement_gets_progress_motion_without_inventing_phase() {
-        let request = chemistry::ReactionRequest::ALL
+    fn halogen_displacement_shows_a_solution_with_the_reviewed_colour_change() {
+        for (request, expected_colour) in chemistry::ReactionRequest::ALL
             .iter()
             .copied()
-            .find(|request| request.family() == chemistry::ReactionFamily::HalogenDisplacement)
-            .expect("a supported halogen displacement exists");
-        let plan = plan_for(request);
-        assert!(
-            !plan
+            .filter(|request| request.family() == chemistry::ReactionFamily::HalogenDisplacement)
+            .map(|request| {
+                let expected = if request.id().ends_with("iodide") {
+                    "Brown"
+                } else {
+                    "Orange"
+                };
+                (request, expected)
+            })
+        {
+            let plan = plan_for(request);
+            let solution = plan
                 .objects
                 .iter()
-                .any(|object| object.asset == AssetProfile::LiquidVolume)
-        );
-        assert!(plan.effects.iter().any(|effect| {
-            effect.effect == EffectProfile::ReactionActivity
-                && effect.trigger == chem_catalogue::ObservationPredicate::Forms
-        }));
-        assert!(plan.effects.iter().all(|effect| {
-            !matches!(
-                effect.effect,
-                EffectProfile::GasRelease
-                    | EffectProfile::PrecipitateFormation
-                    | EffectProfile::LiquidMixing
-            )
-        }));
-        assert!(!plan.objects.iter().any(|object| matches!(
-            object.asset,
-            AssetProfile::GasCloud | AssetProfile::PrecipitateCloud
-        )));
+                .find(|object| {
+                    object.role == SceneRole::Contents && object.asset == AssetProfile::LiquidVolume
+                })
+                .expect("halogen displacement stages the halide solution");
+            let transition = solution
+                .colour_transition
+                .as_ref()
+                .expect("the solution carries the displaced halogen colour");
+            assert_eq!(transition.value, expected_colour, "{}", request.id());
+            assert!(plan.effects.iter().any(|effect| {
+                effect.effect == EffectProfile::ColourTransition
+                    && effect.trigger == chem_catalogue::ObservationPredicate::Colour
+            }));
+            // Nothing is invented beyond the reviewed observations: no gas,
+            // no precipitate.
+            assert!(!plan.objects.iter().any(|object| matches!(
+                object.asset,
+                AssetProfile::GasCloud | AssetProfile::PrecipitateCloud
+            )));
+        }
     }
 
     #[test]
@@ -7106,8 +9537,8 @@ mod tests {
         assert_eq!(active.0.len(), before.0.len());
         assert_eq!(active.1.len(), before.1.len());
         assert_ne!(
-            bytemuck::cast_slice::<Vertex, u8>(&active.0),
-            bytemuck::cast_slice::<Vertex, u8>(&before.0),
+            bytemuck::cast_slice::<GpuVertex, u8>(&active.0),
+            bytemuck::cast_slice::<GpuVertex, u8>(&before.0),
             "authored mixing tracks should move without per-frame entity churn"
         );
 
@@ -7152,7 +9583,11 @@ mod tests {
         assert!((finished.crystal_growth - 1.0).abs() < f32::EPSILON);
         assert!(finished.flame <= f32::EPSILON);
 
-        let boiling = build_scene_at(&plan, moment(MacroscopicStage::SolventBoiling, 0.58));
+        let boiling = build_scene_at(
+            &plan,
+            moment(MacroscopicStage::SolventBoiling, 0.58),
+            (0.0, 0.0),
+        );
         assert!(
             !boiling.4.is_empty(),
             "boiling solvent must emit an advected vapour volume"
@@ -7162,33 +9597,42 @@ mod tests {
             "the burner must contribute a separate emissive flame pass"
         );
 
-        let crystals = build_scene_at(&plan, moment(MacroscopicStage::CrystalGrowth, 1.0));
-        let repeated = build_scene_at(&plan, moment(MacroscopicStage::CrystalGrowth, 1.0));
-        let clip = neutralisation_clip();
-        let salt = clip
-            .tracks
-            .iter()
-            .find(|track| track.module == ClipModule::Salt)
-            .expect("authored clip contains salt residue");
-        let early_size = clip
-            .sample(salt, 0, 170.0)
-            .position
-            .distance(clip.sample(salt, 1, 170.0).position);
-        let final_size = clip
-            .sample(salt, 0, 231.0)
-            .position
-            .distance(clip.sample(salt, 1, 231.0).position);
+        let crystals = build_scene_at(
+            &plan,
+            moment(MacroscopicStage::CrystalGrowth, 1.0),
+            (0.0, 0.0),
+        );
+        let repeated = build_scene_at(
+            &plan,
+            moment(MacroscopicStage::CrystalGrowth, 1.0),
+            (0.0, 0.0),
+        );
+        let salt_extent = |growth: f32| {
+            let mut mesh = Mesh::default();
+            let layout = SceneLayout::resolve(&plan);
+            add_crystallizing_salt(
+                &mut mesh,
+                Vec3::new(layout.vessel_center.x, layout.bench_top + 0.125, layout.vessel_center.z),
+                growth,
+                7,
+                [1.0; 4],
+            );
+            mesh.vertices
+                .iter()
+                .map(|vertex| vertex.position[1])
+                .fold(f32::MIN, f32::max)
+        };
         assert!(
-            final_size > early_size * 4.0,
-            "faceted salt residue must grow from the authored nucleation scale"
+            salt_extent(1.0) > salt_extent(0.24) + 0.01,
+            "faceted salt residue must grow from its nucleation scale"
         );
         assert_ne!(
-            bytemuck::cast_slice::<Vertex, u8>(&crystals.0),
-            bytemuck::cast_slice::<Vertex, u8>(&boiling.0)
+            bytemuck::cast_slice::<GpuVertex, u8>(&crystals.0),
+            bytemuck::cast_slice::<GpuVertex, u8>(&boiling.0)
         );
         assert_eq!(
-            bytemuck::cast_slice::<Vertex, u8>(&crystals.0),
-            bytemuck::cast_slice::<Vertex, u8>(&repeated.0)
+            bytemuck::cast_slice::<GpuVertex, u8>(&crystals.0),
+            bytemuck::cast_slice::<GpuVertex, u8>(&repeated.0)
         );
         assert_eq!(crystals.1, repeated.1);
     }
@@ -7204,23 +9648,24 @@ mod tests {
                 && object.asset == AssetProfile::NeutralisationEvaporationAssembly
         }));
 
-        let clip = neutralisation_clip();
-        let lifted_motion = neutralisation_vessel_motion(clip, 139.0);
-        assert!(lifted_motion.y > 0.5);
-        let mut shared_beaker = Mesh::default();
-        append_shared_beaker(
-            &mut shared_beaker,
-            alkali_water_clip(),
-            -0.76,
-            lifted_motion,
+        let lifted = post_process_visual_state(&plan, MacroscopicStage::SolventBoiling, 0.5);
+        assert!(lifted.active && lifted.lift > 0.2);
+        let lifted_motion = Vec3::Y * (lifted.lift / 0.45);
+        let mut lifted_beaker = Mesh::default();
+        add_assembly_beaker(&mut lifted_beaker, -0.76, lifted_motion);
+        let mut resting_beaker = Mesh::default();
+        add_assembly_beaker(&mut resting_beaker, -0.76, Vec3::ZERO);
+        let min_y = |mesh: &Mesh| {
+            mesh.vertices
+                .iter()
+                .map(|vertex| vertex.position[1])
+                .fold(f32::INFINITY, f32::min)
+        };
+        assert_eq!(lifted_beaker.vertices.len(), resting_beaker.vertices.len());
+        assert!(
+            min_y(&lifted_beaker) > min_y(&resting_beaker) + 0.2,
+            "the beaker must ride the authored vessel lift"
         );
-        let expected_vertices = alkali_water_clip()
-            .tracks
-            .iter()
-            .filter(|track| track.module == ClipModule::Beaker)
-            .map(|track| track.vertex_count)
-            .sum::<usize>();
-        assert_eq!(shared_beaker.vertices.len(), expected_vertices);
 
         let neutralisation_colours =
             neutralisation_colours(&plan, scene_effect_colours(&plan, 0, 0.0), 0.0);
@@ -7234,25 +9679,10 @@ mod tests {
                 "the heating flame should be orange rather than lilac: {colour:?}"
             );
         }
-        let potassium_flame = animated_track_colour(
-            ClipColour::FlameOuter,
-            AnimatedAlkaliWaterStyle {
-                activity: 1.0,
-                flame: Some(FlamePalette::Lilac),
-            },
-        );
-        let expected_lilac = flame_colours(FlamePalette::Lilac).body_high;
-        assert!(
-            potassium_flame
-                .iter()
-                .zip(expected_lilac)
-                .all(|(actual, expected)| (actual - expected).abs() <= f32::EPSILON),
-            "neutralisation styling must not recolour potassium ignition"
-        );
     }
 
     #[test]
-    fn precipitation_assembly_uses_absolute_six_second_playback_and_persistent_sediment() {
+    fn precipitation_assembly_uses_the_absolute_authored_window_and_persistent_sediment() {
         let plan = plan_for(chemistry::ReactionRequest::silver_halide_precipitation(
             chemistry::Halogen::Bromine,
         ));
@@ -7268,66 +9698,31 @@ mod tests {
             .timeline
             .start_ms_for_ordinal(precipitation.formation_ordinal)
             .expect("formation ordinal begins an authored beat");
-        assert_eq!(plan.timeline.duration_ms() - start_ms, 6_000);
+        assert_eq!(plan.timeline.duration_ms() - start_ms, 9_600);
 
         let midpoint = plan
             .timeline
             .locate(start_ms + 3_000)
             .expect("midpoint is on the timeline");
-        let first_sample = build_scene_at(&plan, midpoint);
+        let first_sample = build_scene_at(&plan, midpoint, (0.0, 0.0));
         let _later_sample = build_scene_at(
             &plan,
             plan.timeline
                 .locate(start_ms + 5_000)
                 .expect("later sample is on the timeline"),
+            (0.0, 0.0),
         );
-        let repeated_midpoint = build_scene_at(&plan, midpoint);
+        let repeated_midpoint = build_scene_at(&plan, midpoint, (0.0, 0.0));
         assert_eq!(
-            bytemuck::cast_slice::<Vertex, u8>(&first_sample.0),
-            bytemuck::cast_slice::<Vertex, u8>(&repeated_midpoint.0)
+            bytemuck::cast_slice::<GpuVertex, u8>(&first_sample.0),
+            bytemuck::cast_slice::<GpuVertex, u8>(&repeated_midpoint.0)
         );
         assert_eq!(first_sample.1, repeated_midpoint.1);
 
-        let clip = precipitation_clip();
-        let surface_area = |module| {
-            clip.tracks
-                .iter()
-                .filter(|track| track.module == module)
-                .flat_map(|track| {
-                    track.indices.chunks_exact(3).map(move |triangle| {
-                        let a = clip
-                            .sample(
-                                track,
-                                usize::try_from(triangle[0]).expect("vertex index"),
-                                179.0,
-                            )
-                            .position;
-                        let b = clip
-                            .sample(
-                                track,
-                                usize::try_from(triangle[1]).expect("vertex index"),
-                                179.0,
-                            )
-                            .position;
-                        let c = clip
-                            .sample(
-                                track,
-                                usize::try_from(triangle[2]).expect("vertex index"),
-                                179.0,
-                            )
-                            .position;
-                        (b - a).cross(c - a).length() * 0.5
-                    })
-                })
-                .sum::<f32>()
-        };
-        let cloud_area = surface_area(ClipModule::PrecipitateCloud);
-        let fragments_area = surface_area(ClipModule::FallingPrecipitate);
-        let sediment_area = surface_area(ClipModule::Sediment);
-        assert!(cloud_area < 0.001);
-        assert!(fragments_area < 0.001);
+        assert!(precipitation::cloud_presence(1.0) < 0.001);
+        assert!(precipitation::fleck_presence(1.0) < 0.001);
         assert!(
-            sediment_area > 1.0,
+            precipitation::mound_settle(1.0) > 0.99,
             "the settled sediment must remain as visible geometry"
         );
     }
@@ -7423,238 +9818,86 @@ mod tests {
     }
 
     #[test]
-    fn synthesis_combination_clip_is_complete_deterministic_and_colour_bound() {
-        let clip = synthesis_combination_clip();
-        assert_eq!(clip.frame_count, 180);
-        assert_eq!(clip.frames_per_second, 30);
-        assert_eq!(clip.tracks.len(), 29);
-        for module in [
-            ClipModule::SynthesisReactantA,
-            ClipModule::SynthesisReactantB,
-            ClipModule::SynthesisProduct,
-            ClipModule::SynthesisReactionFront,
-            ClipModule::SynthesisVessel,
-            ClipModule::SynthesisMixingTool,
-        ] {
-            assert!(clip.tracks.iter().any(|track| track.module == module));
-        }
-        let track = clip.tracks.first().expect("clip has tracks");
-        let first = clip.sample(track, 0, 91.375);
-        let repeated = clip.sample(track, 0, 91.375);
-        assert_eq!(first.position, repeated.position);
-        assert_eq!(first.normal, repeated.normal);
-
-        let bound =
-            |binding: &str, [red, green, blue]: [u8; 3]| chem_presentation::BoundVisualColour {
+    fn heavy_alkali_material_slots_keep_identity_bound_rgb_and_phase_opacity() {
+        let bound = |binding: &str, base: [u8; 3], colour: [u8; 3], transition_ordinal| {
+            chem_presentation::BoundVisualColour {
                 binding: binding.to_owned(),
-                base_colour: VisualColour { red, green, blue },
-                colour: VisualColour { red, green, blue },
-                transition_ordinal: None,
-            };
-        let visual = chem_presentation::SolidSolidSynthesisVisualProfile {
-            formation_ordinal: 3,
-            reactant_a: bound("a", [0x80, 0x84, 0x88]),
-            reactant_b: bound("b", [0xe4, 0xc1, 0x32]),
-            product: bound("product", [0x35, 0x38, 0x3b]),
-            show_reaction_front: true,
-        };
-        assert_eq!(
-            synthesis_combination_track_colour(ClipColour::ReactantA, &visual, u16::MAX, 1.0)[..3],
-            [
-                f32::from(0x80_u8) / 255.0,
-                f32::from(0x84_u8) / 255.0,
-                f32::from(0x88_u8) / 255.0
-            ]
-        );
-        assert_eq!(
-            synthesis_combination_track_colour(
-                ClipColour::SynthesisProduct,
-                &visual,
-                u16::MAX,
-                1.0,
-            )[..3],
-            [
-                f32::from(0x35_u8) / 255.0,
-                f32::from(0x38_u8) / 255.0,
-                f32::from(0x3b_u8) / 255.0
-            ]
-        );
-    }
-
-    #[test]
-    fn phase_synthesis_clips_are_complete_deterministic_and_reaction_colour_bound() {
-        let solid_gas = phase_synthesis_clip(PhaseSynthesisVariant::SolidGas);
-        let gas_gas = phase_synthesis_clip(PhaseSynthesisVariant::GasGas);
-        for (clip, track_count) in [(solid_gas, 28), (gas_gas, 28)] {
-            assert_eq!(clip.frame_count, 180);
-            assert_eq!(clip.frames_per_second, 30);
-            assert_eq!(clip.tracks.len(), track_count);
-            let track = clip.tracks.first().expect("phase clip has tracks");
-            let first = clip.sample(track, 0, 84.625);
-            let repeated = clip.sample(track, 0, 84.625);
-            assert_eq!(first.position, repeated.position);
-            assert_eq!(first.normal, repeated.normal);
-        }
-        for module in [
-            ClipModule::SolidReactant,
-            ClipModule::PhaseGasReactant,
-            ClipModule::PhaseGasProduct,
-            ClipModule::PhaseSynthesisReactionFront,
-            ClipModule::ReactionChamberGlass,
-            ClipModule::ReactionChamberFrame,
-        ] {
-            assert!(solid_gas.tracks.iter().any(|track| track.module == module));
-        }
-        assert_eq!(
-            solid_gas
-                .tracks
-                .iter()
-                .filter(|track| {
-                    track.module == ClipModule::SolidReactant
-                        && track.colour == ClipColour::SolidReactant
-                        && track.pass == ClipPass::Opaque
-                })
-                .count(),
-            8,
-            "all authored solid clumps must survive baking as opaque colour-bound tracks"
-        );
-        for module in [
-            ClipModule::PhaseGasReactantA,
-            ClipModule::PhaseGasReactantB,
-            ClipModule::PhaseGasProduct,
-            ClipModule::PhaseSynthesisReactionFront,
-            ClipModule::ReactionChamberGlass,
-            ClipModule::ReactionChamberFrame,
-        ] {
-            assert!(gas_gas.tracks.iter().any(|track| track.module == module));
-        }
-
-        let bound =
-            |binding: &str, [red, green, blue]: [u8; 3]| chem_presentation::BoundVisualColour {
-                binding: binding.to_owned(),
-                base_colour: VisualColour { red, green, blue },
-                colour: VisualColour { red, green, blue },
-                transition_ordinal: None,
-            };
-        let visual = chem_presentation::PhaseSynthesisVisualProfile {
-            formation_ordinal: 3,
-            variant: PhaseSynthesisVariant::GasGas,
-            reactant_a: bound("a", [0x72, 0x91, 0xc4]),
-            reactant_b: bound("b", [0xb3, 0xc9, 0x68]),
-            product: bound("product", [0xd6, 0xdf, 0xe5]),
-            show_reaction_front: true,
-        };
-        let product = phase_synthesis_track_colour(ClipColour::GasProduct, &visual, u16::MAX, 1.0);
-        let reactant_a =
-            phase_synthesis_track_colour(ClipColour::GasReactantA, &visual, u16::MAX, 1.0);
-        let reactant_b =
-            phase_synthesis_track_colour(ClipColour::GasReactantB, &visual, u16::MAX, 1.0);
-        assert_eq!(
-            product[..3],
-            [
-                f32::from(0xd6_u8) / 255.0,
-                f32::from(0xdf_u8) / 255.0,
-                f32::from(0xe5_u8) / 255.0
-            ]
-        );
-        assert!((product[3] - 0.18).abs() < f32::EPSILON);
-        assert_ne!(reactant_a[..3], reactant_b[..3]);
-        assert_ne!(reactant_a[..3], product[..3]);
-
-        let mut solid_visual = visual;
-        solid_visual.variant = PhaseSynthesisVariant::SolidGas;
-        let solid =
-            phase_synthesis_track_colour(ClipColour::SolidReactant, &solid_visual, u16::MAX, 1.0);
-        assert_eq!(solid[..3], reactant_a[..3]);
-        assert!((solid[3] - 1.0).abs() < f32::EPSILON);
-    }
-
-    #[test]
-    fn deposit_readability_layer_expands_the_authored_silhouette_deterministically() {
-        let clip = metal_displacement_clip();
-        let track = clip
-            .tracks
-            .iter()
-            .find(|track| track.module == ClipModule::MetalDeposit)
-            .expect("deposit track exists");
-        let frame = clip.frame_at_progress(1.0);
-        let mut authored = Mesh::default();
-        append_animated_track(
-            &mut authored,
-            clip,
-            track,
-            frame,
-            0.0,
-            1.0,
-            [0.72, 0.42, 0.28, 1.0],
-        );
-        let mut emphasized = Mesh::default();
-        append_animated_track_adjusted(
-            &mut emphasized,
-            clip,
-            track,
-            frame,
-            0.0,
-            1.0,
-            [0.72, 0.42, 0.28, 1.0],
-            1.16,
-            0.012,
-        );
-        let extent = |mesh: &Mesh| {
-            let (minimum, maximum) = mesh.vertices.iter().fold(
-                (Vec3::splat(f32::INFINITY), Vec3::splat(f32::NEG_INFINITY)),
-                |(minimum, maximum), vertex| {
-                    let position = Vec3::from_array(vertex.position);
-                    (minimum.min(position), maximum.max(position))
+                base_colour: VisualColour {
+                    red: base[0],
+                    green: base[1],
+                    blue: base[2],
                 },
-            );
-            maximum - minimum
+                colour: VisualColour {
+                    red: colour[0],
+                    green: colour[1],
+                    blue: colour[2],
+                },
+                transition_ordinal,
+            }
         };
-        let authored_extent = extent(&authored);
-        let emphasized_extent = extent(&emphasized);
-        assert!(emphasized_extent.length() > authored_extent.length() * 1.10);
-
-        let mut replay = Mesh::default();
-        append_animated_track_adjusted(
-            &mut replay,
-            clip,
-            track,
-            frame,
-            0.0,
-            1.0,
-            [0.72, 0.42, 0.28, 1.0],
-            1.16,
-            0.012,
-        );
-        assert_eq!(
-            bytemuck::cast_slice::<Vertex, u8>(&emphasized.vertices),
-            bytemuck::cast_slice::<Vertex, u8>(&replay.vertices)
-        );
-        assert_eq!(emphasized.indices, replay.indices);
+        let visual = chem_presentation::ExplosiveMetalWaterVisualProfile {
+            contact_ordinal: 2,
+            variant: ExplosiveMetalWaterVariant::Rubidium,
+            water_reactant: bound("water", [0x18, 0x7d, 0xb6], [0x18, 0x7d, 0xb6], None),
+            metal_reactant: bound("metal", [0x92, 0x96, 0x9a], [0x92, 0x96, 0x9a], None),
+            hydroxide_product: bound("hydroxide", [0x42, 0x8b, 0x9e], [0xea, 0xb4, 0x31], Some(4)),
+            hydrogen_product: bound("hydrogen", [0xd6, 0xee, 0xf4], [0xd6, 0xee, 0xf4], None),
+        };
+        let rgb = |[red, green, blue]: [u8; 3]| {
+            [
+                f32::from(red) / 255.0,
+                f32::from(green) / 255.0,
+                f32::from(blue) / 255.0,
+            ]
+        };
+        let assert_rgb = |actual: [f32; 4], expected: [u8; 3]| {
+            assert!(
+                actual[..3]
+                    .iter()
+                    .zip(rgb(expected))
+                    .all(|(actual, expected)| (actual - expected).abs() <= 1.0e-6),
+                "{actual:?} did not retain {expected:?}",
+            );
+        };
+        let before_contact = explosive_metal_water_track_colour(ClipColour::Water, &visual, 1, 1.0);
+        let product_base = explosive_metal_water_track_colour(ClipColour::Water, &visual, 3, 1.0);
+        let product_target = explosive_metal_water_track_colour(ClipColour::Water, &visual, 5, 1.0);
+        assert_rgb(before_contact, [0x18, 0x7d, 0xb6]);
+        assert_rgb(product_base, [0x42, 0x8b, 0x9e]);
+        assert_rgb(product_target, [0xea, 0xb4, 0x31]);
+        assert!((product_target[3] - 0.34).abs() < f32::EPSILON);
+        let metal = explosive_metal_water_track_colour(ClipColour::ReactiveMetal, &visual, 5, 1.0);
+        let hydrogen = explosive_metal_water_track_colour(ClipColour::Vapour, &visual, 5, 1.0);
+        assert_rgb(metal, [0x92, 0x96, 0x9a]);
+        assert!((metal[3] - 1.0).abs() < f32::EPSILON);
+        assert_rgb(hydrogen, [0xd6, 0xee, 0xf4]);
+        assert!((hydrogen[3] - 0.15).abs() < f32::EPSILON);
     }
 
     #[test]
-    fn deposit_and_flake_tracks_stay_hidden_until_their_authored_start_frames() {
-        assert!(!metal_displacement_track_visible(
-            ClipModule::MetalDeposit,
-            52.999
+    fn heavy_alkali_scene_replays_and_seeks_backwards_from_the_absolute_playhead() {
+        let plan = plan_for(chemistry::ReactionRequest::heavy_alkali_water(
+            chemistry::HeavyAlkaliMetal::Rubidium,
         ));
-        assert!(metal_displacement_track_visible(
-            ClipModule::MetalDeposit,
-            53.0
+        assert!(matches!(
+            plan.explosive_metal_water
+                .as_ref()
+                .map(|profile| profile.variant),
+            Some(ExplosiveMetalWaterVariant::Rubidium)
         ));
-        assert!(!metal_displacement_track_visible(
-            ClipModule::MetalFlakes,
-            102.999
-        ));
-        assert!(metal_displacement_track_visible(
-            ClipModule::MetalFlakes,
-            103.0
-        ));
-        assert!(metal_displacement_track_visible(
-            ClipModule::OriginalMetal,
-            0.0
-        ));
+        let early = plan.timeline.locate(0).expect("timeline begins at zero");
+        let later = plan
+            .timeline
+            .locate(plan.timeline.duration_ms() / 2)
+            .expect("midpoint is on the timeline");
+        let first = build_scene_at(&plan, early, (0.0, 0.0));
+        let _later = build_scene_at(&plan, later, (0.0, 0.0));
+        let replay = build_scene_at(&plan, early, (0.0, 0.0));
+        assert_eq!(
+            bytemuck::cast_slice::<GpuVertex, u8>(&first.0),
+            bytemuck::cast_slice::<GpuVertex, u8>(&replay.0)
+        );
+        assert_eq!(first.1, replay.1);
     }
 
     fn authored_gas_plan(variant: GasEvolutionVariant) -> ScenePlan {
@@ -7702,6 +9945,39 @@ mod tests {
             ),
         });
         plan
+    }
+
+    #[test]
+    fn gas_evolution_variants_swap_pour_vessel_for_reactant_pile() {
+        let mut plan = plan_for(chemistry::ReactionRequest::acid_bicarbonate_gas_evolution(
+            chemistry::AlkaliMetal::Sodium,
+            chemistry::Halogen::Chlorine,
+        ));
+        let layout = SceneLayout::resolve(&plan);
+        let ordinal = plan
+            .gas_evolution
+            .as_ref()
+            .expect("gas evolution profile exists")
+            .generation_ordinal;
+        let build = |plan: &ScenePlan| {
+            let mut meshes = SceneMeshes::default();
+            gas_evolution::add_gas_evolution_assembly(&mut meshes, plan, layout, 0.5, ordinal, 0.5);
+            meshes
+        };
+        let liquid_liquid = build(&plan);
+        plan.gas_evolution
+            .as_mut()
+            .expect("gas evolution profile exists")
+            .variant = GasEvolutionVariant::SolidLiquid;
+        let solid_liquid = build(&plan);
+        assert!(
+            solid_liquid.opaque.vertices.len() > liquid_liquid.opaque.vertices.len(),
+            "the solid variant adds the faceted reactant pile"
+        );
+        assert!(
+            liquid_liquid.glass.vertices.len() > solid_liquid.glass.vertices.len(),
+            "the liquid variant adds the pouring vessel"
+        );
     }
 
     #[test]
@@ -7762,17 +10038,17 @@ mod tests {
             .timeline
             .locate(old_reaction_duration.saturating_sub(1))
             .expect("old authored reaction endpoint");
-        let _ = build_scene_at(&old, old_end);
+        let _ = build_scene_at(&old, old_end, (0.0, 0.0));
 
         let new_start = new.timeline.locate(0).expect("new timeline starts");
-        let after_switch = build_scene_at(&new, new_start);
-        let fresh = build_scene_at(&new, new_start);
+        let after_switch = build_scene_at(&new, new_start, (0.0, 0.0));
+        let fresh = build_scene_at(&new, new_start, (0.0, 0.0));
         assert_eq!(after_switch.1, fresh.1);
         assert_eq!(after_switch.2, fresh.2);
         assert_eq!(after_switch.3, fresh.3);
         assert_eq!(
-            bytemuck::cast_slice::<Vertex, u8>(&after_switch.0),
-            bytemuck::cast_slice::<Vertex, u8>(&fresh.0),
+            bytemuck::cast_slice::<GpuVertex, u8>(&after_switch.0),
+            bytemuck::cast_slice::<GpuVertex, u8>(&fresh.0),
             "the new reaction must not retain prior transforms, material colours, or playhead"
         );
         assert_eq!(after_switch.4.len(), fresh.4.len());
@@ -7780,15 +10056,7 @@ mod tests {
 
     #[test]
     fn gas_evolution_renderer_contains_no_reaction_or_species_identity_branch() {
-        let source = include_str!("structural_3d.rs");
-        let start = source
-            .find("fn add_animated_gas_evolution_assembly")
-            .expect("gas-evolution renderer exists");
-        let end = source[start..]
-            .find("fn precipitation_track_colour")
-            .map(|offset| start + offset)
-            .expect("renderer function boundary exists");
-        let renderer = &source[start..end];
+        let renderer = include_str!("structural_3d/gas_evolution.rs");
         for forbidden in [
             "ReactionRequest",
             "reaction_name",
@@ -7806,15 +10074,7 @@ mod tests {
 
     #[test]
     fn precipitation_renderer_contains_no_reaction_or_species_identity_branch() {
-        let source = include_str!("structural_3d.rs");
-        let start = source
-            .find("fn add_animated_precipitation_assembly")
-            .expect("precipitation renderer exists");
-        let end = source[start..]
-            .find("fn combustion_track_colour")
-            .map(|offset| start + offset)
-            .expect("renderer function boundary exists");
-        let renderer = &source[start..end];
+        let renderer = include_str!("structural_3d/precipitation.rs");
         for forbidden in [
             "ReactionRequest",
             "reaction_name",
@@ -7833,15 +10093,7 @@ mod tests {
 
     #[test]
     fn metal_displacement_renderer_contains_no_reaction_or_species_identity_branch() {
-        let source = include_str!("structural_3d.rs");
-        let start = source
-            .find("fn add_animated_metal_displacement_assembly")
-            .expect("metal-displacement renderer exists");
-        let end = source[start..]
-            .find("fn gas_evolution_track_colour")
-            .map(|offset| start + offset)
-            .expect("renderer function boundary exists");
-        let renderer = &source[start..end];
+        let renderer = include_str!("structural_3d/displacement.rs");
         for forbidden in [
             "ReactionRequest",
             "reaction_name",
@@ -7860,15 +10112,7 @@ mod tests {
 
     #[test]
     fn synthesis_renderer_contains_no_reaction_or_species_identity_branch() {
-        let source = include_str!("structural_3d.rs");
-        let start = source
-            .find("fn add_animated_synthesis_combination_assembly")
-            .expect("synthesis renderer exists");
-        let end = source[start..]
-            .find("fn deposit_highlight_colour")
-            .map(|offset| start + offset)
-            .expect("renderer function boundary exists");
-        let renderer = &source[start..end];
+        let renderer = include_str!("structural_3d/synthesis.rs");
         for forbidden in [
             "ReactionRequest",
             "reaction_name",
@@ -8017,13 +10261,13 @@ mod tests {
             1.0,
             None,
         );
-        let (unrotated, _, _, _, _) = unrotated_meshes.finish();
-        let (rotated, _, _, _, _) = rotated_meshes.finish();
+        let (unrotated, _, _, _, _) = unrotated_meshes.finish(fixed_view_direction());
+        let (rotated, _, _, _, _) = rotated_meshes.finish(fixed_view_direction());
 
         assert_eq!(unrotated.len(), rotated.len());
         assert_ne!(
-            bytemuck::cast_slice::<Vertex, u8>(&unrotated),
-            bytemuck::cast_slice::<Vertex, u8>(&rotated),
+            bytemuck::cast_slice::<GpuVertex, u8>(&unrotated),
+            bytemuck::cast_slice::<GpuVertex, u8>(&rotated),
             "catalogue-authored rotation must reach positions and normals"
         );
     }
@@ -8049,7 +10293,7 @@ mod tests {
             1.0,
             None,
         );
-        let (vertices, _, opaque_indices, _, _) = meshes.finish();
+        let (vertices, _, opaque_indices, _, _) = meshes.finish(fixed_view_direction());
 
         assert!(opaque_indices > 0, "the floor remains opaque geometry");
         assert!(

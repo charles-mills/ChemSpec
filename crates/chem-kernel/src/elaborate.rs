@@ -8,8 +8,8 @@ use chem_catalogue::{
     BinaryElectronStateRecord, BondDelocalizationRecord, BondOrderRecord, CleavageAllocationRecord,
     ElaboratedGeneralizedRule, ElectronStateRecord, EventModel, GeneralizedElaborationFailureClass,
     GeneralizedRoleInput, MetallicJoinAllocationRecord, MetallicReleaseAllocationRecord,
-    ObservationPredicate, OperationTemplateRecord, ReactionRuleRecord, RepresentationRecord,
-    RuleSideRecord, SequenceModel, TransferElectronStateRecord, TrustedCatalogue,
+    ObservationPredicate, OperationTemplateRecord, ReactionRuleRecord, ReferenceCatalogue,
+    RepresentationRecord, RuleSideRecord, SequenceModel, TransferElectronStateRecord,
     ValidatedCatalogueBundle,
 };
 use chem_domain::{
@@ -31,25 +31,24 @@ use num_bigint::BigUint;
 use serde_json::Value;
 
 use crate::{
-    CatalogueOrigin, CatalogueReference, CatalogueTrust, EvidenceOrigin, EvidencePacketReference,
-    EvidencePredicate, EvidenceTrust, ExpandedElectronContribution, ExpandedInstance,
-    ExpandedIonicComponent, ExpandedOperation, ExpandedStructuralReaction,
+    CatalogueOrigin, CatalogueProvenance, CatalogueReference, EvidenceOrigin,
+    EvidencePacketReference, EvidencePredicate, EvidenceProvenance, ExpandedElectronContribution,
+    ExpandedInstance, ExpandedIonicComponent, ExpandedOperation, ExpandedStructuralReaction,
     ExpandedStructuralReactionParts, ExpansionError, Provenance, ReactionSideKind,
-    ResolvedApplicability, ResolvedDeclarationBinding, ResolvedEquationTerm, ResolvedEvidence,
-    ResolvedGeneralizedRuleApplication, ResolvedModel, ResolvedObservation,
-    ResolvedObservationCompatibility, ResolvedReactionClaim, ResolvedRuleApplication,
-    ResolvedRuleBinding, ResolvedStructureBinding, SourceOrigin, SourceReference,
-    TrustedExpandedStructuralReaction, ValidatedEvidencePacket,
+    ReferenceExpandedStructuralReaction, ResolvedApplicability, ResolvedDeclarationBinding,
+    ResolvedEquationTerm, ResolvedEvidence, ResolvedGeneralizedRuleApplication, ResolvedModel,
+    ResolvedObservation, ResolvedObservationCompatibility, ResolvedReactionClaim,
+    ResolvedRuleApplication, ResolvedRuleBinding, ResolvedStructureBinding, SourceOrigin,
+    SourceReference, ValidatedEvidencePacket,
 };
 
-/// Elaborates source against a structurally valid but explicitly untrusted
-/// catalogue review candidate.
+/// Elaborates source against structurally valid provisional reference data.
 ///
 /// # Errors
 ///
 /// Returns a typed invalid, unsupported, or system-error result. The returned
-/// HIR remains marked `review_candidate` and cannot represent production trust.
-pub fn expand_review_candidate(
+/// HIR retains provisional factual provenance.
+pub fn expand_provisional(
     source_name: &str,
     source: &str,
     catalogue: &ValidatedCatalogueBundle,
@@ -61,32 +60,34 @@ pub fn expand_review_candidate(
         source_name,
         source,
         catalogue,
-        CatalogueTrust::ReviewCandidate,
+        CatalogueProvenance::Provisional,
         &evidence,
     )
 }
 
-/// Elaborates source through the production trusted-catalogue boundary.
+/// Elaborates source using the packaged reference catalogue.
+///
+/// Verified review metadata changes provenance, not chemistry capability.
 ///
 /// # Errors
 ///
 /// Returns a typed invalid, unsupported, or system-error result.
-pub fn expand_trusted(
+pub fn expand_reference(
     source_name: &str,
     source: &str,
-    catalogue: &TrustedCatalogue,
+    catalogue: &ReferenceCatalogue,
     evidence_json: &[u8],
-) -> Result<TrustedExpandedStructuralReaction, ExpansionError> {
+) -> Result<ReferenceExpandedStructuralReaction, ExpansionError> {
     let evidence = ValidatedEvidencePacket::from_json(evidence_json)
         .map_err(|error| ExpansionError::invalid("CHEMS-X020", error.to_string(), None))?;
     let expanded = expand(
         source_name,
         source,
         catalogue,
-        CatalogueTrust::Trusted,
+        reference_provenance(catalogue),
         &evidence,
     )?;
-    Ok(TrustedExpandedStructuralReaction { expanded })
+    Ok(ReferenceExpandedStructuralReaction { expanded })
 }
 
 /// Expands one checked declaration through a locally matched reviewed family
@@ -107,8 +108,8 @@ pub fn expand_reviewed_declaration(
     declaration: &ReactionDeclaration,
     role_species: &BTreeMap<String, SpeciesId>,
     selected: &ElaboratedGeneralizedRule,
-    catalogue: &TrustedCatalogue,
-) -> Result<TrustedExpandedStructuralReaction, ExpansionError> {
+    catalogue: &ReferenceCatalogue,
+) -> Result<ReferenceExpandedStructuralReaction, ExpansionError> {
     let expanded = expand_typed_declaration(
         reaction_name,
         declaration,
@@ -116,14 +117,22 @@ pub fn expand_reviewed_declaration(
         &selected.rule,
         Some(selected),
         catalogue,
-        CatalogueTrust::Trusted,
+        reference_provenance(catalogue),
     )?;
-    Ok(TrustedExpandedStructuralReaction { expanded })
+    Ok(ReferenceExpandedStructuralReaction { expanded })
+}
+
+fn reference_provenance(catalogue: &ReferenceCatalogue) -> CatalogueProvenance {
+    if catalogue.is_reviewed() {
+        CatalogueProvenance::ReviewedReference
+    } else {
+        CatalogueProvenance::Provisional
+    }
 }
 
 /// Expands a checked model-proposed mapping and operation rule through the
-/// review-candidate boundary. The caller must still execute kernel validation
-/// and may never promote this expansion into the trusted catalogue.
+/// provisional-provenance boundary. The caller must still execute kernel
+/// validation and may never rewrite the packaged reference catalogue.
 ///
 /// # Errors
 ///
@@ -143,7 +152,7 @@ pub fn expand_proposed_declaration(
         rule,
         None,
         catalogue,
-        CatalogueTrust::ReviewCandidate,
+        CatalogueProvenance::Provisional,
     )
 }
 
@@ -155,7 +164,7 @@ fn expand_typed_declaration(
     rule: &ReactionRuleRecord,
     selected: Option<&ElaboratedGeneralizedRule>,
     catalogue: &ValidatedCatalogueBundle,
-    trust: CatalogueTrust,
+    provenance: CatalogueProvenance,
 ) -> Result<ExpandedStructuralReaction, ExpansionError> {
     let source_span = ByteSpan::new(0, 0);
     let source_name = "dynamic-typed-declaration";
@@ -330,7 +339,7 @@ fn expand_typed_declaration(
         packet: EvidencePacketReference::parse("Evidence.DynamicTyped@1")
             .map_err(|error| ExpansionError::system("CHEMS-X095", error.to_string()))?,
         digest: evidence_digest,
-        trust: EvidenceTrust::ExternalUntrusted,
+        provenance: EvidenceProvenance::External,
         observations: Vec::new(),
     };
     let equation = reactants
@@ -424,7 +433,7 @@ fn expand_typed_declaration(
             name: catalogue.document().name.clone(),
             version: catalogue.document().version.clone(),
             digest: catalogue.digest(),
-            trust,
+            provenance,
         },
         reaction: reaction_name.to_owned(),
         reactants,
@@ -472,7 +481,7 @@ fn expand(
     source_name: &str,
     source: &str,
     catalogue: &ValidatedCatalogueBundle,
-    trust: CatalogueTrust,
+    provenance: CatalogueProvenance,
     evidence: &ValidatedEvidencePacket,
 ) -> Result<ExpandedStructuralReaction, ExpansionError> {
     let parsed = parse_source(source);
@@ -658,7 +667,7 @@ fn expand(
             name: selected_catalogue.name.clone(),
             version: selected_catalogue.version.clone(),
             digest: catalogue.digest(),
-            trust,
+            provenance,
         },
         reaction: reaction.name.clone(),
         reactants,
@@ -1394,7 +1403,7 @@ fn resolve_evidence(
     Ok(ResolvedEvidence {
         packet: evidence.reference().clone(),
         digest: evidence.digest(),
-        trust: EvidenceTrust::ExternalUntrusted,
+        provenance: EvidenceProvenance::External,
         observations,
     })
 }
@@ -2072,18 +2081,7 @@ fn declaration_binding(
         )
         .map_err(|error| ExpansionError::system("CHEMS-X036", error.to_string()))?
     };
-    let formula_text = structure
-        .formula()
-        .elements()
-        .iter()
-        .map(|(symbol, count)| {
-            if *count == 1 {
-                symbol.to_string()
-            } else {
-                format!("{symbol}{count}")
-            }
-        })
-        .collect();
+    let formula_text = structure.conventional_formula();
     Ok(ResolvedDeclarationBinding {
         species: SpeciesId::from_str(&format!("catalogue.{structure_id}"))
             .map_err(|error| ExpansionError::system("CHEMS-X036", error.to_string()))?,

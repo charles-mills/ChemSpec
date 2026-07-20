@@ -3,14 +3,13 @@
 //! The application owns presentation, but the finite provider/solver workflow
 //! is one feature state rather than a cluster of unrelated `App` fields.
 
-use std::{
-    sync::{
-        Arc, Weak,
-        atomic::{AtomicBool, Ordering},
-        mpsc::Receiver,
-    },
-    time::Instant,
+use std::sync::{
+    Arc, Weak,
+    atomic::{AtomicBool, Ordering},
+    mpsc::Receiver,
 };
+
+use web_time::Instant;
 
 use agent::{
     AgentError, ClaimMode, CodexProgressEvent, CodexProvider, CodexProviderConfig,
@@ -18,7 +17,7 @@ use agent::{
     ReactantIdentityAmbiguity, ReactionBuildRequest, ReactionClaim, ValidatedStaticOutcome,
     compile_claim_outcome_with_catalogue, load_dynamic_cache, store_dynamic_cache,
 };
-use chem_catalogue::TrustedCatalogue;
+use chem_catalogue::ReferenceCatalogue;
 use chem_domain::{SpeciesId, SpeciesRegistry};
 use iced::widget::{button, column, container, mouse_area, row, space, stack, text};
 use iced::{Center, Element, Fill, Length, Size, Task};
@@ -263,7 +262,7 @@ pub(super) struct ClaimJob {
     pub(super) regenerate: bool,
     pub(super) config: CodexProviderConfig,
     pub(super) identities: SpeciesRegistry,
-    pub(super) catalogue: TrustedCatalogue,
+    pub(super) catalogue: ReferenceCatalogue,
 }
 
 pub(super) fn run_claim(job: ClaimJob) -> Result<ClaimStageResult, BuildFailure> {
@@ -407,7 +406,7 @@ pub(super) fn overlay(app: &App, size: Size, kind: ModalKind) -> Element<'_, App
             app.dynamic_identity_choice_body(),
         ),
         ModalKind::StaticResult => (
-            app.dynamic_trust_label(),
+            app.dynamic_provenance_label(),
             color::SUCCESS,
             app.dynamic_result_body(),
         ),

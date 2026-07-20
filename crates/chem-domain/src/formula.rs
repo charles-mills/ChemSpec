@@ -447,3 +447,200 @@ pub enum Phase {
     Gas,
     Unknown,
 }
+
+/// IUPAC element sequence for formula writing (Red Book Table VI), most
+/// electropositive first: the earlier element is written first (`NaCl`,
+/// `SO2`, `Cl2O`, `OF2`). Symbols outside the sequence sort after it,
+/// alphabetically.
+const ELECTROPOSITIVE_SEQUENCE: [&str; 103] = [
+    "He", "Ne", "Ar", "Kr", "Xe", "Rn", // noble gases
+    "Fr", "Cs", "Rb", "K", "Na", "Li", // alkali
+    "Ra", "Ba", "Sr", "Ca", "Mg", "Be", // alkaline earth
+    "Ac", "Th", "Pa", "U", "Np", "Pu", "Am", "Cm", "Bk", "Cf", "Es", "Fm", "Md", "No",
+    "Lr", // actinoids
+    "La", "Ce", "Pr", "Nd", "Pm", "Sm", "Eu", "Gd", "Tb", "Dy", "Ho", "Er", "Tm", "Yb",
+    "Lu", // lanthanoids
+    "Y", "Sc", "Hf", "Zr", "Ti", "Ta", "Nb", "V", "W", "Mo", "Cr", "Re", "Tc", "Mn", "Os", "Ru",
+    "Fe", "Ir", "Rh", "Co", "Pt", "Pd", "Ni", "Au", "Ag", "Cu", "Hg", "Cd",
+    "Zn", // transition metals
+    "Tl", "In", "Ga", "Al", "B", // boron group
+    "Pb", "Sn", "Ge", "Si", "C", // carbon group
+    "Bi", "Sb", "As", "P", "N", // nitrogen group
+    "H", //
+    "Po", "Te", "Se", "S", // chalcogens bar oxygen
+    "At", "I", "Br", "Cl", // halogens bar fluorine
+    "O", "F",
+];
+
+fn electropositive_rank(symbol: &str) -> usize {
+    ELECTROPOSITIVE_SEQUENCE
+        .iter()
+        .position(|candidate| *candidate == symbol)
+        .unwrap_or(ELECTROPOSITIVE_SEQUENCE.len())
+}
+
+/// Conventional display ordering for a formula derived from bare element
+/// counts: Hill order for organics (C, H, rest alphabetical), `M(OH)n` for
+/// hydroxides, metals-then-H-then-nonmetals for salts (`NaCl`, `CaCO3`,
+/// `NaHCO3`), acid H first (`H2SO4`, `HNO3`), and the IUPAC
+/// electronegativity sequence for the rest (`H2O`, `NH3`, `SO2`, `Cl2O`).
+/// This is display text only — parsing, digests, and identity all use
+/// normalized compositions, never this string.
+// ponytail: counts alone cannot recover NH4+ salts (NH4NO3 renders as
+// H4N2O3) or carbonic acid vs Hill (CH2O3); those need the graph-aware
+// paths, which the naming layer prefers wherever a structure exists.
+#[must_use]
+pub fn conventional_formula<'a>(counts: impl IntoIterator<Item = (&'a str, u64)>) -> String {
+    let mut entries: Vec<(&str, u64)> =
+        counts.into_iter().filter(|(_, count)| *count > 0).collect();
+    entries.sort_by_key(|(symbol, _)| (electropositive_rank(symbol), *symbol));
+    let count_of = {
+        let entries = entries.clone();
+        move |target: &str| {
+            entries
+                .iter()
+                .find(|(symbol, _)| *symbol == target)
+                .map_or(0, |(_, count)| *count)
+        }
+    };
+    let metal_count = entries
+        .iter()
+        .filter(|(symbol, _)| crate::periodic::is_metal(symbol))
+        .count();
+
+    let mut formula = String::new();
+    let append = |formula: &mut String, symbol: &str, count: u64| {
+        formula.push_str(symbol);
+        if count > 1 {
+            formula.push_str(&count.to_string());
+        }
+    };
+
+    // Organics: Hill order. Only without metals, so carbonates and
+    // bicarbonates stay conventional.
+    if count_of("C") > 0 && count_of("H") > 0 && metal_count == 0 {
+        for symbol in ["C", "H"] {
+            append(&mut formula, symbol, count_of(symbol));
+        }
+        entries.sort_by_key(|(symbol, _)| *symbol);
+        for (symbol, count) in entries {
+            if symbol != "C" && symbol != "H" {
+                append(&mut formula, symbol, count);
+            }
+        }
+        return formula;
+    }
+
+    // Hydroxides: one metal plus matching O and H counts writes OH groups.
+    let hydroxide_groups = count_of("O");
+    if metal_count == 1
+        && entries.len() == 3
+        && hydroxide_groups > 0
+        && hydroxide_groups == count_of("H")
+    {
+        let (metal, count) = entries[0];
+        append(&mut formula, metal, count);
+        if hydroxide_groups == 1 {
+            formula.push_str("OH");
+        } else {
+            formula.push_str("(OH)");
+            formula.push_str(&hydroxide_groups.to_string());
+        }
+        return formula;
+    }
+
+    // Salts write hydrogen straight after the metals (NaH, NaHCO3, CaH2);
+    // acids lead with it (H2SO4, HNO3). Binary molecular compounds follow
+    // the sequence alone, which already places H correctly on both sides
+    // of it (H2O, H2S, NH3, PH3).
+    let hydrogen_first =
+        count_of("H") > 0 && (metal_count > 0 || (count_of("O") > 0 && entries.len() >= 3));
+    if hydrogen_first {
+        let mut hydrogen_appended = false;
+        for (symbol, count) in entries {
+            if symbol == "H" {
+                continue;
+            }
+            if !hydrogen_appended && !crate::periodic::is_metal(symbol) {
+                append(&mut formula, "H", count_of("H"));
+                hydrogen_appended = true;
+            }
+            append(&mut formula, symbol, count);
+        }
+        if !hydrogen_appended {
+            append(&mut formula, "H", count_of("H"));
+        }
+        return formula;
+    }
+
+    for (symbol, count) in entries {
+        append(&mut formula, symbol, count);
+    }
+    formula
+}
+
+#[cfg(test)]
+mod conventional_formula_tests {
+    use super::conventional_formula;
+    use std::collections::BTreeMap;
+
+    fn formula(parts: &[(&str, u64)]) -> String {
+        // BTreeMap input mirrors the alphabetical maps every caller holds.
+        let counts: BTreeMap<&str, u64> = parts.iter().copied().collect();
+        conventional_formula(counts.iter().map(|(symbol, count)| (*symbol, *count)))
+    }
+
+    #[test]
+    fn salts_and_oxides_lead_with_the_metal() {
+        assert_eq!(formula(&[("Cl", 1), ("Na", 1)]), "NaCl");
+        assert_eq!(formula(&[("Fe", 2), ("O", 3)]), "Fe2O3");
+        assert_eq!(formula(&[("Cl", 2), ("Mg", 1)]), "MgCl2");
+        assert_eq!(formula(&[("C", 1), ("Ca", 1), ("O", 3)]), "CaCO3");
+        assert_eq!(formula(&[("K", 1), ("Mn", 1), ("O", 4)]), "KMnO4");
+        assert_eq!(formula(&[("Cu", 1), ("O", 4), ("S", 1)]), "CuSO4");
+        assert_eq!(formula(&[("H", 1), ("Li", 1)]), "LiH");
+        assert_eq!(
+            formula(&[("C", 1), ("H", 1), ("Na", 1), ("O", 3)]),
+            "NaHCO3"
+        );
+    }
+
+    #[test]
+    fn hydroxides_write_the_oh_group() {
+        assert_eq!(formula(&[("H", 1), ("Li", 1), ("O", 1)]), "LiOH");
+        assert_eq!(formula(&[("H", 1), ("Na", 1), ("O", 1)]), "NaOH");
+        assert_eq!(formula(&[("Ca", 1), ("H", 2), ("O", 2)]), "Ca(OH)2");
+        assert_eq!(formula(&[("Al", 1), ("H", 3), ("O", 3)]), "Al(OH)3");
+    }
+
+    #[test]
+    fn acids_lead_with_hydrogen_and_molecules_follow_the_sequence() {
+        assert_eq!(formula(&[("H", 2), ("O", 4), ("S", 1)]), "H2SO4");
+        assert_eq!(formula(&[("H", 1), ("N", 1), ("O", 3)]), "HNO3");
+        assert_eq!(formula(&[("H", 3), ("O", 4), ("P", 1)]), "H3PO4");
+        assert_eq!(formula(&[("H", 2), ("O", 1)]), "H2O");
+        assert_eq!(formula(&[("H", 2), ("O", 2)]), "H2O2");
+        assert_eq!(formula(&[("Cl", 1), ("H", 1)]), "HCl");
+        assert_eq!(formula(&[("H", 2), ("S", 1)]), "H2S");
+        assert_eq!(formula(&[("H", 3), ("N", 1)]), "NH3");
+        assert_eq!(formula(&[("Cl", 1), ("H", 4), ("N", 1)]), "NH4Cl");
+    }
+
+    #[test]
+    fn molecular_compounds_follow_the_electronegativity_sequence() {
+        assert_eq!(formula(&[("C", 1), ("O", 2)]), "CO2");
+        assert_eq!(formula(&[("O", 2), ("S", 1)]), "SO2");
+        assert_eq!(formula(&[("N", 1), ("O", 2)]), "NO2");
+        assert_eq!(formula(&[("Cl", 2), ("O", 1)]), "Cl2O");
+        assert_eq!(formula(&[("F", 2), ("O", 1)]), "OF2");
+        assert_eq!(formula(&[("O", 2)]), "O2");
+        assert_eq!(formula(&[("Fe", 1)]), "Fe");
+    }
+
+    #[test]
+    fn organics_use_hill_order() {
+        assert_eq!(formula(&[("C", 1), ("H", 4)]), "CH4");
+        assert_eq!(formula(&[("C", 2), ("H", 6), ("O", 1)]), "C2H6O");
+        assert_eq!(formula(&[("C", 1), ("H", 5), ("N", 1)]), "CH5N");
+    }
+}

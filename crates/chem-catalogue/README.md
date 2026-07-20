@@ -1,7 +1,7 @@
 # `chem-catalogue`
 
 `chem-catalogue` owns the immutable, versioned structural identities and
-closed reaction rules used by `.chems 1`. Its first review-candidate bundle
+closed reaction rules used by `.chems 1`. Its bundled reference data
 contains lithium metal, water, lithium hydroxide, hydrogen, the closed
 `Rules.AlkaliMetalWithWater` outcome, Li/H/O electron premises, typed
 observation compatibility, evidence, and review attestations.
@@ -9,26 +9,27 @@ observation compatibility, evidence, and review attestations.
 It does not elaborate `.chems` source or execute structural operations. Those
 are the Slice 4 and Slice 5 boundaries respectively.
 
-## Trust boundary
+## Reference-data integrity boundary
 
 ```mermaid
 flowchart LR
-    json["Untrusted catalogue JSON"] --> decode["Strict wire records"]
+    json["Unreference catalogue JSON"] --> decode["Strict wire records"]
     decode --> checks["Elements, traits, templates,<br/>structures, valence, rules, evidence, review"]
     checks --> digest["Order-normalized canonical digest"]
     checks --> indexes["Read-only deterministic indexes"]
     digest --> validated["ValidatedCatalogueBundle<br/>(untrusted)"]
     indexes --> validated
-    validated --> trust["Pinned digest + exact<br/>external attestation"]
-    trust --> trusted["TrustedCatalogue"]
-    trusted --> consumers["Elaborator and kernel"]
+    validated --> integrity["Pinned package digest + exact<br/>review identity"]
+    integrity --> reference["ReferenceCatalogue"]
+    reference --> consumers["Elaborator and kernel"]
 ```
 
-`ValidatedCatalogueBundle::from_json` checks untrusted data but does not grant
-trust. Only `TrustedCatalogue::from_canonical_json` can construct the runtime
-trust form, and it accepts exactly the host-pinned catalogue digest plus a
-separately host-pinned review artifact bound to every premise. Runtime agents
-cannot extend either trust root.
+`ValidatedCatalogueBundle::from_json` checks external data.
+`ReferenceCatalogue::from_canonical_json` additionally verifies the packaged
+catalogue digest and its review artifact. That establishes reproducible factual
+provenance, not permission: catalogue membership is never an allow-list and
+does not authorize simulation. Runtime agents cannot rewrite the packaged
+reference identity.
 
 Consumers receive immutable references and can distinguish an unsupported
 structure or rule lookup from a corrupt bundle system error.
@@ -85,10 +86,11 @@ registers the Li/Na/K family plus its mutation boundaries in conformance. The
 migrated family contains no concrete lithium fallback; concrete-only catalogues
 remain supported as the compatibility exception.
 
-G6 keeps candidate authoring outside this trust-bearing crate. The `chems
+G6 keeps candidate authoring outside the bundled reference data. The `chems
 catalogue check` compiler accepts closed three-file content packages, generates
 and validates a working `CatalogueEnvelope`, and emits a pending review request.
 Neither that request nor the generated candidate inspection artifacts can call
-or configure `TrustedCatalogue::from_canonical_json`; production promotion still
-requires the exact host-pinned digest and a separately supplied exact
-host-selected review attestation.
+or configure `ReferenceCatalogue::from_canonical_json`; packaging reviewed
+reference data still requires the exact host-pinned digest and a separately
+supplied review artifact. Provisional data can nevertheless reach the same
+simulation capability after passing the same kernel validation.

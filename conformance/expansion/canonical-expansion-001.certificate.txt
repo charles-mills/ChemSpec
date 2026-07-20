@@ -1,7 +1,7 @@
 ExpandedStructuralReaction semantic certificate
 status: unexecuted
 source_semantic_digest: 31e40f4ca592bf7ae878b76bd7bc0a02e16e9c53b432834400fc9fb94644726d
-catalogue: ChemSpec.Theoretical@1 cdf8afe54409acf1a4aa76ad772bd3e26207608f90cd0ee4c2f6f2ec0cf0bb4f trust=ReviewCandidate
+catalogue: ChemSpec.Theoretical@1 cdf8afe54409acf1a4aa76ad772bd3e26207608f90cd0ee4c2f6f2ec0cf0bb4f provenance=Provisional
 reaction: LithiumAndWater
 rule: Rules.AlkaliMetalWithWater
   applicability: relation=Contact context="representative educational outcome under the reviewed standard-outcome premise" reactants={StructureId(LithiumMetal), StructureId(Water)} premise=premise.rule.lithium-water.standard-outcome
@@ -41,7 +41,7 @@ operations (ordered, not executed):
   10 semantics={"id":"operation[10]","kind":"assign_product","atoms":["lithium[1].li","water[1].h2","water[1].o"],"product":"lithiumHydroxide[1]"} electron_contribution=None ionic_components=[] premises={PremiseId(premise.rule.lithium-water.standard-outcome), PremiseId(premise.structure.lithium-hydroxide)}
   11 semantics={"id":"operation[11]","kind":"assign_product","atoms":["lithium[2].li","water[2].h2","water[2].o"],"product":"lithiumHydroxide[2]"} electron_contribution=None ionic_components=[] premises={PremiseId(premise.rule.lithium-water.standard-outcome), PremiseId(premise.structure.lithium-hydroxide)}
   12 semantics={"id":"operation[12]","kind":"assign_product","atoms":["water[1].h1","water[2].h1"],"product":"hydrogen[1]"} electron_contribution=None ionic_components=[] premises={PremiseId(premise.rule.lithium-water.standard-outcome), PremiseId(premise.structure.hydrogen)}
-evidence: Evidence.LithiumAndWater@1 digest=03d828162c58c2f2fb7ed514b8ca39bc8c68dba55c1f8067e351da21fe1b5506 trust=ExternalUntrusted
+evidence: Evidence.LithiumAndWater@1 digest=03d828162c58c2f2fb7ed514b8ca39bc8c68dba55c1f8067e351da21fe1b5506 provenance=External
   Evolves binding=hydrogen value=None claim=R1 subject="hydrogen" sources={EvidenceSourceId(S1), EvidenceSourceId(S2)} premises={PremiseId(premise.observation.hydrogen-evolves)}
   Disappears binding=lithium value=None claim=R2 subject="lithium" sources={EvidenceSourceId(S2)} premises={PremiseId(premise.observation.lithium-disappears)}
 all rule premises:

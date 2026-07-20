@@ -1,13 +1,13 @@
 use std::collections::{BTreeMap, BTreeSet};
 
 use chem_catalogue::{
-    ElaboratedGeneralizedRule, GeneralizedRoleInput, RepresentationRecord, RuleSideRecord,
-    TrustedCatalogue,
+    ElaboratedGeneralizedRule, GeneralizedRoleInput, ReferenceCatalogue, RepresentationRecord,
+    RuleSideRecord,
 };
 use chem_domain::{ElementSymbol, RepresentationKind, SpeciesId, StructureId};
 use chem_kernel::{
     CurrentArtifactIdentity, SimulationFrames, expand_reviewed_declaration, generate_frames,
-    validate_trusted,
+    validate_reference,
 };
 
 use crate::{AgentError, AgentErrorKind, ValidatedStaticOutcome};
@@ -88,18 +88,18 @@ struct FamilyTerm {
 ///
 /// # Errors
 ///
-/// Returns a system error only if the trusted catalogue becomes internally
+/// Returns a system error only if the reference catalogue becomes internally
 /// inconsistent during elaboration.
 pub fn match_reviewed_family(
     outcome: &ValidatedStaticOutcome,
-    catalogue: &TrustedCatalogue,
+    catalogue: &ReferenceCatalogue,
 ) -> Result<FamilyMatchOutcome, AgentError> {
     match_reviewed_family_inner(outcome, catalogue, true)
 }
 
 pub(crate) fn match_reviewed_family_ignoring_context(
     outcome: &ValidatedStaticOutcome,
-    catalogue: &TrustedCatalogue,
+    catalogue: &ReferenceCatalogue,
 ) -> Result<FamilyMatchOutcome, AgentError> {
     match_reviewed_family_inner(outcome, catalogue, false)
 }
@@ -107,7 +107,7 @@ pub(crate) fn match_reviewed_family_ignoring_context(
 #[allow(clippy::too_many_lines)]
 fn match_reviewed_family_inner(
     outcome: &ValidatedStaticOutcome,
-    catalogue: &TrustedCatalogue,
+    catalogue: &ReferenceCatalogue,
     require_exact_context: bool,
 ) -> Result<FamilyMatchOutcome, AgentError> {
     let Some(terms) = reactant_family_terms(outcome) else {
@@ -251,7 +251,7 @@ fn match_reviewed_family_inner(
     }
 }
 
-/// Expands and validates a local reviewed-family match through the trusted
+/// Expands and validates a local reviewed-family match through the kernel
 /// kernel and frame boundary.
 ///
 /// # Errors
@@ -261,7 +261,7 @@ fn match_reviewed_family_inner(
 pub fn compile_reviewed_animation(
     outcome: ValidatedStaticOutcome,
     family: ReviewedFamilyMatch,
-    catalogue: &TrustedCatalogue,
+    catalogue: &ReferenceCatalogue,
 ) -> Result<ReviewedAnimationOutcome, AgentError> {
     let reaction_name = format!(
         "Dynamic.r{}",
@@ -280,14 +280,19 @@ pub fn compile_reviewed_animation(
     let identity = CurrentArtifactIdentity::from_expanded(&expanded).map_err(|error| {
         AgentError::from_source(AgentErrorKind::KernelRejection, "family expansion", error)
     })?;
-    let validated = validate_trusted(&expanded, catalogue).map_err(|error| {
+    let validated = validate_reference(&expanded, catalogue).map_err(|error| {
         AgentError::from_source(AgentErrorKind::KernelRejection, "family validation", error)
     })?;
     let frames = generate_frames(&validated, identity).map_err(|error| {
         AgentError::from_source(AgentErrorKind::KernelRejection, "family frames", error)
     })?;
+    let static_outcome = if catalogue.is_reviewed() {
+        outcome.mark_reviewed()
+    } else {
+        outcome
+    };
     Ok(ReviewedAnimationOutcome {
-        static_outcome: outcome.mark_reviewed(),
+        static_outcome,
         frames,
         family_rule: family.selected.rule.id,
     })
@@ -323,7 +328,7 @@ fn reactant_family_terms(outcome: &ValidatedStaticOutcome) -> Option<Vec<FamilyT
 /// Failure or a hit work limit fails closed to the structure itself.
 fn structure_alternatives(
     structure: &StructureId,
-    catalogue: &TrustedCatalogue,
+    catalogue: &ReferenceCatalogue,
 ) -> Vec<StructureId> {
     let Some(own) = catalogue.structures().get(structure) else {
         return vec![structure.clone()];
@@ -351,7 +356,7 @@ fn structure_alternatives(
 fn bind_declared_products(
     derived: &[GeneralizedRoleInput],
     declared: &[(SpeciesId, BTreeMap<ElementSymbol, u64>, u32)],
-    catalogue: &TrustedCatalogue,
+    catalogue: &ReferenceCatalogue,
 ) -> Option<BTreeMap<String, SpeciesId>> {
     let mut used = vec![false; declared.len()];
     let mut role_species = BTreeMap::new();
@@ -421,7 +426,7 @@ mod tests {
         ClaimMode, CompiledClaimOutcome, MechanismEscalationRequest, MechanismEscalationResponse,
         MechanismProvider, ProviderClaim, ReactantInput, ReactionBuildRequest,
         compile_claim_outcome, reviewed_species_registry,
-        test_support::trusted_catalogue as trusted,
+        test_support::reference_catalogue as reference,
     };
 
     struct UnexpectedMechanismProvider;
@@ -442,8 +447,8 @@ mod tests {
         // the reviewed `KOH` structure but misses the string-keyed registry
         // lookup. The structure generator now fills that gap on the fly, and
         // the family must still match from the reactants alone.
-        let trusted = trusted();
-        let identities = reviewed_species_registry(&trusted).expect("identities");
+        let reference = reference();
+        let identities = reviewed_species_registry(&reference).expect("identities");
         let claim = json!({
             "schema_version": 1,
             "disposition": "reaction",
@@ -485,23 +490,39 @@ mod tests {
             outcome.products_without_structure().is_empty(),
             "the mis-keyed hydroxide product should gain a generated structure"
         );
-        let matched = match_reviewed_family(&outcome, &trusted).expect("family match");
+        let matched = match_reviewed_family(&outcome, &reference).expect("family match");
         let FamilyMatchOutcome::Matched(family) = matched else {
             panic!("expected a reviewed family despite the formula-only product: {matched:?}")
         };
-        let animation =
-            compile_reviewed_animation(outcome, *family, &trusted).expect("reviewed animation");
+        let animation = compile_reviewed_animation(outcome.clone(), *family, &reference)
+            .expect("reviewed animation");
         assert!(!animation.frames().frames().is_empty());
         assert_eq!(
-            animation.static_outcome().trust_tier(),
-            crate::TrustTier::Reviewed
+            animation.static_outcome().claim_provenance(),
+            crate::OutcomeProvenance::Reviewed
+        );
+        let root = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../..");
+        let bytes = std::fs::read(root.join("catalogue/reference/core-chemistry/catalogue.json"))
+            .expect("reference catalogue");
+        let provisional_reference = chem_catalogue::ReferenceCatalogue::from_json(&bytes)
+            .expect("structurally valid reference");
+        let matched =
+            match_reviewed_family(&outcome, &provisional_reference).expect("family match");
+        let FamilyMatchOutcome::Matched(family) = matched else {
+            panic!("reference family: {matched:?}")
+        };
+        let provisional = compile_reviewed_animation(outcome, *family, &provisional_reference)
+            .expect("unreviewed reference still validates");
+        assert_eq!(
+            provisional.frames().provenance(),
+            chem_kernel::DerivationProvenance::Provisional
         );
     }
 
     #[test]
     fn reviewed_family_rejects_a_provider_claim_with_different_context() {
-        let trusted = trusted();
-        let identities = reviewed_species_registry(&trusted).expect("identities");
+        let reference = reference();
+        let identities = reviewed_species_registry(&reference).expect("identities");
         let claim = json!({
             "schema_version": 1,
             "disposition": "reaction",
@@ -540,15 +561,15 @@ mod tests {
         };
 
         assert!(matches!(
-            match_reviewed_family(&outcome, &trusted).expect("family match"),
+            match_reviewed_family(&outcome, &reference).expect("family match"),
             FamilyMatchOutcome::NoMatch
         ));
     }
 
     #[test]
     fn reviewed_family_match_crosses_typed_kernel_and_frames() {
-        let trusted = trusted();
-        let identities = reviewed_species_registry(&trusted).expect("identities");
+        let reference = reference();
+        let identities = reviewed_species_registry(&reference).expect("identities");
         let claim = json!({
             "schema_version": 1,
             "disposition": "reaction",
@@ -588,7 +609,7 @@ mod tests {
         };
         let presentation = crate::enrich_static_outcome(
             outcome.clone(),
-            &trusted,
+            &reference,
             &mut UnexpectedMechanismProvider,
         )
         .expect("local-first presentation ladder");
@@ -597,20 +618,20 @@ mod tests {
             crate::DynamicPresentationOutcome::ReviewedFamily(_)
         ));
         let started = std::time::Instant::now();
-        let matched = match_reviewed_family(&outcome, &trusted).expect("family match");
+        let matched = match_reviewed_family(&outcome, &reference).expect("family match");
         let FamilyMatchOutcome::Matched(family) = matched else {
             panic!("reviewed family: {matched:?}")
         };
         let animation =
-            compile_reviewed_animation(outcome, *family, &trusted).expect("reviewed animation");
+            compile_reviewed_animation(outcome, *family, &reference).expect("reviewed animation");
         assert!(!animation.frames().frames().is_empty());
         assert_eq!(
-            animation.frames().trust(),
-            chem_kernel::DerivationTrust::Trusted
+            animation.frames().provenance(),
+            chem_kernel::DerivationProvenance::ReviewedReference
         );
         assert_eq!(
-            animation.static_outcome().trust_tier(),
-            crate::TrustTier::Reviewed
+            animation.static_outcome().claim_provenance(),
+            crate::OutcomeProvenance::Reviewed
         );
         assert!(
             started.elapsed() < std::time::Duration::from_millis(250),

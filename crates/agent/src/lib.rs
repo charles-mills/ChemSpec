@@ -66,8 +66,8 @@ pub use naming::{
     composition_from_name, compound_name, ion_pair_name, molecular_graph_name, structure_name,
 };
 pub use outcome::{
-    CompiledClaimOutcome, MacroscopicColour, MacroscopicProcess, OutcomeSpecies,
-    ReactantIdentityAmbiguity, RequestIdentityResolution, TrustTier, ValidatedStaticOutcome,
+    CompiledClaimOutcome, MacroscopicColour, MacroscopicProcess, OutcomeProvenance, OutcomeSpecies,
+    ReactantIdentityAmbiguity, RequestIdentityResolution, ValidatedStaticOutcome,
     compile_claim_outcome, compile_claim_outcome_with_catalogue, resolve_request_identities,
     resolve_request_identities_with_catalogue, resolve_request_species,
 };
@@ -189,26 +189,27 @@ impl Error for AgentError {
 
 #[cfg(test)]
 mod test_support {
-    use chem_catalogue::{CatalogueEnvelope, CatalogueTrustPolicy, TrustedCatalogue};
+    use chem_catalogue::{CatalogueEnvelope, ReferenceCatalogue, ReferenceIntegrityPolicy};
     use chem_domain::ContentDigest;
 
-    pub(crate) fn trusted_catalogue() -> TrustedCatalogue {
+    pub(crate) fn reference_catalogue() -> ReferenceCatalogue {
         let root = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../..");
-        let catalogue = std::fs::read(root.join("catalogue/trusted/core-chemistry/catalogue.json"))
-            .expect("catalogue");
+        let catalogue =
+            std::fs::read(root.join("catalogue/reference/core-chemistry/catalogue.json"))
+                .expect("catalogue");
         let review = std::fs::read(root.join("catalogue/reviews/core-chemistry.review.json"))
             .expect("review");
         let envelope: CatalogueEnvelope = serde_json::from_slice(&catalogue).expect("envelope");
         let review_value = serde_json::from_slice(&review).expect("review value");
-        TrustedCatalogue::from_canonical_json(
+        ReferenceCatalogue::from_canonical_json(
             &catalogue,
             &review,
-            CatalogueTrustPolicy::new(
+            ReferenceIntegrityPolicy::new(
                 envelope.digest,
                 ContentDigest::of_json(&review_value).expect("review digest"),
             ),
         )
-        .expect("trusted catalogue")
+        .expect("reference catalogue")
     }
 }
 

@@ -8,8 +8,8 @@ use chem_domain::{
 use serde_json::{Value, json};
 
 use crate::{
-    DerivationTrust, ObservationStatus, ValidationResult, expand_review_candidate,
-    frames::project_frames, validate_review_candidate,
+    DerivationProvenance, ObservationStatus, ValidationResult, expand_provisional,
+    frames::project_frames, validate_provisional,
 };
 
 fn root() -> PathBuf {
@@ -493,7 +493,7 @@ fn cleavage_evidence() -> Vec<u8> {
 }
 
 fn expanded(reverse_product_origin: bool) -> crate::ExpandedStructuralReaction {
-    expand_review_candidate(
+    expand_provisional(
         "conformance/dative/ammonium.chems",
         SOURCE,
         &dative_catalogue(reverse_product_origin),
@@ -515,8 +515,8 @@ fn dative_journey_expands_validates_and_projects_exact_direction() {
         }
         operation => panic!("unexpected first operation: {operation:?}"),
     }
-    let derivation = validate_review_candidate(&expanded, &dative_catalogue(false)).unwrap();
-    assert_eq!(derivation.trust(), DerivationTrust::ReviewCandidate);
+    let derivation = validate_provisional(&expanded, &dative_catalogue(false)).unwrap();
+    assert_eq!(derivation.provenance(), DerivationProvenance::Provisional);
     assert_eq!(
         derivation.result(),
         ValidationResult::ValidatedWithAssumptions
@@ -569,7 +569,7 @@ fn generalized_dative_elaboration_preserves_direction_through_frames() {
         "Rules.AmmoniaWithProton",
         "Rules.GeneralizedAmmoniaWithProton",
     );
-    let expanded = expand_review_candidate(
+    let expanded = expand_provisional(
         "conformance/dative/generalized-ammonium-formation.chems",
         &source,
         &catalogue,
@@ -580,7 +580,7 @@ fn generalized_dative_elaboration_preserves_direction_through_frames() {
     assert_eq!(generalized.case_id, "directed");
     assert_eq!(generalized.parameters["D"], "Ammonia");
     assert_eq!(generalized.parameters["A"], "Proton");
-    let derivation = validate_review_candidate(&expanded, &catalogue).unwrap();
+    let derivation = validate_provisional(&expanded, &catalogue).unwrap();
     let frames = project_frames(&derivation).unwrap();
     let dative_edge = frames.frames()[1]
         .covalent_edges()
@@ -615,7 +615,7 @@ fn generalized_dative_elaboration_preserves_direction_through_frames() {
 #[test]
 fn dative_cleavage_expands_validates_and_projects_exact_direction() {
     let catalogue = cleavage_catalogue();
-    let expanded = expand_review_candidate(
+    let expanded = expand_provisional(
         "conformance/dative/ammonium-dissociation.chems",
         CLEAVAGE_SOURCE,
         &catalogue,
@@ -656,7 +656,7 @@ fn dative_cleavage_expands_validates_and_projects_exact_direction() {
         .collect()
     );
 
-    let derivation = validate_review_candidate(&expanded, &catalogue).unwrap();
+    let derivation = validate_provisional(&expanded, &catalogue).unwrap();
     assert_eq!(derivation.states().len(), 4);
     let cleaved = &derivation.states()[1];
     assert_eq!(cleaved.graph().covalent_bonds().len(), 3);
@@ -692,7 +692,7 @@ fn dative_cleavage_expands_validates_and_projects_exact_direction() {
 #[test]
 fn final_product_direction_is_proof_relevant() {
     let expanded = expanded(true);
-    let error = validate_review_candidate(&expanded, &dative_catalogue(true)).unwrap_err();
+    let error = validate_provisional(&expanded, &dative_catalogue(true)).unwrap_err();
     assert_eq!(error.code(), "CHEMS-K053");
 }
 
@@ -722,7 +722,7 @@ fn shared_cleavage_cannot_consume_a_dative_edge() {
         },
     )
     .unwrap();
-    let error = validate_review_candidate(&expanded, &catalogue).unwrap_err();
+    let error = validate_provisional(&expanded, &catalogue).unwrap_err();
     assert_eq!(error.code(), "CHEMS-K020");
     assert!(error.to_string().contains("shared covalent bond identity"));
 }
@@ -752,7 +752,7 @@ fn dative_cleavage_requires_exact_direction_and_rejects_shared_edges() {
         },
     )
     .unwrap();
-    let error = validate_review_candidate(&reversed, &catalogue).unwrap_err();
+    let error = validate_provisional(&reversed, &catalogue).unwrap_err();
     assert_eq!(error.code(), "CHEMS-K020");
     assert!(error.to_string().contains("directed dative bond identity"));
 
@@ -761,7 +761,7 @@ fn dative_cleavage_requires_exact_direction_and_rejects_shared_edges() {
         "conformance/catalogue/lithium-rule-001.catalogue.json",
     ))
     .unwrap();
-    let mut shared = expand_review_candidate(
+    let mut shared = expand_provisional(
         "conformance/expansion/canonical-expansion-001.chems",
         std::str::from_utf8(&source).unwrap(),
         &lithium_catalogue,
@@ -793,7 +793,7 @@ fn dative_cleavage_requires_exact_direction_and_rejects_shared_edges() {
         },
     )
     .unwrap();
-    let error = validate_review_candidate(&shared, &lithium_catalogue).unwrap_err();
+    let error = validate_provisional(&shared, &lithium_catalogue).unwrap_err();
     assert_eq!(error.code(), "CHEMS-K020");
     assert!(error.to_string().contains("directed dative bond identity"));
 }

@@ -1,9 +1,9 @@
 //! Immutable, content-addressed structural chemistry catalogue bundles.
 //!
-//! A [`ValidatedCatalogueBundle`] has passed structural validation but remains
-//! untrusted. Only [`TrustedCatalogue::from_canonical_json`] can cross the
-//! runtime trust boundary, and it requires both the host-pinned canonical
-//! digest and an exact host-selected trust attestation.
+//! A [`ValidatedCatalogueBundle`] has passed structural validation. A
+//! [`ReferenceCatalogue`] identifies structurally valid data used as a local
+//! reference. It records whether optional package review metadata verified;
+//! neither type authorizes chemistry or acts as an allow-list.
 
 mod generalized;
 mod generalized_elaboration;
@@ -58,8 +58,8 @@ pub enum CatalogueErrorCode {
     InvalidGeneralizedRule,
     InvalidGeneralizedCase,
     InvalidMacroscopicMaterial,
-    TrustMismatch,
-    InvalidAttestation,
+    IntegrityMismatch,
+    InvalidReviewAttestation,
 }
 
 impl CatalogueErrorCode {
@@ -90,8 +90,8 @@ impl CatalogueErrorCode {
             Self::InvalidGeneralizedRule => "CHEMS-C022",
             Self::InvalidGeneralizedCase => "CHEMS-C023",
             Self::InvalidMacroscopicMaterial => "CHEMS-C024",
-            Self::TrustMismatch => "CHEMS-C025",
-            Self::InvalidAttestation => "CHEMS-C026",
+            Self::IntegrityMismatch => "CHEMS-C025",
+            Self::InvalidReviewAttestation => "CHEMS-C026",
         }
     }
 }
@@ -180,7 +180,7 @@ impl ValidatedReactionRule {
     }
 }
 
-/// Fully validated, immutable and lookup-indexed trusted catalogue.
+/// Fully validated, immutable and lookup-indexed reference catalogue data.
 #[derive(Debug, Clone)]
 pub struct ValidatedCatalogueBundle {
     digest: ContentDigest,
@@ -256,11 +256,11 @@ fn ensure_rule_namespaces_disjoint(
 }
 
 impl ValidatedCatalogueBundle {
-    /// Parses and validates an untrusted catalogue envelope.
+    /// Parses and validates an external catalogue envelope.
     ///
     /// # Errors
     ///
-    /// Every malformed or inconsistent trusted-data condition returns a typed
+    /// Every malformed or inconsistent reference-data condition returns a typed
     /// catalogue system error. Unsupported runtime lookups are not errors here.
     pub fn from_json(bytes: &[u8]) -> Result<Self, CatalogueError> {
         let envelope: CatalogueEnvelope = serde_json::from_slice(bytes).map_err(|error| {
@@ -290,8 +290,8 @@ impl ValidatedCatalogueBundle {
     }
 
     /// Validates an external review against this exact catalogue and returns
-    /// the review's canonical semantic digest. This does not grant trust; a
-    /// host must still pin both digests through [`CatalogueTrustPolicy`].
+    /// the review's canonical semantic digest. This records factual provenance;
+    /// it does not grant runtime authority.
     ///
     /// # Errors
     ///
@@ -516,20 +516,21 @@ impl ValidatedCatalogueBundle {
     }
 }
 
-/// A structurally valid catalogue promoted by an exact host trust policy.
+/// Structurally valid bundled reference data with optional review provenance.
 #[derive(Debug, Clone)]
-pub struct TrustedCatalogue {
+pub struct ReferenceCatalogue {
     validated: ValidatedCatalogueBundle,
+    reviewed: bool,
 }
 
-/// The two immutable digests a host accepts at the catalogue trust boundary.
+/// The immutable digests expected for one packaged reference-data release.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub struct CatalogueTrustPolicy {
+pub struct ReferenceIntegrityPolicy {
     catalogue_digest: ContentDigest,
     review_digest: ContentDigest,
 }
 
-impl CatalogueTrustPolicy {
+impl ReferenceIntegrityPolicy {
     #[must_use]
     pub const fn new(catalogue_digest: ContentDigest, review_digest: ContentDigest) -> Self {
         Self {
@@ -549,8 +550,26 @@ impl CatalogueTrustPolicy {
     }
 }
 
-impl TrustedCatalogue {
-    /// Loads catalogue and review JSON under an exact host-pinned policy.
+impl ReferenceCatalogue {
+    /// Loads structurally valid reference data without requiring review
+    /// metadata. The resulting catalogue retains provisional provenance.
+    ///
+    /// # Errors
+    ///
+    /// Rejects invalid catalogue data.
+    pub fn from_json(catalogue_json: &[u8]) -> Result<Self, CatalogueError> {
+        Ok(Self {
+            validated: ValidatedCatalogueBundle::from_json(catalogue_json)?,
+            reviewed: false,
+        })
+    }
+
+    #[must_use]
+    pub const fn is_reviewed(&self) -> bool {
+        self.reviewed
+    }
+
+    /// Loads catalogue and review JSON under an exact package-integrity policy.
     ///
     /// # Errors
     ///
@@ -559,25 +578,28 @@ impl TrustedCatalogue {
     pub fn from_canonical_json(
         catalogue_json: &[u8],
         review_json: &[u8],
-        policy: CatalogueTrustPolicy,
+        policy: ReferenceIntegrityPolicy,
     ) -> Result<Self, CatalogueError> {
         let validated = ValidatedCatalogueBundle::from_json(catalogue_json)?;
         if validated.digest() != policy.catalogue_digest {
             return Err(CatalogueError::new(
-                CatalogueErrorCode::TrustMismatch,
+                CatalogueErrorCode::IntegrityMismatch,
                 format!(
-                    "catalogue digest {} does not match host pin {}",
+                    "catalogue digest {} does not match packaged identity {}",
                     validated.digest(),
                     policy.catalogue_digest
                 ),
             ));
         }
-        validate_trust_attestation(&validated, review_json, policy.review_digest)?;
-        Ok(Self { validated })
+        validate_review_integrity(&validated, review_json, policy.review_digest)?;
+        Ok(Self {
+            validated,
+            reviewed: true,
+        })
     }
 }
 
-fn validate_trust_attestation(
+fn validate_review_integrity(
     catalogue: &ValidatedCatalogueBundle,
     review_json: &[u8],
     expected_digest: ContentDigest,
@@ -585,8 +607,10 @@ fn validate_trust_attestation(
     let actual_digest = validate_review_attestation(catalogue, review_json)?;
     if actual_digest != expected_digest {
         return Err(CatalogueError::new(
-            CatalogueErrorCode::TrustMismatch,
-            format!("review digest {actual_digest} does not match host pin {expected_digest}"),
+            CatalogueErrorCode::IntegrityMismatch,
+            format!(
+                "review digest {actual_digest} does not match packaged identity {expected_digest}"
+            ),
         ));
     }
     Ok(())
@@ -597,13 +621,22 @@ fn validate_review_attestation(
     review_json: &[u8],
 ) -> Result<ContentDigest, CatalogueError> {
     let value: serde_json::Value = serde_json::from_slice(review_json).map_err(|error| {
-        CatalogueError::new(CatalogueErrorCode::InvalidAttestation, error.to_string())
+        CatalogueError::new(
+            CatalogueErrorCode::InvalidReviewAttestation,
+            error.to_string(),
+        )
     })?;
     let actual_digest = ContentDigest::of_json(&value).map_err(|error| {
-        CatalogueError::new(CatalogueErrorCode::InvalidAttestation, error.to_string())
+        CatalogueError::new(
+            CatalogueErrorCode::InvalidReviewAttestation,
+            error.to_string(),
+        )
     })?;
     let review: CatalogueReviewAttestation = serde_json::from_value(value).map_err(|error| {
-        CatalogueError::new(CatalogueErrorCode::InvalidAttestation, error.to_string())
+        CatalogueError::new(
+            CatalogueErrorCode::InvalidReviewAttestation,
+            error.to_string(),
+        )
     })?;
     let expected_sources = catalogue
         .document()
@@ -633,14 +666,14 @@ fn validate_review_attestation(
         || review.premises != expected_premises
     {
         return Err(CatalogueError::new(
-            CatalogueErrorCode::InvalidAttestation,
+            CatalogueErrorCode::InvalidReviewAttestation,
             "review must bind the exact catalogue digest, evidence sources, and premises",
         ));
     }
     Ok(actual_digest)
 }
 
-impl Deref for TrustedCatalogue {
+impl Deref for ReferenceCatalogue {
     type Target = ValidatedCatalogueBundle;
 
     fn deref(&self) -> &Self::Target {

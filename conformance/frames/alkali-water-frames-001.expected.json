@@ -2,7 +2,7 @@
   "schema_version": 1,
   "fixture": "alkali-water-frames-001",
   "catalogue": "conformance/catalogue/alkali-metal-water-001.catalogue.json",
-  "trust": "review_candidate",
+  "provenance":"provisional",
   "result": "validated_with_assumptions",
   "frame_count": 13,
   "members": [

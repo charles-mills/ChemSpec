@@ -2,13 +2,10 @@
 
 ## Status
 
-Partially completed for the exact phase-synthesis structures explicitly
-qualified by the July 2026 implementation brief. The promoted catalogue digest
-is `f5667dab4f4f2380f5e0c7ff48429b7720b14c7f65fa79e7749931fcfcd44fdd`.
-This includes the hydrogen-halide rule-role bindings needed to distinguish
-reacting red-brown bromine vapour from colourless gaseous hydrogen bromide.
-Other proposed material records remain deferred until their own exact
-structure bindings and evidence pass review.
+Deferred at the July 2026 `origin/main` integration because the proposed
+catalogue mutation had no separate review attestation. It must not be copied
+into `catalogue/reference/` or added to the application trust pins until the
+ordinary candidate, review, and promotion workflow is complete.
 
 ## Proposed content
 
@@ -27,9 +24,9 @@ corresponding `premise.material.*.standard-phase` premises. The existing review
 artifact remains bound to catalogue digest
 `9622e4605ca0a5762e601e5876526612cac6eda708bfe4c37cb3d4517add9cf2` and does
 not contain those evidence or premise IDs. Re-pinning that artifact would be a
-self-attestation and is forbidden by the catalogue trust contract.
+self-attestation and is forbidden by the catalogue provenance contract.
 
-## Required completion path for the remaining proposal
+## Required completion path
 
 1. Preserve the proposed records as an untrusted authoring candidate and run
    the catalogue structural checks.

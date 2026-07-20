@@ -11,6 +11,7 @@ use std::fmt;
 use chem_catalogue::ObservationPredicate;
 use chem_domain::{
     AtomId, ContentDigest, IonicAssociationId, Phase, RepresentationKind, StructuralOperationView,
+    conventional_formula,
 };
 use chem_kernel::{FrameObservation, ObservationStatus, SimulationFrame, SimulationFrames};
 
@@ -28,6 +29,7 @@ pub enum EducationalSceneKind {
 pub enum ExplanationLabelKind {
     StructuralChangeExplanation,
     ObservationExplanation,
+    CompletionNote,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -60,6 +62,18 @@ pub struct EducationalOperation {
     pub affected_atoms: Vec<String>,
 }
 
+/// A chemically meaningful interpretation of a validated operation sequence.
+///
+/// The kernel retains its exact primitive electron ledger. Presentation emits
+/// this event only when the trusted graph sequence proves that one H loses a
+/// heavy-atom partner and gains a closed-shell lone-pair donor.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct ProtonTransferInterpretation {
+    pub hydrogen: String,
+    pub donor: String,
+    pub acceptor: String,
+}
+
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum EducationalCue {
     EstablishFrame {
@@ -67,6 +81,9 @@ pub enum EducationalCue {
     },
     ApplyOperations {
         operations: Vec<EducationalOperation>,
+    },
+    InterpretProtonTransfer {
+        transfer: ProtonTransferInterpretation,
     },
     ShowObservation {
         predicate: ObservationPredicate,
@@ -200,6 +217,11 @@ pub fn compile_educational_plan(
     )];
 
     let mut transition_index = 1;
+    let mut has_proton_transfer = false;
+    // Stoichiometric coefficients require one validated operation per concrete
+    // atom set, but a repeated operation signature is only one teaching idea.
+    // Keep every operation in the timeline while narrating that idea once.
+    let mut narrated_operations = BTreeSet::new();
     while transition_index < sequence.len() {
         let group_start = transition_index;
         let before = &sequence[group_start - 1];
@@ -207,12 +229,22 @@ pub fn compile_educational_plan(
         let first_operation = first_after
             .active_operation()
             .ok_or(PlanError::MissingOperation(first_after.ordinal()))?;
-        let signature = operation_signature(before, first_after, first_operation.operation.view());
-        let first_narration = operation_narration(
-            before,
-            first_after,
-            first_operation.operation.view(),
-            required_context,
+        let proton_transfers = proton_transfer_batch_at(sequence, group_start, required_context);
+        has_proton_transfer |= proton_transfers.is_some();
+        let signature = proton_transfers.as_ref().map_or_else(
+            || operation_signature(before, first_after, first_operation.operation.view()),
+            |batch| proton_transfer_signature(sequence, &batch.transfers),
+        );
+        let first_narration = proton_transfers.as_ref().map_or_else(
+            || {
+                operation_narration(
+                    before,
+                    first_after,
+                    first_operation.operation.view(),
+                    required_context,
+                )
+            },
+            |batch| proton_transfer_narration(sequence, &batch.transfers[0]),
         );
         let mut affected = first_narration
             .explanation
@@ -220,9 +252,17 @@ pub fn compile_educational_plan(
             .iter()
             .cloned()
             .collect::<BTreeSet<_>>();
-        let mut group_end = group_start;
+        let mut group_end = proton_transfers
+            .as_ref()
+            .map_or(group_start, |batch| batch.end);
 
-        while group_end + 1 < sequence.len() && !has_active_observation(&sequence[group_end]) {
+        while proton_transfers.is_none()
+            && group_end + 1 < sequence.len()
+            && !has_active_observation(&sequence[group_end])
+        {
+            if proton_transfer_batch_at(sequence, group_end + 1, required_context).is_some() {
+                break;
+            }
             let candidate_before = &sequence[group_end];
             let candidate_after = &sequence[group_end + 1];
             let candidate_operation = candidate_after
@@ -261,16 +301,12 @@ pub fn compile_educational_plan(
         // atom union remains available on the exact operation cues for
         // simultaneous animation, but is not averaged into a marker between
         // repeated reactant or product instances.
-        let mut narration = first_narration;
+        let narration = first_narration;
         let operation_count = group_end - group_start + 1;
-        if operation_count > 1 {
-            let sites = if operation_count == 2 {
-                "The same change happens in two places at once.".to_owned()
-            } else {
-                format!("The same change happens at {operation_count} places at once.")
-            };
-            narration.explanation.text = format!("{} {sites}", narration.explanation.text);
-        }
+        let narrate_operation = !matches!(
+            first_operation.operation.view(),
+            StructuralOperationView::AssignProduct { .. }
+        ) && narrated_operations.insert(signature);
         let before_digest = before.trace().state_digest;
         let grouped_pacing = u32::try_from(operation_count.saturating_sub(1))
             .unwrap_or(u32::MAX)
@@ -279,8 +315,12 @@ pub fn compile_educational_plan(
         // `explanation_duration` already includes the structural-action lead
         // in. Adding another fixed action duration here made every operation
         // scene pay for that phase twice.
-        let duration_ms =
-            explanation_duration(&narration.explanation.text).saturating_add(grouped_pacing);
+        let duration_ms = if narrate_operation {
+            explanation_duration(&narration.explanation.text)
+        } else {
+            1_600
+        }
+        .saturating_add(grouped_pacing);
         let representative_atoms = narration.explanation.target_atoms.clone();
         let operations = (group_start..=group_end)
             .map(|index| {
@@ -302,23 +342,36 @@ pub fn compile_educational_plan(
                 })
             })
             .collect::<Result<Vec<_>, PlanError>>()?;
-        scenes.push(scene(
-            EducationalSceneKind::StructuralChange,
-            before,
-            after,
-            duration_ms,
-            vec![
-                EducationalCue::EstablishFrame {
-                    frame: before_digest,
-                },
-                EducationalCue::ApplyOperations { operations },
+        let mut cues = vec![
+            EducationalCue::EstablishFrame {
+                frame: before_digest,
+            },
+            EducationalCue::ApplyOperations { operations },
+        ];
+        if let Some(batch) = proton_transfers {
+            cues.extend(
+                batch
+                    .transfers
+                    .into_iter()
+                    .map(|transfer| EducationalCue::InterpretProtonTransfer { transfer }),
+            );
+        }
+        if narrate_operation {
+            cues.extend([
                 EducationalCue::ShowContext {
                     label: narration.context,
                 },
                 EducationalCue::ShowExplanation {
                     label: narration.explanation,
                 },
-            ],
+            ]);
+        }
+        scenes.push(scene(
+            EducationalSceneKind::StructuralChange,
+            before,
+            after,
+            duration_ms,
+            cues,
         ));
         if let Some(observed) = observation_scene(after, &representative_atoms) {
             scenes.push(observed);
@@ -329,25 +382,55 @@ pub fn compile_educational_plan(
 
     // The summary recaps every observation the reaction established, so the
     // macroscopic story stays on screen alongside the final structures.
-    let mut summary_cues = vec![EducationalCue::EstablishFrame {
-        frame: last.trace().state_digest,
-    }];
-    summary_cues.extend(last.observations().iter().map(|observation| {
+    let spectator_ions = has_proton_transfer
+        .then(|| spectator_ion_narration(last))
+        .flatten();
+    let mut summary_cues = vec![
+        EducationalCue::EstablishFrame {
+            frame: last.trace().state_digest,
+        },
         EducationalCue::ShowContext {
             label: ContextLabel {
-                kind: ExplanationLabelKind::ObservationExplanation,
-                title: observation_title(observation.predicate).to_owned(),
-                text: observation_summary(observation.predicate, observation.value.as_deref()),
+                kind: ExplanationLabelKind::CompletionNote,
+                title: "REACTION COMPLETE".to_owned(),
+                text: "Reaction complete".to_owned(),
                 target_atoms: Vec::new(),
                 connector: false,
             },
-        }
-    }));
+        },
+    ];
+    summary_cues.extend(
+        last.observations()
+            .iter()
+            .filter(|observation| present_structural_observation_box(observation.predicate))
+            .map(|observation| EducationalCue::ShowContext {
+                label: ContextLabel {
+                    kind: ExplanationLabelKind::ObservationExplanation,
+                    title: observation_title(observation.predicate).to_owned(),
+                    text: observation_summary(observation.predicate, observation.value.as_deref()),
+                    target_atoms: Vec::new(),
+                    connector: false,
+                },
+            }),
+    );
+    if let Some(narration) = &spectator_ions {
+        summary_cues.extend([
+            EducationalCue::ShowContext {
+                label: narration.context.clone(),
+            },
+            EducationalCue::ShowExplanation {
+                label: narration.explanation.clone(),
+            },
+        ]);
+    }
+    let summary_duration_ms = spectator_ions.as_ref().map_or(4_200, |narration| {
+        explanation_duration(&narration.explanation.text).max(4_200)
+    });
     scenes.push(scene(
         EducationalSceneKind::Summary,
         last,
         last,
-        4_200,
+        summary_duration_ms,
         summary_cues,
     ));
     Ok(EducationalPlan {
@@ -356,11 +439,360 @@ pub fn compile_educational_plan(
     })
 }
 
+/// Builds the final aqueous spectator-ion explanation only from a validated
+/// salt-and-water product state. Requiring every non-ionic product to be water
+/// keeps acid-carbonate gas evolution and other proton-transfer chemistry out
+/// of this neutralisation-specific teaching beat.
+fn spectator_ion_narration(frame: &SimulationFrame) -> Option<OperationNarration> {
+    let (association, salt_atoms) =
+        frame
+            .ionic_associations()
+            .values()
+            .find_map(|association| {
+                let atoms = association
+                    .components
+                    .values()
+                    .flatten()
+                    .cloned()
+                    .collect::<BTreeSet<_>>();
+                frame
+                    .product_membership()
+                    .values()
+                    .any(|product| product == &atoms)
+                    .then_some((association, atoms))
+            })?;
+
+    let mut has_water = false;
+    for product in frame.product_membership().values() {
+        if product == &salt_atoms {
+            continue;
+        }
+        if !is_water_product(frame, product) {
+            return None;
+        }
+        has_water = true;
+    }
+    if !has_water {
+        return None;
+    }
+
+    let mut positive = None;
+    let mut negative = None;
+    let mut target_atoms = Vec::new();
+    for (group, atoms) in &association.components {
+        let charge = association.component_charges.get(group).copied()?;
+        if charge == 0 {
+            return None;
+        }
+        let label = ionic_component_label(frame, atoms, charge);
+        if charge > 0 {
+            positive.get_or_insert(label);
+        } else {
+            negative.get_or_insert(label);
+        }
+        target_atoms.extend(atoms.iter().map(AtomId::as_str).map(str::to_owned));
+    }
+    let (positive, negative) = (positive?, negative?);
+    target_atoms.sort();
+    target_atoms.dedup();
+
+    let kind = ExplanationLabelKind::StructuralChangeExplanation;
+    Some(OperationNarration {
+        context: ContextLabel {
+            kind,
+            title: "SPECTATOR IONS".to_owned(),
+            text: format!("{positive} and {negative} remain separate in solution"),
+            target_atoms: target_atoms.clone(),
+            connector: true,
+        },
+        explanation: ExplanationLabel {
+            kind,
+            text: format!(
+                "In aqueous solution, {positive} and {negative} are spectator ions and tend to remain separate. It is only when water is evaporated and crystallisation occurs that the ions form a salt."
+            ),
+            target_atoms,
+            connector: true,
+        },
+    })
+}
+
+fn is_water_product(frame: &SimulationFrame, atoms: &BTreeSet<AtomId>) -> bool {
+    if atoms.len() != 3 {
+        return false;
+    }
+    let mut hydrogen = 0;
+    let mut oxygen = 0;
+    for atom in atoms {
+        match frame.atoms().get(atom).map(|atom| atom.element.as_str()) {
+            Some("H") => hydrogen += 1,
+            Some("O") => oxygen += 1,
+            _ => return false,
+        }
+    }
+    hydrogen == 2 && oxygen == 1
+}
+
+fn ionic_component_label(frame: &SimulationFrame, atoms: &BTreeSet<AtomId>, charge: i64) -> String {
+    let mut counts = BTreeMap::<String, u64>::new();
+    for atom in atoms {
+        if let Some(atom) = frame.atoms().get(atom) {
+            *counts.entry(atom.element.as_str().to_owned()).or_default() += 1;
+        }
+    }
+    let formula = conventional_formula(
+        counts
+            .iter()
+            .map(|(symbol, count)| (symbol.as_str(), *count)),
+    )
+    .chars()
+    .map(unicode_subscript_digit)
+    .collect::<String>();
+    format!("{formula}{}", ionic_charge_suffix(charge))
+}
+
+const fn unicode_subscript_digit(character: char) -> char {
+    match character {
+        '0' => '₀',
+        '1' => '₁',
+        '2' => '₂',
+        '3' => '₃',
+        '4' => '₄',
+        '5' => '₅',
+        '6' => '₆',
+        '7' => '₇',
+        '8' => '₈',
+        '9' => '₉',
+        other => other,
+    }
+}
+
+fn ionic_charge_suffix(charge: i64) -> String {
+    let magnitude = charge.unsigned_abs();
+    let mut suffix = if magnitude == 1 {
+        String::new()
+    } else {
+        magnitude
+            .to_string()
+            .chars()
+            .map(|digit| match digit {
+                '0' => '⁰',
+                '1' => '¹',
+                '2' => '²',
+                '3' => '³',
+                '4' => '⁴',
+                '5' => '⁵',
+                '6' => '⁶',
+                '7' => '⁷',
+                '8' => '⁸',
+                '9' => '⁹',
+                other => other,
+            })
+            .collect()
+    };
+    suffix.push(if charge > 0 { '⁺' } else { '⁻' });
+    suffix
+}
+
 fn has_active_observation(frame: &SimulationFrame) -> bool {
     frame
         .observations()
         .iter()
         .any(|observation| observation.status == ObservationStatus::Active)
+}
+
+/// Recognizes a proton transfer from validated graph and electron-state
+/// transitions rather than from a reaction family or species name.
+///
+/// A graph-diff mechanism may place charge reconciliation and other coupled
+/// structural edits between the old H bond and the new one. Those operations
+/// remain exact bookkeeping, but are not useful as standalone mechanism copy.
+/// Presentation combines the closed span only when it can prove:
+///
+/// - the same H loses one single-bonded heavy partner and gains another;
+/// - the acceptor was initially closed-shell with a lone pair, or the
+///   old bonding pair was explicitly allocated to the donor; and
+/// - the reaction context does not identify radical, photochemical, or
+///   electrochemical chemistry.
+#[derive(Debug)]
+struct ProtonTransferBatch {
+    transfers: Vec<ProtonTransferInterpretation>,
+    end: usize,
+}
+
+fn proton_transfer_batch_at(
+    sequence: &[SimulationFrame],
+    transition_index: usize,
+    required_context: &str,
+) -> Option<ProtonTransferBatch> {
+    if excludes_proton_transfer_interpretation(required_context) || transition_index == 0 {
+        return None;
+    }
+    let mut transfers = Vec::new();
+    let mut end = transition_index;
+    let mut scan = transition_index;
+    loop {
+        if let Some((transfer, formation_index)) = proton_transfer_from_cleavage(sequence, scan) {
+            transfers.push(transfer);
+            end = end.max(formation_index);
+        } else if scan == transition_index {
+            return None;
+        }
+        if scan >= end {
+            break;
+        }
+        scan += 1;
+    }
+    Some(ProtonTransferBatch { transfers, end })
+}
+
+fn proton_transfer_from_cleavage(
+    sequence: &[SimulationFrame],
+    cleavage_index: usize,
+) -> Option<(ProtonTransferInterpretation, usize)> {
+    let cleavage_after = sequence.get(cleavage_index)?;
+    let StructuralOperationView::CleaveCovalent {
+        left,
+        right,
+        expected_order,
+        allocation,
+        ..
+    } = cleavage_after.active_operation()?.operation.view()
+    else {
+        return None;
+    };
+    if expected_order.order() != 1 {
+        return None;
+    }
+    let before = sequence.get(cleavage_index.checked_sub(1)?)?;
+    let (hydrogen, donor) = if atom_symbol(before, cleavage_after, left) == "H" {
+        (left, right)
+    } else if atom_symbol(before, cleavage_after, right) == "H" {
+        (right, left)
+    } else {
+        return None;
+    };
+    if atom_symbol(before, cleavage_after, donor) == "H" {
+        return None;
+    }
+
+    for (formation_index, formation_after) in sequence.iter().enumerate().skip(cleavage_index + 1) {
+        let Some(active) = formation_after.active_operation() else {
+            continue;
+        };
+        let StructuralOperationView::FormCovalent {
+            left, right, order, ..
+        } = active.operation.view()
+        else {
+            continue;
+        };
+        if order.order() != 1 || (left != hydrogen && right != hydrogen) {
+            continue;
+        }
+        let acceptor = if left == hydrogen { right } else { left };
+        if acceptor == donor || atom_symbol(before, formation_after, acceptor) == "H" {
+            return None;
+        }
+        let pair_stays_with_donor = matches!(
+            allocation,
+            chem_domain::ElectronAllocation::HeterolyticTo(recipient) if recipient == donor
+        );
+        let acceptor_before = &sequence.first()?.atoms().get(acceptor)?.electrons;
+        let acceptor_can_donate_pair = acceptor_before.non_bonding_electrons() >= 2
+            && acceptor_before.unpaired_electrons() == 0;
+        if !pair_stays_with_donor && !acceptor_can_donate_pair {
+            return None;
+        }
+        return Some((
+            ProtonTransferInterpretation {
+                hydrogen: hydrogen.as_str().to_owned(),
+                donor: donor.as_str().to_owned(),
+                acceptor: acceptor.as_str().to_owned(),
+            },
+            formation_index,
+        ));
+    }
+    None
+}
+
+fn excludes_proton_transfer_interpretation(required_context: &str) -> bool {
+    let context = required_context.to_ascii_lowercase();
+    [
+        "electricity",
+        "light",
+        "ultraviolet",
+        "photochemical",
+        "radical",
+    ]
+    .iter()
+    .any(|marker| context.contains(marker))
+}
+
+fn proton_transfer_signature(
+    sequence: &[SimulationFrame],
+    transfers: &[ProtonTransferInterpretation],
+) -> String {
+    let mut pairs = transfers
+        .iter()
+        .map(|transfer| {
+            format!(
+                "{}:{}",
+                atom_symbol_by_id(sequence, &transfer.donor),
+                atom_symbol_by_id(sequence, &transfer.acceptor),
+            )
+        })
+        .collect::<Vec<_>>();
+    pairs.sort();
+    format!("proton-transfer:{}", pairs.join("+"))
+}
+
+fn proton_transfer_narration(
+    sequence: &[SimulationFrame],
+    transfer: &ProtonTransferInterpretation,
+) -> OperationNarration {
+    let donor = atom_symbol_by_id(sequence, &transfer.donor);
+    let acceptor = atom_symbol_by_id(sequence, &transfer.acceptor);
+    let context = if donor == acceptor {
+        format!("H transfers between two {donor} atoms")
+    } else {
+        format!("H transfers from {donor} to {acceptor}")
+    };
+    let target_atoms = vec![
+        transfer.acceptor.clone(),
+        transfer.hydrogen.clone(),
+        transfer.donor.clone(),
+    ];
+    let kind = ExplanationLabelKind::StructuralChangeExplanation;
+    OperationNarration {
+        context: ContextLabel {
+            kind,
+            title: "PROTON TRANSFER".to_owned(),
+            text: context,
+            target_atoms: target_atoms.clone(),
+            connector: true,
+        },
+        explanation: ExplanationLabel {
+            kind,
+            text: "The accepting atom uses a lone pair—two electrons—to form a bond with H. The original H–donor bonding pair remains with the donor. This is a proton transfer."
+                .to_owned(),
+            target_atoms,
+            connector: true,
+        },
+    }
+}
+
+fn atom_symbol_by_id(sequence: &[SimulationFrame], atom_id: &str) -> String {
+    sequence
+        .iter()
+        .find_map(|frame| {
+            frame
+                .atoms()
+                .values()
+                .find(|atom| atom.id.as_str() == atom_id)
+        })
+        .map_or_else(
+            || "Atom".to_owned(),
+            |atom| atom.element.as_str().to_owned(),
+        )
 }
 
 /// A dedicated beat connecting a freshly activated observation to the atoms
@@ -375,13 +807,15 @@ fn observation_scene(
     let observed = frame
         .observations()
         .iter()
-        .filter(|observation| observation.status == ObservationStatus::Active)
+        .filter(|observation| {
+            observation.status == ObservationStatus::Active
+                && present_structural_observation_box(observation.predicate)
+        })
         .collect::<Vec<_>>();
     let first = observed.first()?;
     let digest = frame.trace().state_digest;
     let text = observation_text(first.predicate, first.value.as_deref());
     let duration_ms = explanation_duration(&text);
-    let anchored = first.predicate != ObservationPredicate::Disappears;
     let mut cues = vec![EducationalCue::EstablishFrame { frame: digest }];
     cues.extend(
         observed
@@ -395,12 +829,8 @@ fn observation_scene(
         label: ExplanationLabel {
             kind: ExplanationLabelKind::ObservationExplanation,
             text,
-            target_atoms: if anchored {
-                representative_atoms.to_vec()
-            } else {
-                Vec::new()
-            },
-            connector: anchored,
+            target_atoms: representative_atoms.to_vec(),
+            connector: true,
         },
     });
     Some(scene(
@@ -673,8 +1103,11 @@ fn operation_narration(
                 atom_symbol(before, after, right),
                 bond_order_name(expected_order.order())
             ),
-            "The electrons these atoms were sharing pull out of the bond, so the atoms let go of each other."
-                .to_owned(),
+            covalent_cleavage_explanation(
+                required_context,
+                is_protonated_carbonate_cleavage(before, left, right),
+            )
+            .to_owned(),
             atom_targets([left, right]),
         ),
         StructuralOperationView::FormCovalent {
@@ -686,8 +1119,7 @@ fn operation_narration(
                 atom_symbol(before, after, right),
                 bond_order_name(order.order())
             ),
-            "The two atoms now share a pair of electrons — that shared pair is the new covalent bond holding them together."
-                .to_owned(),
+            covalent_formation_explanation(order.order()),
             atom_targets([left, right]),
         ),
         StructuralOperationView::CleaveDative {
@@ -753,7 +1185,7 @@ fn operation_narration(
             let target_atoms = ionic_targets(after, association.id());
             (
                 count_phrase(association.components().len(), "ion", "attract"),
-                "Opposite charges attract: these ions pull together and sit side by side without sharing any electrons."
+                "Electrostatic attraction brings these oppositely charged ions together in an ionic association."
                     .to_owned(),
                 target_atoms,
             )
@@ -762,26 +1194,26 @@ fn operation_narration(
             let target_atoms = ionic_targets(before, association);
             (
                 "Ions drift apart".to_owned(),
-                "These ions stop holding on to each other and drift apart, each keeping its own charge."
+                "In aqueous solution, water molecules surround and stabilize the oppositely charged ions, allowing them to separate and move independently."
                     .to_owned(),
                 target_atoms,
             )
         }
         StructuralOperationView::ReleaseMetallic { site, .. } => (
             format!(
-                "{} leaves the electron sea",
+                "{} leaves the metallic bonding network",
                 atom_symbol(before, after, site)
             ),
-            "This atom leaves the metal's shared sea of electrons and strikes out on its own."
+            "Metallic bonding is the electrostatic attraction between positive metal ion cores and delocalised electrons. The model separates this site from that bonding network before representing electron transfer."
                 .to_owned(),
             atom_targets([site]),
         ),
         StructuralOperationView::JoinMetallic { site, .. } => (
             format!(
-                "{} joins the electron sea",
+                "{} joins the metallic bonding network",
                 atom_symbol(before, after, site)
             ),
-            "This atom joins the metal's shared sea of electrons, adding its own electrons to the pool."
+            "The metal site becomes part of a lattice in which positive ion cores are held together by attraction to delocalised electrons."
                 .to_owned(),
             atom_targets([site]),
         ),
@@ -805,21 +1237,15 @@ fn operation_narration(
             } else {
                 (
                     format!("{donor_symbol} → {acceptor_symbol} · {count} {electrons}"),
-                    if count == 1 {
-                        "An electron jumps from one atom to the other: the giver becomes more positive and the receiver more negative."
-                            .to_owned()
-                    } else {
-                        "Electrons jump from one atom to the other: the giver becomes more positive and the receiver more negative."
-                            .to_owned()
-                    },
+                    "This transfer makes the products more stable overall. The giver becomes more positive and the receiver more negative."
+                        .to_owned(),
                     atom_targets([donor, acceptor]),
                 )
             }
         }
         StructuralOperationView::AssignProduct { atoms, .. } => (
-            count_phrase(atoms.len(), "atom", "regrouped"),
-            "These atoms now make up a finished product — every atom from the reactants is still here, just regrouped."
-                .to_owned(),
+            "Reaction complete".to_owned(),
+            "Reaction complete".to_owned(),
             atoms
                 .iter()
                 .map(AtomId::as_str)
@@ -852,6 +1278,68 @@ fn operation_narration(
     }
 }
 
+fn covalent_cleavage_explanation(
+    required_context: &str,
+    protonated_carbonate: bool,
+) -> &'static str {
+    if required_context.eq_ignore_ascii_case("electricity") {
+        "The applied potential supplies electrical energy and drives electron transfer at the electrodes. This allows the bond's electrons to rearrange so the atoms can form the product bonds."
+    } else if protonated_carbonate {
+        "Acid has protonated the carbonate oxygens. This C–O bond breaks as the remaining C–O bond strengthens to a second C=O bond and proton transfer turns the departing oxygen group into water, producing stable CO₂ and H₂O."
+    } else {
+        "Breaking a covalent bond requires energy. Energy available under the reaction conditions allows the shared electron pair to redistribute as the atoms form new bonds."
+    }
+}
+
+/// Identifies the local, validated structural motif behind acid–carbonate gas
+/// evolution without relying on a reaction name or untrusted display formula.
+fn is_protonated_carbonate_cleavage(
+    before: &SimulationFrame,
+    left: &AtomId,
+    right: &AtomId,
+) -> bool {
+    let (carbon, oxygen) = match (
+        atom_symbol(before, before, left).as_str(),
+        atom_symbol(before, before, right).as_str(),
+    ) {
+        ("C", "O") => (left, right),
+        ("O", "C") => (right, left),
+        _ => return false,
+    };
+
+    let bonded_to = |center: &AtomId, element: &str| {
+        before
+            .covalent_edges()
+            .values()
+            .filter_map(|edge| {
+                if &edge.left == center {
+                    Some(&edge.right)
+                } else if &edge.right == center {
+                    Some(&edge.left)
+                } else {
+                    None
+                }
+            })
+            .filter(|neighbour| atom_symbol(before, before, neighbour) == element)
+            .count()
+    };
+
+    bonded_to(carbon, "O") == 3 && bonded_to(oxygen, "H") >= 1
+}
+
+fn covalent_formation_explanation(order: u8) -> String {
+    let pairs = match order {
+        1 => "one electron pair",
+        2 => "two electron pairs",
+        3 => "three electron pairs",
+        _ => "shared electrons",
+    };
+    format!(
+        "The atoms now share {pairs}. Electrostatic attraction between both nuclei and the shared electrons forms the {} covalent bond.",
+        bond_order_name(order)
+    )
+}
+
 fn electrolysis_transfer_text(
     donor: &str,
     acceptor: &str,
@@ -859,9 +1347,9 @@ fn electrolysis_transfer_text(
     electrons: &str,
 ) -> (String, String) {
     (
-        format!("Anode: {donor} transfers {count} {electrons}"),
+        String::new(),
         format!(
-            "Cathode: {acceptor} receives {count} {electrons}. Oxidation occurs at the anode and reduction at the cathode; electrons travel through the external circuit, not directly between these ions."
+            "Anode: {donor} transfers {count} {electrons}. Cathode: {acceptor} receives {count} {electrons}. Oxidation occurs at the anode and reduction at the cathode; electrons travel through the external circuit, not directly between these ions."
         ),
     )
 }
@@ -939,10 +1427,10 @@ const fn operation_title(operation: StructuralOperationView<'_>) -> &'static str
         StructuralOperationView::ChangeCovalentDelocalization { .. } => "DELOCALISATION",
         StructuralOperationView::AssociateIonic { .. } => "IONIC ASSOCIATION",
         StructuralOperationView::DissociateIonic { .. } => "IONIC DISSOCIATION",
-        StructuralOperationView::ReleaseMetallic { .. } => "METALLIC ELECTRON RELEASE",
-        StructuralOperationView::JoinMetallic { .. } => "METALLIC DOMAIN",
+        StructuralOperationView::ReleaseMetallic { .. } => "METALLIC BONDING CHANGES",
+        StructuralOperationView::JoinMetallic { .. } => "METALLIC BONDING",
         StructuralOperationView::TransferElectron { .. } => "ELECTRON TRANSFER",
-        StructuralOperationView::AssignProduct { .. } => "PRODUCT ESTABLISHED",
+        StructuralOperationView::AssignProduct { .. } => "REACTION COMPLETE",
     }
 }
 
@@ -965,6 +1453,17 @@ fn observation_text(predicate: ObservationPredicate, value: Option<&str>) -> Str
             |colour| format!("You would see the mixture turn {colour} as this product forms."),
         ),
     }
+}
+
+/// Generic product formation is already visible in the structural result, so
+/// only observations that add distinct information get a dedicated molecular-
+/// timeline box. `Forms` remains available to the macroscopic presentation and
+/// to authorize visual effects.
+const fn present_structural_observation_box(predicate: ObservationPredicate) -> bool {
+    matches!(
+        predicate,
+        ObservationPredicate::Evolves | ObservationPredicate::Colour
+    )
 }
 
 /// One-line recap of an observation for the summary chips.
@@ -1002,6 +1501,10 @@ pub enum AssetProfile {
     /// macroscopic presentation metadata. The renderer may style or suppress
     /// its reusable effect modules, but it must not reinterpret chemistry.
     ReactiveMetalWaterAssembly,
+    /// Authored high-energy water-contact assembly. Chemistry selects this
+    /// only from a reviewed physical-behaviour fact plus an exact validated
+    /// solid-metal/liquid-water/aqueous-ion/gas layout.
+    ExplosiveMetalWaterAssembly,
     /// Authored stirring, heating, evaporation, and crystallization modules
     /// for a validated neutralisation with the generic solvent-separation
     /// presentation process.
@@ -1087,7 +1590,7 @@ pub struct PresentationObject {
     pub colour_transition: Option<PresentationColourTransition>,
 }
 
-/// A trusted observation that must activate before an object may be shown.
+/// A validated observation that must activate before an object may be shown.
 /// An expected value closes the binding over value-bearing predicates such as
 /// precipitate colour.
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -1210,6 +1713,19 @@ pub struct PhaseSynthesisVisualProfile {
     pub reactant_b: BoundVisualColour,
     pub product: BoundVisualColour,
     pub show_reaction_front: bool,
+}
+
+/// Exact validated material bindings for the high-energy metal/water clips.
+/// The contact ordinal remains tied to validated reaction progression while
+/// the authored clip retains its complete absolute six-second timeline.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct ExplosiveMetalWaterVisualProfile {
+    pub contact_ordinal: u16,
+    pub variant: ExplosiveMetalWaterVariant,
+    pub water_reactant: BoundVisualColour,
+    pub metal_reactant: BoundVisualColour,
+    pub hydroxide_product: BoundVisualColour,
+    pub hydrogen_product: BoundVisualColour,
 }
 
 /// Resolve the visual interpretation of a reviewed `.chems` colour value.
@@ -1535,6 +2051,9 @@ pub struct PresentationProfile {
     /// Exact phase and colour bindings for an authorized solid-gas or gas-gas
     /// synthesis assembly.
     pub phase_synthesis: Option<PhaseSynthesisVisualProfile>,
+    /// Exact bindings and reviewed authored variant for the high-energy
+    /// metal/water category.
+    pub explosive_metal_water: Option<ExplosiveMetalWaterVisualProfile>,
     /// Optional deterministic physical separation shown only after the
     /// validated reaction state has completed.
     pub post_process: Option<MacroscopicProcess>,
@@ -1549,7 +2068,7 @@ pub enum MacroscopicMaterialRole {
     Product,
 }
 
-/// Renderer-independent material fact resolved from a trusted catalogue.
+/// Renderer-independent material fact resolved from reference data.
 ///
 /// `phase` is deliberately mandatory here: callers with an older catalogue
 /// must use their reviewed legacy profile rather than silently guessing from a
@@ -1569,6 +2088,9 @@ pub struct MacroscopicMaterial {
     /// Optional reviewed bulk colour. A `.chems` colour observation remains
     /// higher authority and may animate away from this conservative default.
     pub colour: Option<VisualColour>,
+    /// Reviewed water-contact capability carried from the catalogue-aware
+    /// chemistry adapter. Renderer code never derives this from strings.
+    pub explosive_water_contact: Option<ExplosiveMetalWaterVariant>,
 }
 
 /// Generic input for phase-driven visual compilation. It contains no reaction
@@ -1620,6 +2142,10 @@ pub enum MacroscopicProcess {
     /// A solid metal becomes the cation in an aqueous ionic product while the
     /// solution's original metal cation becomes a different solid metal.
     MetalDisplacement,
+    /// A reviewed extreme-water-contact capability on the exact metallic
+    /// reactant, with an exact solid-metal/liquid-water/aqueous-ion/gas
+    /// validated layout. The variant selects authored geometry.
+    ExplosiveMetalWater(ExplosiveMetalWaterVariant),
     /// Exactly two solid reactants combine into one solid chemical product.
     SolidSolidSynthesis,
     /// Exactly one solid and one gaseous reactant combine into one gaseous
@@ -1637,6 +2163,16 @@ pub enum MacroscopicProcess {
     /// Exposed solid metal plus gaseous dioxygen producing a validated solid
     /// oxide-family product. This classification is established upstream.
     SurfaceOxidation,
+}
+
+/// Typed authored variants for the reusable high-energy metal/water category.
+/// They are emitted only from reviewed catalogue facts; their names are not
+/// used as renderer-side chemistry selectors.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum ExplosiveMetalWaterVariant {
+    Rubidium,
+    Caesium,
+    Francium,
 }
 
 /// Conservative stylised sRGB palette for hydrocarbon fuels, selected from
@@ -1691,6 +2227,10 @@ pub fn compile_phase_driven_profile(
         scale,
     };
     let surface_oxidation = reaction.process == Some(MacroscopicProcess::SurfaceOxidation);
+    let explosive_metal_water = matches!(
+        reaction.process,
+        Some(MacroscopicProcess::ExplosiveMetalWater(_))
+    );
     let reviewed_surface_oxide_colour = surface_oxidation
         .then(|| {
             reaction
@@ -1733,6 +2273,7 @@ pub fn compile_phase_driven_profile(
             | MacroscopicProcess::GasEvolutionLiquidLiquid
             | MacroscopicProcess::GasEvolutionSolidLiquid
             | MacroscopicProcess::MetalDisplacement
+            | MacroscopicProcess::ExplosiveMetalWater(_)
             | MacroscopicProcess::SolidSolidSynthesis
             | MacroscopicProcess::SolidGasSynthesis
             | MacroscopicProcess::GasGasSynthesis
@@ -1748,6 +2289,8 @@ pub fn compile_phase_driven_profile(
             id: "vessel".to_owned(),
             asset: combustion_asset.unwrap_or(if neutralisation_assembly {
                 AssetProfile::NeutralisationEvaporationAssembly
+            } else if explosive_metal_water {
+                AssetProfile::ExplosiveMetalWaterAssembly
             } else {
                 AssetProfile::Beaker
             }),
@@ -2295,6 +2838,25 @@ pub fn compile_phase_driven_profile(
             );
         }
     }
+    if let Some(process @ MacroscopicProcess::ExplosiveMetalWater(_)) = reaction.process {
+        let start_ordinal =
+            first_product_assignment_ordinal(frames).unwrap_or_else(|| final_ordinal.min(1));
+        for effect in [
+            EffectProfile::FlameEmitter(FlamePalette::Natural),
+            EffectProfile::VapourRelease,
+            EffectProfile::SplashEmitter,
+            EffectProfile::HeatDistortion,
+        ] {
+            push_process_effect(
+                &mut effects,
+                effect,
+                process,
+                start_ordinal,
+                final_ordinal,
+                EffectIntensity::Strong,
+            );
+        }
+    }
 
     let mut profile = PresentationProfile {
         id: reaction.profile_id.clone(),
@@ -2311,12 +2873,14 @@ pub fn compile_phase_driven_profile(
         metal_displacement: None,
         solid_solid_synthesis: None,
         phase_synthesis: None,
+        explosive_metal_water: None,
         post_process: (reaction.process
             == Some(MacroscopicProcess::SolventEvaporationCrystallization))
         .then_some(MacroscopicProcess::SolventEvaporationCrystallization),
         equation: reaction.equation.clone(),
         disclosure: VIRTUAL_ONLY_DISCLOSURE.to_owned(),
     };
+    authorize_explosive_metal_water_assembly(&mut profile, reaction, &active);
     authorize_precipitation_assembly(&mut profile, Some((reaction, &active)));
     authorize_gas_evolution_assembly(&mut profile, reaction, &active);
     authorize_metal_displacement_assembly(&mut profile, reaction, &active);
@@ -2335,7 +2899,7 @@ pub fn compile_phase_driven_profile(
 ///
 /// # Errors
 ///
-/// Returns an error when the trusted frame range cannot be represented.
+/// Returns an error when the validated frame range cannot be represented.
 pub fn complete_generic_visual_profile(
     frames: &SimulationFrames,
     mut profile: PresentationProfile,
@@ -2569,6 +3133,135 @@ fn authorize_gas_evolution_from_objects(profile: &mut PresentationProfile) {
     });
 }
 
+fn authorize_explosive_metal_water_assembly(
+    profile: &mut PresentationProfile,
+    reaction: &MacroscopicReaction,
+    active: &ActiveObservations,
+) {
+    let Some(MacroscopicProcess::ExplosiveMetalWater(variant)) = reaction.process else {
+        return;
+    };
+    if profile.precipitation.is_some()
+        || profile.gas_evolution.is_some()
+        || profile.metal_displacement.is_some()
+        || profile.solid_solid_synthesis.is_some()
+    {
+        return;
+    }
+    let Some((metal, water)) = explosive_metal_water_reactants(reaction, variant) else {
+        return;
+    };
+    let Some((hydroxide, hydrogen)) = explosive_metal_water_products(reaction) else {
+        return;
+    };
+    let contact_ordinal = profile.effects.iter().find_map(|effect| {
+        (effect.effect == EffectProfile::HeatDistortion
+            && effect.authorization
+                == EffectAuthorization::Process(MacroscopicProcess::ExplosiveMetalWater(variant)))
+        .then_some(effect.start_ordinal)
+    });
+    let Some(contact_ordinal) = contact_ordinal else {
+        return;
+    };
+    let gas_object_is_bound = profile.objects.iter().any(|object| {
+        object.role == SceneRole::Product
+            && object.asset == AssetProfile::GasCloud
+            && object.id == hydrogen.binding
+            && object.visible_from_ordinal >= contact_ordinal
+    });
+    if !gas_object_is_bound {
+        return;
+    }
+    let Some(vessel) = profile
+        .objects
+        .iter_mut()
+        .find(|object| object.role == SceneRole::Vessel)
+    else {
+        return;
+    };
+    vessel.asset = AssetProfile::ExplosiveMetalWaterAssembly;
+    profile.explosive_metal_water = Some(ExplosiveMetalWaterVisualProfile {
+        contact_ordinal,
+        variant,
+        water_reactant: exact_bound_material_colour(water, COLOURLESS_LIQUID, active),
+        metal_reactant: exact_bound_material_colour(metal, NEUTRAL_METAL, active),
+        hydroxide_product: exact_bound_material_colour(hydroxide, COLOURLESS_LIQUID, active),
+        hydrogen_product: exact_bound_material_colour(hydrogen, PALE_COLOURLESS_GAS, active),
+    });
+}
+
+fn explosive_metal_water_reactants(
+    reaction: &MacroscopicReaction,
+    variant: ExplosiveMetalWaterVariant,
+) -> Option<(&MacroscopicMaterial, &MacroscopicMaterial)> {
+    let materials = reaction
+        .materials
+        .iter()
+        .filter(|material| material.role == MacroscopicMaterialRole::Reactant)
+        .collect::<Vec<_>>();
+    let [first, second] = materials.as_slice() else {
+        return None;
+    };
+    let valid_layout = |metal: &MacroscopicMaterial, water: &MacroscopicMaterial| {
+        metal.phase == Phase::Solid
+            && metal.representation == RepresentationKind::Metallic
+            && metal.explosive_water_contact == Some(variant)
+            && water.phase == Phase::Liquid
+            && water.representation == RepresentationKind::Molecular
+    };
+    if valid_layout(first, second) {
+        Some((first, second))
+    } else {
+        valid_layout(second, first).then_some((second, first))
+    }
+}
+
+fn explosive_metal_water_products(
+    reaction: &MacroscopicReaction,
+) -> Option<(&MacroscopicMaterial, &MacroscopicMaterial)> {
+    let materials = reaction
+        .materials
+        .iter()
+        .filter(|material| material.role == MacroscopicMaterialRole::Product)
+        .collect::<Vec<_>>();
+    let [first, second] = materials.as_slice() else {
+        return None;
+    };
+    let valid_layout = |hydroxide: &MacroscopicMaterial, hydrogen: &MacroscopicMaterial| {
+        hydroxide.phase == Phase::Aqueous
+            && hydroxide.representation == RepresentationKind::Ionic
+            && hydrogen.phase == Phase::Gas
+            && hydrogen.representation == RepresentationKind::Molecular
+    };
+    if valid_layout(first, second) {
+        Some((first, second))
+    } else {
+        valid_layout(second, first).then_some((second, first))
+    }
+}
+
+fn exact_bound_material_colour(
+    material: &MacroscopicMaterial,
+    fallback: VisualColour,
+    active: &ActiveObservations,
+) -> BoundVisualColour {
+    let base_colour = material.colour.unwrap_or(fallback);
+    let exact = active
+        .get(&(material.binding.clone(), ObservationPredicate::Colour))
+        .and_then(|(ordinal, value)| {
+            value
+                .as_deref()
+                .and_then(visual_colour)
+                .map(|colour| (*ordinal, colour))
+        });
+    BoundVisualColour {
+        binding: material.binding.clone(),
+        base_colour,
+        colour: exact.map_or(base_colour, |(_, colour)| colour),
+        transition_ordinal: exact.map(|(ordinal, _)| ordinal),
+    }
+}
+
 fn authorize_precipitation_assembly(
     profile: &mut PresentationProfile,
     phase_data: Option<(&MacroscopicReaction, &ActiveObservations)>,
@@ -2774,7 +3467,11 @@ fn authorize_gas_evolution_assembly(
 ) {
     if matches!(
         reaction.process,
-        Some(MacroscopicProcess::CompleteCombustion | MacroscopicProcess::IncompleteCombustion)
+        Some(
+            MacroscopicProcess::CompleteCombustion
+                | MacroscopicProcess::IncompleteCombustion
+                | MacroscopicProcess::ExplosiveMetalWater(_)
+        )
     ) || profile.precipitation.is_some()
     {
         return;
@@ -3510,7 +4207,7 @@ impl fmt::Display for PhaseDrivenProfileError {
     fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
             Self::PresentationRange => {
-                formatter.write_str("trusted frames exceed the presentation range")
+                formatter.write_str("validated frames exceed the presentation range")
             }
             Self::DuplicateBinding => {
                 formatter.write_str("macroscopic material bindings are not unique")
@@ -3710,6 +4407,7 @@ pub struct ScenePlan {
     pub metal_displacement: Option<MetalDisplacementVisualProfile>,
     pub solid_solid_synthesis: Option<SolidSolidSynthesisVisualProfile>,
     pub phase_synthesis: Option<PhaseSynthesisVisualProfile>,
+    pub explosive_metal_water: Option<ExplosiveMetalWaterVisualProfile>,
     pub equation: String,
     pub annotations: Vec<MacroscopicAnnotation>,
     pub timeline: RealWorldTimeline,
@@ -3725,7 +4423,7 @@ pub struct ScenePlan {
 /// # Errors
 ///
 /// Returns an error when a visual precedes or mismatches its validated
-/// observation, or the trusted frame digest is unavailable.
+/// observation, or the validated frame digest is unavailable.
 pub fn compile_real_world_plan(
     frames: &SimulationFrames,
     profile: &PresentationProfile,
@@ -3746,6 +4444,42 @@ pub fn compile_real_world_plan(
                 .map(move |observation| (ordinal, observation))
         })
         .collect::<Vec<_>>();
+    validate_real_world_profile(profile, &active_observations)?;
+    let final_ordinal = frames
+        .frames()
+        .last()
+        .and_then(|frame| u16::try_from(frame.ordinal()).ok())
+        .ok_or(PlanError::PresentationRange)?;
+    let timeline = compile_real_world_timeline(profile, final_ordinal);
+    let annotations = compile_macroscopic_annotations(frames, final_ordinal);
+    let reaction = frames.digest().map_err(|_| PlanError::Digest)?;
+    Ok(ScenePlan {
+        id: reaction,
+        reaction,
+        profile_id: profile.id.clone(),
+        environment: profile.environment,
+        objects: profile.objects.clone(),
+        effects: profile.effects.clone(),
+        camera: profile.camera.clone(),
+        precipitation: profile.precipitation.clone(),
+        gas_evolution: profile.gas_evolution.clone(),
+        metal_displacement: profile.metal_displacement.clone(),
+        solid_solid_synthesis: profile.solid_solid_synthesis.clone(),
+        phase_synthesis: profile.phase_synthesis.clone(),
+        explosive_metal_water: profile.explosive_metal_water.clone(),
+        equation: profile.equation.clone(),
+        annotations,
+        timeline,
+        post_process: profile.post_process,
+        disclosure: profile.disclosure.clone(),
+        virtual_only_disclosure: VIRTUAL_ONLY_DISCLOSURE.to_owned(),
+    })
+}
+
+fn validate_real_world_profile(
+    profile: &PresentationProfile,
+    active_observations: &[(u16, &FrameObservation)],
+) -> Result<(), PlanError> {
     if profile.effects.iter().any(|effect| {
         !effect_authorization_is_compatible(effect.effect, effect.trigger, effect.authorization)
             || (effect.surface_oxide_colour.is_some()
@@ -3777,8 +4511,13 @@ pub fn compile_real_world_plan(
     {
         return Err(PlanError::IncompatibleObjectObservation);
     }
-    validate_colour_transitions(profile, &active_observations)?;
-    validate_assembly_profiles(profile, &active_observations)?;
+    validate_colour_transitions(profile, active_observations)?;
+    validate_precipitation_profile(profile, active_observations)?;
+    validate_gas_evolution_profile(profile, active_observations)?;
+    validate_metal_displacement_profile(profile, active_observations)?;
+    validate_solid_solid_synthesis_profile(profile, active_observations)?;
+    validate_explosive_metal_water_profile(profile, active_observations)?;
+    validate_phase_synthesis_profile(profile, active_observations)?;
     if profile.objects.iter().any(|object| {
         (object.role == SceneRole::Product
             && object.observation.is_none()
@@ -3800,45 +4539,7 @@ pub fn compile_real_world_plan(
     }) {
         return Err(PlanError::UnsupportedObjectObservation);
     }
-    let final_ordinal = frames
-        .frames()
-        .last()
-        .and_then(|frame| u16::try_from(frame.ordinal()).ok())
-        .ok_or(PlanError::PresentationRange)?;
-    let timeline = compile_real_world_timeline(profile, final_ordinal);
-    let annotations = compile_macroscopic_annotations(frames, final_ordinal);
-    let reaction = frames.digest().map_err(|_| PlanError::Digest)?;
-    Ok(ScenePlan {
-        id: reaction,
-        reaction,
-        profile_id: profile.id.clone(),
-        environment: profile.environment,
-        objects: profile.objects.clone(),
-        effects: profile.effects.clone(),
-        camera: profile.camera.clone(),
-        precipitation: profile.precipitation.clone(),
-        gas_evolution: profile.gas_evolution.clone(),
-        metal_displacement: profile.metal_displacement.clone(),
-        solid_solid_synthesis: profile.solid_solid_synthesis.clone(),
-        phase_synthesis: profile.phase_synthesis.clone(),
-        equation: profile.equation.clone(),
-        annotations,
-        timeline,
-        post_process: profile.post_process,
-        disclosure: profile.disclosure.clone(),
-        virtual_only_disclosure: VIRTUAL_ONLY_DISCLOSURE.to_owned(),
-    })
-}
-
-fn validate_assembly_profiles(
-    profile: &PresentationProfile,
-    active_observations: &[(u16, &FrameObservation)],
-) -> Result<(), PlanError> {
-    validate_precipitation_profile(profile, active_observations)?;
-    validate_gas_evolution_profile(profile, active_observations)?;
-    validate_metal_displacement_profile(profile, active_observations)?;
-    validate_solid_solid_synthesis_profile(profile, active_observations)?;
-    validate_phase_synthesis_profile(profile, active_observations)
+    Ok(())
 }
 
 fn validate_colour_transitions(
@@ -4194,6 +4895,82 @@ fn validate_solid_solid_synthesis_profile(
     Ok(())
 }
 
+fn validate_explosive_metal_water_profile(
+    profile: &PresentationProfile,
+    active_observations: &[(u16, &FrameObservation)],
+) -> Result<(), PlanError> {
+    let assembly_selected = profile.objects.iter().any(|object| {
+        object.role == SceneRole::Vessel
+            && object.asset == AssetProfile::ExplosiveMetalWaterAssembly
+    });
+    let Some(explosive) = &profile.explosive_metal_water else {
+        return if assembly_selected {
+            Err(PlanError::InvalidExplosiveMetalWaterProfile)
+        } else {
+            Ok(())
+        };
+    };
+    let bindings = [
+        explosive.water_reactant.binding.as_str(),
+        explosive.metal_reactant.binding.as_str(),
+        explosive.hydroxide_product.binding.as_str(),
+        explosive.hydrogen_product.binding.as_str(),
+    ];
+    let bindings_are_distinct = bindings
+        .iter()
+        .enumerate()
+        .all(|(index, binding)| !bindings[..index].contains(binding));
+    let process = MacroscopicProcess::ExplosiveMetalWater(explosive.variant);
+    let effects_are_authorized = [
+        EffectProfile::FlameEmitter(FlamePalette::Natural),
+        EffectProfile::VapourRelease,
+        EffectProfile::SplashEmitter,
+        EffectProfile::HeatDistortion,
+    ]
+    .into_iter()
+    .all(|expected| {
+        profile.effects.iter().any(|effect| {
+            effect.effect == expected
+                && effect.start_ordinal == explosive.contact_ordinal
+                && effect.authorization == EffectAuthorization::Process(process)
+        })
+    });
+    let gas_object_is_bound = profile.objects.iter().any(|object| {
+        object.role == SceneRole::Product
+            && object.asset == AssetProfile::GasCloud
+            && object.id == explosive.hydrogen_product.binding
+            && object.visible_from_ordinal >= explosive.contact_ordinal
+    });
+    let exact_colours_match = [
+        &explosive.water_reactant,
+        &explosive.metal_reactant,
+        &explosive.hydroxide_product,
+        &explosive.hydrogen_product,
+    ]
+    .into_iter()
+    .all(|bound| {
+        active_observations
+            .iter()
+            .find(|(_, observation)| {
+                observation.predicate == ObservationPredicate::Colour
+                    && observation.subject_binding == bound.binding
+            })
+            .is_none_or(|(ordinal, observation)| {
+                observation.value.as_deref().and_then(visual_colour) == Some(bound.colour)
+                    && bound.transition_ordinal == Some(*ordinal)
+            })
+    });
+    if !assembly_selected
+        || !bindings_are_distinct
+        || !effects_are_authorized
+        || !gas_object_is_bound
+        || !exact_colours_match
+    {
+        return Err(PlanError::InvalidExplosiveMetalWaterProfile);
+    }
+    Ok(())
+}
+
 fn validate_phase_synthesis_profile(
     profile: &PresentationProfile,
     active_observations: &[(u16, &FrameObservation)],
@@ -4309,6 +5086,12 @@ fn effect_authorization_is_compatible(
             ) | (
                 MacroscopicProcess::SolidGasSynthesis | MacroscopicProcess::GasGasSynthesis,
                 EffectProfile::ReactionActivity
+            ) | (
+                MacroscopicProcess::ExplosiveMetalWater(_),
+                EffectProfile::FlameEmitter(FlamePalette::Natural)
+                    | EffectProfile::VapourRelease
+                    | EffectProfile::SplashEmitter
+                    | EffectProfile::HeatDistortion
             )
         );
     }
@@ -4399,6 +5182,7 @@ fn object_observation_is_compatible(object: &PresentationObject) -> bool {
         AssetProfile::LaboratoryBench
         | AssetProfile::DarkPresentationPlatform
         | AssetProfile::ReactiveMetalWaterAssembly
+        | AssetProfile::ExplosiveMetalWaterAssembly
         | AssetProfile::NeutralisationEvaporationAssembly
         | AssetProfile::CompleteCombustionAssembly
         | AssetProfile::IncompleteCombustionAssembly
@@ -4525,11 +5309,61 @@ fn compile_real_world_timeline(
     if profile.phase_synthesis.is_some() {
         fit_authored_six_second_duration(&mut beats);
     }
+    if profile.explosive_metal_water.is_some() {
+        fit_authored_six_second_duration(&mut beats);
+    }
+    perform_default_camera(&mut beats, profile, final_ordinal);
     RealWorldTimeline { beats }
 }
 
+/// Authors the default camera performance across the timeline: establish
+/// wide, push in as the reaction takes hold, hold focus through the middle,
+/// move close for the key observation, pull back, and end on the hero shot.
+/// Beats covered by a deliberately authored profile cue (anything other than
+/// the historical full-range wide default) keep that cue.
+fn perform_default_camera(
+    beats: &mut [RealWorldBeat],
+    profile: &PresentationProfile,
+    final_ordinal: u16,
+) {
+    let authored: Vec<&CameraCue> = profile
+        .camera
+        .iter()
+        .filter(|cue| {
+            !(cue.start_ordinal == 0
+                && cue.end_ordinal == final_ordinal
+                && cue.behaviour == CameraBehaviour::WideEstablishingShot)
+        })
+        .collect();
+    let count = beats.len();
+    for (index, beat) in beats.iter_mut().enumerate() {
+        if let Some(cue) = authored.iter().find(|cue| {
+            cue.start_ordinal <= beat.start_ordinal && beat.start_ordinal <= cue.end_ordinal
+        }) {
+            beat.camera.behaviour = cue.behaviour;
+            continue;
+        }
+        beat.camera.behaviour = if index == 0 {
+            CameraBehaviour::WideEstablishingShot
+        } else if index + 1 == count {
+            CameraBehaviour::FinalHeroShot
+        } else if index == 1 {
+            CameraBehaviour::SlowPushIn
+        } else if index + 2 == count {
+            CameraBehaviour::SlowPullBack
+        } else if index == count / 2 {
+            CameraBehaviour::ObservationCloseUp
+        } else {
+            CameraBehaviour::ReactionFocus
+        };
+    }
+}
+
 fn fit_authored_six_second_duration(beats: &mut [RealWorldBeat]) {
-    const DURATION_MS: u32 = 6_000;
+    // The authored clips hold 6 s of baked motion; presenting that window
+    // over 9.6 s (0.625x speed) paces the reaction with the camera work
+    // while 60 Hz interpolation keeps the motion smooth.
+    const DURATION_MS: u32 = 9_600;
     let reaction_count = beats
         .iter()
         .take_while(|beat| beat.stage == MacroscopicStage::Reaction)
@@ -4555,7 +5389,8 @@ fn fit_authored_six_second_duration(beats: &mut [RealWorldBeat]) {
 }
 
 fn fit_authored_precipitation_duration(beats: &mut [RealWorldBeat], formation_ordinal: u16) {
-    const DURATION_MS: u32 = 6_000;
+    // Same 0.625x presentation stretch as the shared authored window.
+    const DURATION_MS: u32 = 9_600;
     let Some(start) = beats.iter().position(|beat| {
         beat.stage == MacroscopicStage::Reaction && beat.start_ordinal == formation_ordinal
     }) else {
@@ -4596,16 +5431,19 @@ const fn macroscopic_beat_duration_ms(
     starts_at_initial_state: bool,
     is_final: bool,
 ) -> u32 {
+    // Paced for the choreographed camera (2026-07-19): beats breathe so a
+    // push-in completes before its observation finishes, instead of the
+    // whole reaction rushing past in a few seconds.
     let duration_ms = match intensity {
-        Some(EffectIntensity::Strong) => 2_600,
-        Some(EffectIntensity::Moderate) => 3_400,
-        Some(EffectIntensity::Subtle) => 4_400,
-        None if starts_at_initial_state => 900,
-        None => 1_800,
+        Some(EffectIntensity::Strong) => 4_200,
+        Some(EffectIntensity::Moderate) => 5_400,
+        Some(EffectIntensity::Subtle) => 7_000,
+        None if starts_at_initial_state => 1_400,
+        None => 2_900,
     };
     if is_final {
-        if duration_ms < 2_400 {
-            2_400
+        if duration_ms < 3_800 {
+            3_800
         } else {
             duration_ms
         }
@@ -4628,11 +5466,10 @@ fn compile_macroscopic_annotations(
         let Ok(ordinal) = u16::try_from(frame.ordinal()) else {
             continue;
         };
-        for observation in frame
-            .observations()
-            .iter()
-            .filter(|observation| observation.status == ObservationStatus::Active)
-        {
+        for observation in frame.observations().iter().filter(|observation| {
+            observation.status == ObservationStatus::Active
+                && observation.predicate != ObservationPredicate::Disappears
+        }) {
             annotations.push(MacroscopicAnnotation {
                 start_ordinal: ordinal,
                 end_ordinal: final_ordinal,
@@ -4641,12 +5478,6 @@ fn compile_macroscopic_annotations(
             });
         }
     }
-    annotations.push(MacroscopicAnnotation {
-        start_ordinal: final_ordinal,
-        end_ordinal: final_ordinal,
-        title: "VALIDATED OUTCOME".to_owned(),
-        text: "The trusted frame sequence has reached its reviewed outcome.".to_owned(),
-    });
     annotations
 }
 
@@ -4666,6 +5497,7 @@ pub enum PlanError {
     InvalidMetalDisplacementProfile,
     InvalidSolidSolidSynthesisProfile,
     InvalidPhaseSynthesisProfile,
+    InvalidExplosiveMetalWaterProfile,
     PresentationRange,
     Digest,
 }
@@ -4673,7 +5505,7 @@ pub enum PlanError {
 impl fmt::Display for PlanError {
     fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
-            Self::MissingFrames => formatter.write_str("trusted frames are absent"),
+            Self::MissingFrames => formatter.write_str("validated frames are absent"),
             Self::InvalidFrameSequence => formatter.write_str("frame ordinals are not contiguous"),
             Self::MissingOperation(ordinal) => {
                 write!(formatter, "frame {ordinal} has no operation")
@@ -4709,10 +5541,13 @@ impl fmt::Display for PlanError {
             Self::InvalidPhaseSynthesisProfile => formatter.write_str(
                 "phase-synthesis assembly lacks the exact typed reactants, gaseous product, formation, or colour bindings",
             ),
+            Self::InvalidExplosiveMetalWaterProfile => formatter.write_str(
+                "high-energy metal/water assembly lacks exact reviewed variant, phase layout, effect, or material bindings",
+            ),
             Self::PresentationRange => {
-                formatter.write_str("trusted frames exceed the presentation range")
+                formatter.write_str("validated frames exceed the presentation range")
             }
-            Self::Digest => formatter.write_str("trusted frame digest is unavailable"),
+            Self::Digest => formatter.write_str("validated frame digest is unavailable"),
         }
     }
 }
@@ -4732,12 +5567,30 @@ mod tests {
         MacroscopicMaterialRole, MacroscopicProcess, MacroscopicReaction, MacroscopicStage,
         ObjectObservationBinding, PhaseSynthesisVariant, PresentationEffect, PresentationObject,
         PresentationProfile, PresentationTransform, ReactionVisualInputs, SceneRole,
-        TimelinePosition, VisualColour, authorize_gas_evolution_assembly,
-        authorize_metal_displacement_assembly, authorize_phase_synthesis_assembly,
-        authorize_solid_solid_synthesis_assembly, compile_real_world_timeline,
+        TimelinePosition, VisualColour, authorize_explosive_metal_water_assembly,
+        authorize_gas_evolution_assembly, authorize_metal_displacement_assembly,
+        authorize_phase_synthesis_assembly, authorize_solid_solid_synthesis_assembly,
+        compile_real_world_timeline, covalent_cleavage_explanation, covalent_formation_explanation,
         effect_authorization_is_compatible, electrolysis_transfer_text,
-        macroscopic_beat_duration_ms, precipitation_colours_from_materials, visual_colour,
+        macroscopic_beat_duration_ms, precipitation_colours_from_materials,
+        present_structural_observation_box, visual_colour,
     };
+
+    #[test]
+    fn generic_product_formation_does_not_get_a_structural_observation_box() {
+        assert!(!present_structural_observation_box(
+            ObservationPredicate::Forms
+        ));
+        assert!(!present_structural_observation_box(
+            ObservationPredicate::Disappears
+        ));
+        assert!(present_structural_observation_box(
+            ObservationPredicate::Evolves
+        ));
+        assert!(present_structural_observation_box(
+            ObservationPredicate::Colour
+        ));
+    }
 
     fn precipitation_material(
         binding: &str,
@@ -4754,6 +5607,7 @@ mod tests {
             phase,
             representation: RepresentationKind::Ionic,
             colour,
+            explosive_water_contact: None,
         }
     }
 
@@ -4832,6 +5686,7 @@ mod tests {
             metal_displacement: None,
             solid_solid_synthesis: None,
             phase_synthesis: None,
+            explosive_metal_water: None,
             post_process: None,
             equation: "validated equation".to_owned(),
             disclosure: super::VIRTUAL_ONLY_DISCLOSURE.to_owned(),
@@ -4895,6 +5750,228 @@ mod tests {
         )])
     }
 
+    fn explosive_material(
+        binding: &str,
+        role: MacroscopicMaterialRole,
+        phase: Phase,
+        representation: RepresentationKind,
+        capability: Option<super::ExplosiveMetalWaterVariant>,
+    ) -> MacroscopicMaterial {
+        MacroscopicMaterial {
+            binding: binding.to_owned(),
+            semantic_identity: binding.to_owned(),
+            structure_id: format!("Structures.{binding}"),
+            formula: binding.to_owned(),
+            role,
+            phase,
+            representation,
+            colour: None,
+            explosive_water_contact: capability,
+        }
+    }
+
+    fn explosive_profile(variant: super::ExplosiveMetalWaterVariant) -> PresentationProfile {
+        let process = MacroscopicProcess::ExplosiveMetalWater(variant);
+        PresentationProfile {
+            id: "generic-explosive-metal-water".to_owned(),
+            environment: AssetProfile::LaboratoryBench,
+            objects: vec![
+                PresentationObject {
+                    id: "vessel".to_owned(),
+                    asset: AssetProfile::Beaker,
+                    semantic_identity: "open vessel".to_owned(),
+                    appearance: AppearanceProfile::ClearGlass,
+                    role: SceneRole::Vessel,
+                    transform: PresentationTransform {
+                        translation: [0, 0, 0],
+                        rotation: [0, 0, 0],
+                        scale: [1_000, 1_000, 1_000],
+                    },
+                    visible_from_ordinal: 0,
+                    observation: None,
+                    colour_transition: None,
+                },
+                PresentationObject {
+                    id: "hydrogen".to_owned(),
+                    asset: AssetProfile::GasCloud,
+                    semantic_identity: "validated gas product".to_owned(),
+                    appearance: AppearanceProfile::LaboratoryNeutral,
+                    role: SceneRole::Product,
+                    transform: PresentationTransform {
+                        translation: [0, 0, 0],
+                        rotation: [0, 0, 0],
+                        scale: [1_000, 1_000, 1_000],
+                    },
+                    visible_from_ordinal: 4,
+                    observation: None,
+                    colour_transition: None,
+                },
+            ],
+            effects: [
+                EffectProfile::FlameEmitter(FlamePalette::Natural),
+                EffectProfile::VapourRelease,
+                EffectProfile::SplashEmitter,
+                EffectProfile::HeatDistortion,
+            ]
+            .into_iter()
+            .map(|effect| PresentationEffect {
+                effect,
+                trigger: ObservationPredicate::Forms,
+                authorization: EffectAuthorization::Process(process),
+                intensity: EffectIntensity::Strong,
+                start_ordinal: 4,
+                end_ordinal: 6,
+                surface_oxide_colour: None,
+            })
+            .collect(),
+            camera: Vec::new(),
+            precipitation: None,
+            gas_evolution: None,
+            metal_displacement: None,
+            solid_solid_synthesis: None,
+            phase_synthesis: None,
+            explosive_metal_water: None,
+            post_process: None,
+            equation: "validated equation".to_owned(),
+            disclosure: super::VIRTUAL_ONLY_DISCLOSURE.to_owned(),
+        }
+    }
+
+    fn explosive_reaction(
+        variant: super::ExplosiveMetalWaterVariant,
+        materials: Vec<MacroscopicMaterial>,
+        process: Option<MacroscopicProcess>,
+    ) -> MacroscopicReaction {
+        MacroscopicReaction {
+            profile_id: "generic-explosive-metal-water".to_owned(),
+            equation: "validated equation".to_owned(),
+            materials,
+            intensity: EffectIntensity::Strong,
+            process: process.or(Some(MacroscopicProcess::ExplosiveMetalWater(variant))),
+            fuel_carbon_count: None,
+            surface_oxide_colour: None,
+        }
+    }
+
+    #[test]
+    fn explosive_metal_water_selection_requires_all_exact_typed_materials() {
+        for variant in [
+            super::ExplosiveMetalWaterVariant::Rubidium,
+            super::ExplosiveMetalWaterVariant::Caesium,
+            super::ExplosiveMetalWaterVariant::Francium,
+        ] {
+            let reaction = explosive_reaction(
+                variant,
+                vec![
+                    explosive_material(
+                        "metal",
+                        MacroscopicMaterialRole::Reactant,
+                        Phase::Solid,
+                        RepresentationKind::Metallic,
+                        Some(variant),
+                    ),
+                    explosive_material(
+                        "water",
+                        MacroscopicMaterialRole::Reactant,
+                        Phase::Liquid,
+                        RepresentationKind::Molecular,
+                        None,
+                    ),
+                    explosive_material(
+                        "hydroxide",
+                        MacroscopicMaterialRole::Product,
+                        Phase::Aqueous,
+                        RepresentationKind::Ionic,
+                        None,
+                    ),
+                    explosive_material(
+                        "hydrogen",
+                        MacroscopicMaterialRole::Product,
+                        Phase::Gas,
+                        RepresentationKind::Molecular,
+                        None,
+                    ),
+                ],
+                None,
+            );
+            let mut profile = explosive_profile(variant);
+            authorize_explosive_metal_water_assembly(&mut profile, &reaction, &BTreeMap::new());
+            assert_eq!(
+                profile
+                    .explosive_metal_water
+                    .as_ref()
+                    .map(|visual| visual.variant),
+                Some(variant)
+            );
+        }
+    }
+
+    #[test]
+    fn explosive_metal_water_rejects_missing_ambiguous_and_lower_priority_layouts() {
+        let variant = super::ExplosiveMetalWaterVariant::Rubidium;
+        let exact = vec![
+            explosive_material(
+                "metal",
+                MacroscopicMaterialRole::Reactant,
+                Phase::Solid,
+                RepresentationKind::Metallic,
+                Some(variant),
+            ),
+            explosive_material(
+                "water",
+                MacroscopicMaterialRole::Reactant,
+                Phase::Liquid,
+                RepresentationKind::Molecular,
+                None,
+            ),
+            explosive_material(
+                "hydroxide",
+                MacroscopicMaterialRole::Product,
+                Phase::Aqueous,
+                RepresentationKind::Ionic,
+                None,
+            ),
+            explosive_material(
+                "hydrogen",
+                MacroscopicMaterialRole::Product,
+                Phase::Gas,
+                RepresentationKind::Molecular,
+                None,
+            ),
+        ];
+        let scenarios = [
+            (
+                exact
+                    .iter()
+                    .filter(|material| material.binding != "water")
+                    .cloned()
+                    .collect(),
+                Some(MacroscopicProcess::ExplosiveMetalWater(variant)),
+            ),
+            (
+                {
+                    let mut materials = exact.clone();
+                    materials.push(explosive_material(
+                        "extra-product",
+                        MacroscopicMaterialRole::Product,
+                        Phase::Gas,
+                        RepresentationKind::Molecular,
+                        None,
+                    ));
+                    materials
+                },
+                Some(MacroscopicProcess::ExplosiveMetalWater(variant)),
+            ),
+            (exact, Some(MacroscopicProcess::MetalDisplacement)),
+        ];
+        for (materials, process) in scenarios {
+            let reaction = explosive_reaction(variant, materials, process);
+            let mut profile = explosive_profile(variant);
+            authorize_explosive_metal_water_assembly(&mut profile, &reaction, &BTreeMap::new());
+            assert!(profile.explosive_metal_water.is_none());
+        }
+    }
+
     fn solid_synthesis_profile(include_front: bool) -> PresentationProfile {
         let mut effects = vec![PresentationEffect {
             effect: EffectProfile::SolidFormation,
@@ -4943,6 +6020,7 @@ mod tests {
             metal_displacement: None,
             solid_solid_synthesis: None,
             phase_synthesis: None,
+            explosive_metal_water: None,
             post_process: None,
             equation: "validated equation".to_owned(),
             disclosure: super::VIRTUAL_ONLY_DISCLOSURE.to_owned(),
@@ -5018,7 +6096,7 @@ mod tests {
         );
         assert_eq!(
             compile_real_world_timeline(&profile, 6).duration_ms(),
-            6_000
+            9_600
         );
     }
 
@@ -5153,7 +6231,7 @@ mod tests {
         assert_eq!(visual.product.colour, super::COLOURLESS_GAS);
         assert_eq!(
             compile_real_world_timeline(&profile, 6).duration_ms(),
-            6_000
+            9_600
         );
 
         let brown = VisualColour {
@@ -5303,6 +6381,7 @@ mod tests {
                 phase,
                 representation,
                 colour,
+                explosive_water_contact: None,
             }
         };
         MacroscopicReaction {
@@ -5397,7 +6476,7 @@ mod tests {
                 .filter(|beat| beat.stage == MacroscopicStage::Reaction)
                 .map(|beat| beat.duration_ms)
                 .sum::<u32>(),
-            6_000
+            9_600
         );
     }
 
@@ -5566,12 +6645,51 @@ mod tests {
 
     #[test]
     fn electrolysis_transfer_copy_uses_electrodes_not_direct_ion_motion() {
-        let (anode, cathode) = electrolysis_transfer_text("Cl", "Ag", 1, "electron");
-        assert_eq!(anode, "Anode: Cl transfers 1 electron");
-        assert!(cathode.starts_with("Cathode: Ag receives 1 electron."));
-        assert!(cathode.contains("external circuit"));
-        assert!(cathode.contains("not directly between these ions"));
-        assert!(!cathode.contains("jumps"));
+        let (subtitle, body) = electrolysis_transfer_text("Cl", "Ag", 1, "electron");
+        assert!(subtitle.is_empty());
+        assert!(
+            body.starts_with("Anode: Cl transfers 1 electron. Cathode: Ag receives 1 electron.")
+        );
+        assert!(body.contains("external circuit"));
+        assert!(body.contains("not directly between these ions"));
+        assert!(!body.contains("jumps"));
+    }
+
+    #[test]
+    fn covalent_cleavage_copy_explains_the_energy_source_and_electron_rearrangement() {
+        let ordinary = covalent_cleavage_explanation("heat", false);
+        assert!(ordinary.starts_with("Breaking a covalent bond requires energy."));
+        assert!(ordinary.contains("shared electron pair to redistribute"));
+        assert!(ordinary.ends_with("as the atoms form new bonds."));
+
+        let electrolysis = covalent_cleavage_explanation("electricity", false);
+        assert!(electrolysis.starts_with("The applied potential"));
+        assert!(electrolysis.contains("electrical energy"));
+        assert!(electrolysis.contains("electron transfer at the electrodes"));
+        assert!(electrolysis.contains("form the product bonds"));
+        assert!(!electrolysis.contains("more favourable"));
+
+        let carbonate = covalent_cleavage_explanation("mixing", true);
+        assert!(carbonate.contains("protonated the carbonate oxygens"));
+        assert!(carbonate.contains("stable CO₂ and H₂O"));
+    }
+
+    #[test]
+    fn covalent_formation_copy_matches_the_validated_bond_order() {
+        for (order, pairs, bond) in [
+            (1, "one electron pair", "single covalent bond"),
+            (2, "two electron pairs", "double covalent bond"),
+            (3, "three electron pairs", "triple covalent bond"),
+        ] {
+            let explanation = covalent_formation_explanation(order);
+            assert!(explanation.contains(pairs), "{explanation}");
+            assert!(explanation.contains(bond), "{explanation}");
+            assert!(
+                explanation.contains("Electrostatic attraction between both nuclei"),
+                "{explanation}"
+            );
+            assert!(explanation.contains("shared electrons"), "{explanation}");
+        }
     }
 
     #[test]
@@ -5697,6 +6815,7 @@ mod tests {
             metal_displacement: None,
             solid_solid_synthesis: None,
             phase_synthesis: None,
+            explosive_metal_water: None,
             post_process: Some(MacroscopicProcess::SolventEvaporationCrystallization),
             equation: "validated reaction".to_owned(),
             disclosure: super::VIRTUAL_ONLY_DISCLOSURE.to_owned(),
@@ -5909,9 +7028,9 @@ mod tests {
         let moderate = macroscopic_beat_duration_ms(Some(EffectIntensity::Moderate), false, false);
         let subtle = macroscopic_beat_duration_ms(Some(EffectIntensity::Subtle), false, false);
 
-        assert_eq!(entry, 900, "a short drop must not become a slow glide");
+        assert_eq!(entry, 1_400, "a short drop must not become a slow glide");
         assert!(strong < moderate);
         assert!(moderate < subtle);
-        assert_eq!(macroscopic_beat_duration_ms(None, false, true), 2_400);
+        assert_eq!(macroscopic_beat_duration_ms(None, false, true), 3_800);
     }
 }

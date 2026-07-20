@@ -18,8 +18,8 @@ use chem_domain::{
     RepresentationKind, SpeciesId, StructureDefinition, StructureId,
 };
 use chem_kernel::{
-    ValidatedReviewCandidateFrames, expand_proposed_declaration,
-    project_validated_review_candidate_frames, validate_review_candidate,
+    CurrentArtifactIdentity, SimulationFrames, expand_proposed_declaration, generate_frames,
+    validate_provisional,
 };
 
 use crate::{
@@ -65,7 +65,7 @@ struct MechanismRole {
 #[derive(Debug, Clone)]
 pub struct EscalatedMechanismOutcome {
     static_outcome: ValidatedStaticOutcome,
-    frames: ValidatedReviewCandidateFrames,
+    frames: SimulationFrames,
     repair_count: usize,
     structure_repair_count: usize,
 }
@@ -77,7 +77,7 @@ impl EscalatedMechanismOutcome {
     }
 
     #[must_use]
-    pub const fn frames(&self) -> &ValidatedReviewCandidateFrames {
+    pub const fn frames(&self) -> &SimulationFrames {
         &self.frames
     }
 
@@ -600,7 +600,7 @@ fn compile_mechanism(
     context: &MechanismContext,
     response: &MechanismEscalationResponse,
     catalogue: &ValidatedCatalogueBundle,
-) -> Result<ValidatedReviewCandidateFrames, AgentError> {
+) -> Result<SimulationFrames, AgentError> {
     response.validate_wire()?;
     validate_response_labels(context, response)?;
     let provisional_bundle = provisional_mechanism_bundle(context, response, catalogue)?;
@@ -639,14 +639,17 @@ fn compile_mechanism(
             error,
         )
     })?;
-    let derivation = validate_review_candidate(&expanded, catalogue).map_err(|error| {
+    let current = CurrentArtifactIdentity::from_expanded(&expanded).map_err(|error| {
+        AgentError::from_source(AgentErrorKind::KernelRejection, "mechanism identity", error)
+    })?;
+    let derivation = validate_provisional(&expanded, catalogue).map_err(|error| {
         AgentError::from_source(
             AgentErrorKind::KernelRejection,
             "mechanism validation",
             error,
         )
     })?;
-    project_validated_review_candidate_frames(&derivation).map_err(|error| {
+    generate_frames(&derivation, current).map_err(|error| {
         AgentError::from_source(AgentErrorKind::KernelRejection, "mechanism frames", error)
     })
 }
@@ -1572,22 +1575,22 @@ const fn representation_record(value: RepresentationKind) -> RepresentationRecor
 mod tests {
     use std::collections::VecDeque;
 
-    use chem_catalogue::TrustedCatalogue;
+    use chem_catalogue::ReferenceCatalogue;
     use serde_json::{Value, json};
 
     use super::*;
     use crate::{
         ClaimMode, CompiledClaimOutcome, FamilyMatchOutcome, ProviderClaim, ReactantInput,
         ReactionBuildRequest, compile_claim_outcome, match_reviewed_family,
-        reviewed_species_registry, test_support::trusted_catalogue as trusted,
+        reviewed_species_registry, test_support::reference_catalogue as reference,
     };
 
     fn static_outcome_for(
-        trusted: &TrustedCatalogue,
+        reference: &ReferenceCatalogue,
         reactants: [(&str, Vec<u8>); 2],
         products: &Value,
     ) -> ValidatedStaticOutcome {
-        let identities = reviewed_species_registry(trusted).expect("identities");
+        let identities = reviewed_species_registry(reference).expect("identities");
         let claim = json!({
             "schema_version": 1,
             "disposition": "reaction",
@@ -1622,12 +1625,12 @@ mod tests {
     }
 
     fn static_outcome_single(
-        trusted: &TrustedCatalogue,
+        reference: &ReferenceCatalogue,
         reactant: (&str, Vec<u8>),
         context: &str,
         products: &Value,
     ) -> ValidatedStaticOutcome {
-        let identities = reviewed_species_registry(trusted).expect("identities");
+        let identities = reviewed_species_registry(reference).expect("identities");
         let claim = json!({
             "schema_version": 1,
             "disposition": "reaction",
@@ -1659,17 +1662,17 @@ mod tests {
         outcome
     }
 
-    fn static_outcome(trusted: &TrustedCatalogue, products: &Value) -> ValidatedStaticOutcome {
+    fn static_outcome(reference: &ReferenceCatalogue, products: &Value) -> ValidatedStaticOutcome {
         static_outcome_for(
-            trusted,
+            reference,
             [("LithiumMetal", vec![3]), ("H2O", vec![1, 1, 8])],
             products,
         )
     }
 
-    fn lithium_hydroxide_outcome(trusted: &TrustedCatalogue) -> ValidatedStaticOutcome {
+    fn lithium_hydroxide_outcome(reference: &ReferenceCatalogue) -> ValidatedStaticOutcome {
         static_outcome(
-            trusted,
+            reference,
             &json!([
                 {"name":"lithium hydroxide","formula":"LiOH","phase":"aqueous","identity_hints":[]},
                 {"name":"hydrogen","formula":"H2","phase":"gas","identity_hints":[]}
@@ -1704,12 +1707,12 @@ mod tests {
 
     fn valid_response(
         outcome: &ValidatedStaticOutcome,
-        trusted: &TrustedCatalogue,
+        reference: &ReferenceCatalogue,
     ) -> MechanismEscalationResponse {
-        let context = compile_mechanism_request(outcome, trusted)
+        let context = compile_mechanism_request(outcome, reference)
             .expect("request")
             .expect("structural request");
-        let matched = match_reviewed_family(outcome, trusted).expect("family match");
+        let matched = match_reviewed_family(outcome, reference).expect("family match");
         let FamilyMatchOutcome::Matched(family) = matched else {
             panic!("reviewed family: {matched:?}")
         };
@@ -1861,10 +1864,10 @@ mod tests {
     /// derivation, so repair behaviour stays testable.
     fn provider_loop_result<P: MechanismProvider>(
         outcome: ValidatedStaticOutcome,
-        trusted: &TrustedCatalogue,
+        reference: &ReferenceCatalogue,
         provider: &mut P,
     ) -> MechanismEscalationOutcome {
-        let augmented = crate::structure::bundle_with_outcome_structures(&outcome, trusted)
+        let augmented = crate::structure::bundle_with_outcome_structures(&outcome, reference)
             .expect("augmented bundle");
         let context = compile_mechanism_request(&outcome, &augmented)
             .expect("request")
@@ -1874,14 +1877,14 @@ mod tests {
 
     #[test]
     fn reviewed_response_crosses_escalated_kernel_on_first_try() {
-        let trusted = trusted();
-        let outcome = lithium_hydroxide_outcome(&trusted);
-        let response = valid_response(&outcome, &trusted);
+        let reference = reference();
+        let outcome = lithium_hydroxide_outcome(&reference);
+        let response = valid_response(&outcome, &reference);
         let mut provider = FakeProvider {
             responses: VecDeque::from([response]),
             ..FakeProvider::default()
         };
-        let result = provider_loop_result(outcome, &trusted, &mut provider);
+        let result = provider_loop_result(outcome, &reference, &mut provider);
         let MechanismEscalationOutcome::Animated(animated) = result else {
             panic!("expected animation: {result:?}")
         };
@@ -1896,7 +1899,7 @@ mod tests {
 
     #[test]
     fn operational_provider_errors_do_not_consume_repair_attempts() {
-        let trusted = trusted();
+        let reference = reference();
         for kind in [
             AgentErrorKind::Cancelled,
             AgentErrorKind::TimedOut,
@@ -1910,14 +1913,14 @@ mod tests {
             AgentErrorKind::CompilationFailure,
             AgentErrorKind::InternalFailure,
         ] {
-            let outcome = lithium_hydroxide_outcome(&trusted);
+            let outcome = lithium_hydroxide_outcome(&reference);
             let mut provider = ErrorProvider {
                 kind,
                 calls: 0,
                 diagnostics: Vec::new(),
             };
 
-            let result = provider_loop_result(outcome, &trusted, &mut provider);
+            let result = provider_loop_result(outcome, &reference, &mut provider);
 
             assert_eq!(provider.calls, 1, "{kind:?}");
             assert_eq!(provider.diagnostics, [None], "{kind:?}");
@@ -1932,7 +1935,7 @@ mod tests {
 
     #[test]
     fn operational_structure_provider_errors_do_not_consume_repair_attempts() {
-        let trusted = trusted();
+        let reference = reference();
         for kind in [
             AgentErrorKind::Cancelled,
             AgentErrorKind::TimedOut,
@@ -1946,14 +1949,14 @@ mod tests {
             AgentErrorKind::CompilationFailure,
             AgentErrorKind::InternalFailure,
         ] {
-            let outcome = ether_outcome(&trusted);
+            let outcome = ether_outcome(&reference);
             let mut provider = ErrorProvider {
                 kind,
                 calls: 0,
                 diagnostics: Vec::new(),
             };
 
-            let result = derive_mechanism(outcome, &trusted, &mut provider);
+            let result = derive_mechanism(outcome, &reference, &mut provider);
 
             assert_eq!(provider.calls, 1, "{kind:?}");
             assert_eq!(provider.diagnostics, [None], "{kind:?}");
@@ -1968,9 +1971,9 @@ mod tests {
 
     #[test]
     fn invalid_provider_output_error_is_repaired_with_its_diagnostic() {
-        let trusted = trusted();
-        let outcome = lithium_hydroxide_outcome(&trusted);
-        let valid = valid_response(&outcome, &trusted);
+        let reference = reference();
+        let outcome = lithium_hydroxide_outcome(&reference);
+        let valid = valid_response(&outcome, &reference);
         let mut provider = ErrorThenResponseProvider {
             error: Some(AgentError::new(
                 AgentErrorKind::InvalidProviderOutput,
@@ -1981,7 +1984,7 @@ mod tests {
             diagnostics: Vec::new(),
         };
 
-        let result = provider_loop_result(outcome, &trusted, &mut provider);
+        let result = provider_loop_result(outcome, &reference, &mut provider);
 
         let MechanismEscalationOutcome::Animated(animated) = result else {
             panic!("expected repaired animation: {result:?}")
@@ -1997,16 +2000,16 @@ mod tests {
 
     #[test]
     fn invalid_operation_is_repaired_without_changing_the_request() {
-        let trusted = trusted();
-        let outcome = lithium_hydroxide_outcome(&trusted);
-        let valid = valid_response(&outcome, &trusted);
+        let reference = reference();
+        let outcome = lithium_hydroxide_outcome(&reference);
+        let valid = valid_response(&outcome, &reference);
         let mut invalid = valid.clone();
         invalid.mapping[0].reactant = "reactant99[1].unknown".into();
         let mut provider = FakeProvider {
             responses: VecDeque::from([invalid, valid]),
             ..FakeProvider::default()
         };
-        let result = provider_loop_result(outcome, &trusted, &mut provider);
+        let result = provider_loop_result(outcome, &reference, &mut provider);
         let MechanismEscalationOutcome::Animated(animated) = result else {
             panic!("expected repaired animation: {result:?}")
         };
@@ -2022,9 +2025,9 @@ mod tests {
 
     #[test]
     fn typed_provider_response_still_crosses_mechanism_wire_validation() {
-        let trusted = trusted();
-        let outcome = lithium_hydroxide_outcome(&trusted);
-        let valid = valid_response(&outcome, &trusted);
+        let reference = reference();
+        let outcome = lithium_hydroxide_outcome(&reference);
+        let valid = valid_response(&outcome, &reference);
         let mut outside_wire_contract = valid.clone();
         outside_wire_contract.mapping[0].reactant = "x".repeat(161);
         let mut provider = FakeProvider {
@@ -2032,7 +2035,7 @@ mod tests {
             ..FakeProvider::default()
         };
 
-        let result = provider_loop_result(outcome, &trusted, &mut provider);
+        let result = provider_loop_result(outcome, &reference, &mut provider);
 
         let MechanismEscalationOutcome::Animated(animated) = result else {
             panic!("expected repaired animation: {result:?}")
@@ -2050,9 +2053,9 @@ mod tests {
 
     #[test]
     fn kernel_rejection_is_repaired_with_its_diagnostic() {
-        let trusted = trusted();
-        let outcome = lithium_hydroxide_outcome(&trusted);
-        let valid = valid_response(&outcome, &trusted);
+        let reference = reference();
+        let outcome = lithium_hydroxide_outcome(&reference);
+        let valid = valid_response(&outcome, &reference);
         let mut invalid = valid.clone();
         let cleave = invalid
             .operations
@@ -2068,7 +2071,7 @@ mod tests {
             ..FakeProvider::default()
         };
 
-        let result = provider_loop_result(outcome, &trusted, &mut provider);
+        let result = provider_loop_result(outcome, &reference, &mut provider);
 
         let MechanismEscalationOutcome::Animated(animated) = result else {
             panic!("expected repaired animation: {result:?}")
@@ -2087,15 +2090,15 @@ mod tests {
 
     #[test]
     fn exhausted_escalation_retains_static_outcome_and_retry() {
-        let trusted = trusted();
-        let outcome = lithium_hydroxide_outcome(&trusted);
-        let mut invalid = valid_response(&outcome, &trusted);
+        let reference = reference();
+        let outcome = lithium_hydroxide_outcome(&reference);
+        let mut invalid = valid_response(&outcome, &reference);
         invalid.mapping[0].product = "product99[1].unknown".into();
         let mut provider = FakeProvider {
             responses: VecDeque::from([invalid.clone(), invalid.clone(), invalid]),
             ..FakeProvider::default()
         };
-        let result = provider_loop_result(outcome, &trusted, &mut provider);
+        let result = provider_loop_result(outcome, &reference, &mut provider);
         let MechanismEscalationOutcome::Unavailable {
             static_outcome,
             attempts,
@@ -2113,16 +2116,16 @@ mod tests {
 
     #[test]
     fn ionic_synthesis_animates_algorithmically_without_any_model() {
-        let trusted = trusted();
+        let reference = reference();
         let outcome = static_outcome_for(
-            &trusted,
+            &reference,
             [("Na", vec![11]), ("ElementalChlorine", vec![17, 17])],
             &json!([
                 {"name":"sodium chloride","formula":"NaCl","phase":"solid","identity_hints":[]}
             ]),
         );
         let mut provider = MechanismOnlyProvider::default();
-        let result = derive_mechanism(outcome, &trusted, &mut provider);
+        let result = derive_mechanism(outcome, &reference, &mut provider);
         let MechanismEscalationOutcome::Animated(animated) = result else {
             panic!("expected algorithmic animation: {result:?}")
         };
@@ -2132,9 +2135,9 @@ mod tests {
 
     #[test]
     fn neutralization_animates_algorithmically_without_any_model() {
-        let trusted = trusted();
+        let reference = reference();
         let outcome = static_outcome_for(
-            &trusted,
+            &reference,
             [
                 ("H2SO4", vec![1, 1, 16, 8, 8, 8, 8]),
                 ("NaOH", vec![11, 8, 1]),
@@ -2145,7 +2148,7 @@ mod tests {
             ]),
         );
         let mut provider = MechanismOnlyProvider::default();
-        let result = derive_mechanism(outcome, &trusted, &mut provider);
+        let result = derive_mechanism(outcome, &reference, &mut provider);
         let MechanismEscalationOutcome::Animated(animated) = result else {
             panic!("expected algorithmic animation: {result:?}")
         };
@@ -2156,11 +2159,11 @@ mod tests {
     /// The derived mechanism for the given outcome, straight from the
     /// algorithmic deriver.
     fn derived_response(
-        trusted: &TrustedCatalogue,
+        reference: &ReferenceCatalogue,
         outcome: &ValidatedStaticOutcome,
     ) -> crate::MechanismEscalationResponse {
         let augmented =
-            crate::structure::bundle_with_outcome_structures(outcome, trusted).expect("bundle");
+            crate::structure::bundle_with_outcome_structures(outcome, reference).expect("bundle");
         let context = compile_mechanism_request(outcome, &augmented)
             .expect("request")
             .expect("structures");
@@ -2169,9 +2172,9 @@ mod tests {
 
     #[test]
     fn neutralization_mapping_keeps_the_sulfate_intact() {
-        let trusted = trusted();
+        let reference = reference();
         let outcome = static_outcome_for(
-            &trusted,
+            &reference,
             [
                 ("H2SO4", vec![1, 1, 16, 8, 8, 8, 8]),
                 ("NaOH", vec![11, 8, 1]),
@@ -2181,7 +2184,7 @@ mod tests {
                 {"name":"sodium sulfate","formula":"Na2SO4","phase":"aqueous","identity_hints":[]}
             ]),
         );
-        let response = derived_response(&trusted, &outcome);
+        let response = derived_response(&reference, &outcome);
         let cleaves = response
             .operations
             .iter()
@@ -2215,16 +2218,16 @@ mod tests {
 
     #[test]
     fn sodium_and_water_mapping_never_swaps_hydrogens_between_copies() {
-        let trusted = trusted();
+        let reference = reference();
         let outcome = static_outcome_for(
-            &trusted,
+            &reference,
             [("Na", vec![11]), ("Water", vec![1, 1, 8])],
             &json!([
                 {"name":"sodium hydroxide","formula":"NaOH","phase":"aqueous","identity_hints":[]},
                 {"name":"Hydrogen","formula":"H2","phase":"gas","identity_hints":[]}
             ]),
         );
-        let response = derived_response(&trusted, &outcome);
+        let response = derived_response(&reference, &outcome);
         // Each product hydroxide keeps its O-H pair from a single water
         // copy — hydrogens never swap between waters. (The H2 molecule is
         // exempt: it genuinely combines hydrogens from two waters.)
@@ -2259,16 +2262,16 @@ mod tests {
 
     #[test]
     fn lithium_arsenide_animates_algorithmically_without_any_model() {
-        let trusted = trusted();
+        let reference = reference();
         let outcome = static_outcome_for(
-            &trusted,
+            &reference,
             [("Li", vec![3]), ("As4", vec![33, 33, 33, 33])],
             &json!([
                 {"name":"lithium arsenide","formula":"Li3As","phase":"solid","identity_hints":[]}
             ]),
         );
         let mut provider = MechanismOnlyProvider::default();
-        let result = derive_mechanism(outcome, &trusted, &mut provider);
+        let result = derive_mechanism(outcome, &reference, &mut provider);
         let MechanismEscalationOutcome::Animated(animated) = result else {
             panic!("expected algorithmic animation: {result:?}")
         };
@@ -2278,9 +2281,9 @@ mod tests {
 
     #[test]
     fn acid_carbonate_animates_algorithmically_without_any_model() {
-        let trusted = trusted();
+        let reference = reference();
         let outcome = static_outcome_for(
-            &trusted,
+            &reference,
             [("HCl", vec![1, 17]), ("Na2CO3", vec![11, 11, 6, 8, 8, 8])],
             &json!([
                 {"name":"Water","formula":"H2O","phase":"liquid","identity_hints":[]},
@@ -2289,7 +2292,7 @@ mod tests {
             ]),
         );
         let mut provider = MechanismOnlyProvider::default();
-        let result = derive_mechanism(outcome, &trusted, &mut provider);
+        let result = derive_mechanism(outcome, &reference, &mut provider);
         let MechanismEscalationOutcome::Animated(animated) = result else {
             panic!("expected algorithmic animation: {result:?}")
         };
@@ -2299,9 +2302,9 @@ mod tests {
 
     #[test]
     fn acid_metal_animates_algorithmically_without_any_model() {
-        let trusted = trusted();
+        let reference = reference();
         let outcome = static_outcome_for(
-            &trusted,
+            &reference,
             [("Zn", vec![30]), ("HCl", vec![1, 17])],
             &json!([
                 {"name":"zinc chloride","formula":"ZnCl2","phase":"aqueous","identity_hints":[]},
@@ -2309,7 +2312,7 @@ mod tests {
             ]),
         );
         let mut provider = MechanismOnlyProvider::default();
-        let result = derive_mechanism(outcome, &trusted, &mut provider);
+        let result = derive_mechanism(outcome, &reference, &mut provider);
         let MechanismEscalationOutcome::Animated(animated) = result else {
             panic!("expected algorithmic animation: {result:?}")
         };
@@ -2319,9 +2322,9 @@ mod tests {
 
     #[test]
     fn displacement_animates_algorithmically_without_any_model() {
-        let trusted = trusted();
+        let reference = reference();
         let outcome = static_outcome_for(
-            &trusted,
+            &reference,
             [("Zn", vec![30]), ("CuSO4", vec![29, 16, 8, 8, 8, 8])],
             &json!([
                 {"name":"zinc sulfate","formula":"ZnSO4","phase":"aqueous","identity_hints":[]},
@@ -2329,7 +2332,7 @@ mod tests {
             ]),
         );
         let mut provider = MechanismOnlyProvider::default();
-        let result = derive_mechanism(outcome, &trusted, &mut provider);
+        let result = derive_mechanism(outcome, &reference, &mut provider);
         let MechanismEscalationOutcome::Animated(animated) = result else {
             panic!("expected algorithmic animation: {result:?}")
         };
@@ -2339,9 +2342,9 @@ mod tests {
 
     #[test]
     fn metal_oxide_neutralization_animates_without_any_model() {
-        let trusted = trusted();
+        let reference = reference();
         let outcome = static_outcome_for(
-            &trusted,
+            &reference,
             [("CuO", vec![29, 8]), ("H2SO4", vec![1, 1, 16, 8, 8, 8, 8])],
             &json!([
                 {"name":"Water","formula":"H2O","phase":"liquid","identity_hints":[]},
@@ -2349,7 +2352,7 @@ mod tests {
             ]),
         );
         let mut provider = MechanismOnlyProvider::default();
-        let result = derive_mechanism(outcome, &trusted, &mut provider);
+        let result = derive_mechanism(outcome, &reference, &mut provider);
         let MechanismEscalationOutcome::Animated(animated) = result else {
             panic!("expected algorithmic animation: {result:?}")
         };
@@ -2359,16 +2362,16 @@ mod tests {
 
     #[test]
     fn quicklime_slaking_animates_without_any_model() {
-        let trusted = trusted();
+        let reference = reference();
         let outcome = static_outcome_for(
-            &trusted,
+            &reference,
             [("CaO", vec![20, 8]), ("Water", vec![1, 1, 8])],
             &json!([
                 {"name":"calcium hydroxide","formula":"Ca(OH)2","phase":"unknown","identity_hints":[]}
             ]),
         );
         let mut provider = MechanismOnlyProvider::default();
-        let result = derive_mechanism(outcome, &trusted, &mut provider);
+        let result = derive_mechanism(outcome, &reference, &mut provider);
         let MechanismEscalationOutcome::Animated(animated) = result else {
             panic!("expected algorithmic animation: {result:?}")
         };
@@ -2378,9 +2381,9 @@ mod tests {
 
     #[test]
     fn sodium_and_water_animate_without_any_model() {
-        let trusted = trusted();
+        let reference = reference();
         let outcome = static_outcome_for(
-            &trusted,
+            &reference,
             [("Na", vec![11]), ("Water", vec![1, 1, 8])],
             &json!([
                 {"name":"sodium hydroxide","formula":"NaOH","phase":"aqueous","identity_hints":[]},
@@ -2388,7 +2391,7 @@ mod tests {
             ]),
         );
         let mut provider = MechanismOnlyProvider::default();
-        let result = derive_mechanism(outcome, &trusted, &mut provider);
+        let result = derive_mechanism(outcome, &reference, &mut provider);
         let MechanismEscalationOutcome::Animated(animated) = result else {
             panic!("expected algorithmic animation: {result:?}")
         };
@@ -2398,9 +2401,9 @@ mod tests {
 
     #[test]
     fn halogen_displacement_animates_without_any_model() {
-        let trusted = trusted();
+        let reference = reference();
         let outcome = static_outcome_for(
-            &trusted,
+            &reference,
             [
                 ("ElementalChlorine", vec![17, 17]),
                 ("PotassiumBromide", vec![19, 35]),
@@ -2411,7 +2414,7 @@ mod tests {
             ]),
         );
         let mut provider = MechanismOnlyProvider::default();
-        let result = derive_mechanism(outcome, &trusted, &mut provider);
+        let result = derive_mechanism(outcome, &reference, &mut provider);
         let MechanismEscalationOutcome::Animated(animated) = result else {
             panic!("expected algorithmic animation: {result:?}")
         };
@@ -2421,9 +2424,9 @@ mod tests {
 
     #[test]
     fn precipitation_animates_algorithmically_without_any_model() {
-        let trusted = trusted();
+        let reference = reference();
         let outcome = static_outcome_for(
-            &trusted,
+            &reference,
             [
                 ("AgNO3", vec![47, 7, 8, 8, 8]),
                 ("sodium chloride", vec![11, 17]),
@@ -2434,7 +2437,7 @@ mod tests {
             ]),
         );
         let mut provider = MechanismOnlyProvider::default();
-        let result = derive_mechanism(outcome, &trusted, &mut provider);
+        let result = derive_mechanism(outcome, &reference, &mut provider);
         let MechanismEscalationOutcome::Animated(animated) = result else {
             panic!("expected algorithmic animation: {result:?}")
         };
@@ -2444,9 +2447,9 @@ mod tests {
 
     #[test]
     fn methane_combustion_animates_algorithmically_without_any_model() {
-        let trusted = trusted();
+        let reference = reference();
         let outcome = static_outcome_for(
-            &trusted,
+            &reference,
             [("CH4", vec![6, 1, 1, 1, 1]), ("O2", vec![8, 8])],
             &json!([
                 {"name":"carbon dioxide","formula":"CO2","phase":"gas","identity_hints":[]},
@@ -2454,7 +2457,7 @@ mod tests {
             ]),
         );
         let mut provider = MechanismOnlyProvider::default();
-        let result = derive_mechanism(outcome, &trusted, &mut provider);
+        let result = derive_mechanism(outcome, &reference, &mut provider);
         let MechanismEscalationOutcome::Animated(animated) = result else {
             panic!("expected algorithmic animation: {result:?}")
         };
@@ -2464,9 +2467,9 @@ mod tests {
 
     #[test]
     fn carbonate_decomposition_animates_algorithmically_without_any_model() {
-        let trusted = trusted();
+        let reference = reference();
         let outcome = static_outcome_single(
-            &trusted,
+            &reference,
             ("CaCO3", vec![20, 6, 8, 8, 8]),
             "heat",
             &json!([
@@ -2475,7 +2478,7 @@ mod tests {
             ]),
         );
         let mut provider = MechanismOnlyProvider::default();
-        let result = derive_mechanism(outcome, &trusted, &mut provider);
+        let result = derive_mechanism(outcome, &reference, &mut provider);
         let MechanismEscalationOutcome::Animated(animated) = result else {
             panic!("expected algorithmic animation: {result:?}")
         };
@@ -2485,9 +2488,9 @@ mod tests {
 
     #[test]
     fn saltpetre_decomposition_animates_without_any_model() {
-        let trusted = trusted();
+        let reference = reference();
         let outcome = static_outcome_single(
-            &trusted,
+            &reference,
             ("KNO3", vec![19, 7, 8, 8, 8]),
             "heat",
             &json!([
@@ -2496,7 +2499,7 @@ mod tests {
             ]),
         );
         let mut provider = MechanismOnlyProvider::default();
-        let result = derive_mechanism(outcome, &trusted, &mut provider);
+        let result = derive_mechanism(outcome, &reference, &mut provider);
         let MechanismEscalationOutcome::Animated(animated) = result else {
             panic!("expected algorithmic animation: {result:?}")
         };
@@ -2506,9 +2509,9 @@ mod tests {
 
     #[test]
     fn silver_chloride_photolysis_animates_without_any_model() {
-        let trusted = trusted();
+        let reference = reference();
         let outcome = static_outcome_single(
-            &trusted,
+            &reference,
             ("AgCl", vec![47, 17]),
             "light",
             &json!([
@@ -2517,7 +2520,7 @@ mod tests {
             ]),
         );
         let mut provider = MechanismOnlyProvider::default();
-        let result = derive_mechanism(outcome, &trusted, &mut provider);
+        let result = derive_mechanism(outcome, &reference, &mut provider);
         let MechanismEscalationOutcome::Animated(animated) = result else {
             panic!("expected algorithmic animation: {result:?}")
         };
@@ -2527,9 +2530,9 @@ mod tests {
 
     #[test]
     fn water_electrolysis_animates_algorithmically_without_any_model() {
-        let trusted = trusted();
+        let reference = reference();
         let outcome = static_outcome_single(
-            &trusted,
+            &reference,
             ("H2O", vec![1, 1, 8]),
             "electricity",
             &json!([
@@ -2538,7 +2541,7 @@ mod tests {
             ]),
         );
         let mut provider = MechanismOnlyProvider::default();
-        let result = derive_mechanism(outcome, &trusted, &mut provider);
+        let result = derive_mechanism(outcome, &reference, &mut provider);
         let MechanismEscalationOutcome::Animated(animated) = result else {
             panic!("expected algorithmic animation: {result:?}")
         };
@@ -2548,13 +2551,14 @@ mod tests {
 
     #[test]
     fn ionic_aqueous_electrolysis_builds_complete_algorithmic_frames() {
-        let trusted = trusted();
+        let reference = reference();
         let identities = chem_domain::SpeciesRegistry::default();
         for (formula, atomic_numbers) in [
             ("NaCl", vec![11, 17]),
             ("CuCl2", vec![29, 17, 17]),
             ("CuSO4", vec![29, 16, 8, 8, 8, 8]),
             ("Na2SO4", vec![11, 11, 16, 8, 8, 8, 8]),
+            ("NaOH", vec![11, 8, 1]),
         ] {
             let request = ReactionBuildRequest {
                 reactants: vec![ReactantInput {
@@ -2573,7 +2577,7 @@ mod tests {
             };
             assert!(outcome.species_without_structure().is_empty(), "{formula}");
             let mut provider = MechanismOnlyProvider::default();
-            let result = derive_mechanism(outcome, &trusted, &mut provider);
+            let result = derive_mechanism(outcome, &reference, &mut provider);
             let MechanismEscalationOutcome::Animated(animated) = result else {
                 panic!("expected algorithmic animation for {formula}: {result:?}")
             };
@@ -2586,10 +2590,10 @@ mod tests {
     fn formula_only_product_escalates_structures_and_stays_retryable() {
         // C3H8O is deliberately ambiguous (1-propanol vs 2-propanol), so the
         // structure generator declines and model escalation stays necessary.
-        let trusted = trusted();
-        let outcome = ether_outcome(&trusted);
+        let reference = reference();
+        let outcome = ether_outcome(&reference);
         let mut provider = MechanismOnlyProvider::default();
-        let result = derive_mechanism(outcome, &trusted, &mut provider);
+        let result = derive_mechanism(outcome, &reference, &mut provider);
         let MechanismEscalationOutcome::Failed(error) = result else {
             panic!("expected typed capability failure: {result:?}")
         };
@@ -2609,9 +2613,9 @@ mod tests {
     #[test]
     fn one_structure_request_covers_missing_reactants_and_products() {
         // Both sides use ambiguous inventories the generator declines.
-        let trusted = trusted();
+        let reference = reference();
         let outcome = static_outcome_for(
-            &trusted,
+            &reference,
             [
                 ("C3H8O", vec![6, 6, 6, 8, 1, 1, 1, 1, 1, 1, 1, 1]),
                 ("O2", vec![8, 8]),
@@ -2620,7 +2624,7 @@ mod tests {
                 {"name":"propane diol","formula":"C3H8O2","phase":"liquid","identity_hints":[]}
             ]),
         );
-        let request = structure_proposal_request(&outcome, &trusted)
+        let request = structure_proposal_request(&outcome, &reference)
             .expect("both missing sides share one request");
         assert_eq!(
             request
@@ -2632,9 +2636,11 @@ mod tests {
         );
     }
 
-    fn missing_reactant_and_product_outcome(trusted: &TrustedCatalogue) -> ValidatedStaticOutcome {
+    fn missing_reactant_and_product_outcome(
+        reference: &ReferenceCatalogue,
+    ) -> ValidatedStaticOutcome {
         static_outcome_for(
-            trusted,
+            reference,
             [
                 ("C3H8O", vec![6, 6, 6, 8, 1, 1, 1, 1, 1, 1, 1, 1]),
                 ("O2", vec![8, 8]),
@@ -2663,9 +2669,9 @@ mod tests {
 
     #[test]
     fn structure_adoption_rejects_same_count_cross_side_request() {
-        let trusted = trusted();
-        let outcome = missing_reactant_and_product_outcome(&trusted);
-        let mut request = structure_proposal_request(&outcome, &trusted)
+        let reference = reference();
+        let outcome = missing_reactant_and_product_outcome(&reference);
+        let mut request = structure_proposal_request(&outcome, &reference)
             .expect("reactant and product structure request");
         let first_name = request.species[0].name.clone();
         let first_formula = request.species[0].formula.clone();
@@ -2675,7 +2681,7 @@ mod tests {
         request.species[1].formula = first_formula;
 
         let error =
-            adopt_proposed_structures(&outcome, &request, &empty_structure_response(), &trusted)
+            adopt_proposed_structures(&outcome, &request, &empty_structure_response(), &reference)
                 .expect_err("a product request must not occupy the reactant position");
 
         assert_request_binding_error(&error);
@@ -2683,14 +2689,14 @@ mod tests {
 
     #[test]
     fn structure_adoption_rejects_same_count_reordered_request() {
-        let trusted = trusted();
-        let outcome = missing_reactant_and_product_outcome(&trusted);
-        let mut request = structure_proposal_request(&outcome, &trusted)
+        let reference = reference();
+        let outcome = missing_reactant_and_product_outcome(&reference);
+        let mut request = structure_proposal_request(&outcome, &reference)
             .expect("reactant and product structure request");
         request.species.swap(0, 1);
 
         let error =
-            adopt_proposed_structures(&outcome, &request, &empty_structure_response(), &trusted)
+            adopt_proposed_structures(&outcome, &request, &empty_structure_response(), &reference)
                 .expect_err("request order must retain its outcome binding");
 
         assert_request_binding_error(&error);
@@ -2699,9 +2705,9 @@ mod tests {
     /// Ethylene + methanol: the product C3H8O is structurally ambiguous
     /// (1-propanol vs 2-propanol tie), so the generator declines and the
     /// model escalation path stays exercised.
-    fn ether_outcome(trusted: &TrustedCatalogue) -> ValidatedStaticOutcome {
+    fn ether_outcome(reference: &ReferenceCatalogue) -> ValidatedStaticOutcome {
         static_outcome_for(
-            trusted,
+            reference,
             [
                 ("C2H4", vec![6, 6, 1, 1, 1, 1]),
                 ("CH4O", vec![6, 8, 1, 1, 1, 1]),
@@ -2757,10 +2763,10 @@ mod tests {
 
     #[test]
     fn structure_adoption_rejects_same_count_wrong_request_id() {
-        let trusted = trusted();
-        let outcome = ether_outcome(&trusted);
+        let reference = reference();
+        let outcome = ether_outcome(&reference);
         let mut request =
-            structure_proposal_request(&outcome, &trusted).expect("ether structure request");
+            structure_proposal_request(&outcome, &reference).expect("ether structure request");
         request.species[0].id = "SubstitutedStructure1".to_owned();
         let mut response = ether_structure();
         let LabelledStructure::Molecular { id, .. } = &mut response.structures[0] else {
@@ -2768,7 +2774,7 @@ mod tests {
         };
         id.clone_from(&request.species[0].id);
 
-        let error = adopt_proposed_structures(&outcome, &request, &response, &trusted)
+        let error = adopt_proposed_structures(&outcome, &request, &response, &reference)
             .expect_err("a substituted request id must not bind to the outcome");
 
         assert_request_binding_error(&error);
@@ -2776,13 +2782,13 @@ mod tests {
 
     #[test]
     fn structure_adoption_rejects_same_count_wrong_request_name() {
-        let trusted = trusted();
-        let outcome = ether_outcome(&trusted);
+        let reference = reference();
+        let outcome = ether_outcome(&reference);
         let mut request =
-            structure_proposal_request(&outcome, &trusted).expect("ether structure request");
+            structure_proposal_request(&outcome, &reference).expect("ether structure request");
         request.species[0].name = "substituted product".to_owned();
 
-        let error = adopt_proposed_structures(&outcome, &request, &ether_structure(), &trusted)
+        let error = adopt_proposed_structures(&outcome, &request, &ether_structure(), &reference)
             .expect_err("a substituted request name must not bind to the outcome");
 
         assert_request_binding_error(&error);
@@ -2790,10 +2796,10 @@ mod tests {
 
     #[test]
     fn structure_adoption_rejects_same_count_wrong_request_formula() {
-        let trusted = trusted();
-        let outcome = ether_outcome(&trusted);
+        let reference = reference();
+        let outcome = ether_outcome(&reference);
         let mut request =
-            structure_proposal_request(&outcome, &trusted).expect("ether structure request");
+            structure_proposal_request(&outcome, &reference).expect("ether structure request");
         request.species[0].formula = "H8C3O".to_owned();
         let mut response = ether_structure();
         let LabelledStructure::Molecular { formula, .. } = &mut response.structures[0] else {
@@ -2801,7 +2807,7 @@ mod tests {
         };
         formula.clone_from(&request.species[0].formula);
 
-        let error = adopt_proposed_structures(&outcome, &request, &response, &trusted)
+        let error = adopt_proposed_structures(&outcome, &request, &response, &reference)
             .expect_err("a substituted request formula must not bind to the outcome");
 
         assert_request_binding_error(&error);
@@ -2809,11 +2815,11 @@ mod tests {
 
     #[test]
     fn chemspec_derives_provisional_operation_states_from_reviewed_neutral_valence() {
-        let trusted = trusted();
-        let outcome = ether_outcome(&trusted);
+        let reference = reference();
+        let outcome = ether_outcome(&reference);
         let request =
-            structure_proposal_request(&outcome, &trusted).expect("ether structure request");
-        let adopted = adopt_proposed_structures(&outcome, &request, &ether_structure(), &trusted)
+            structure_proposal_request(&outcome, &reference).expect("ether structure request");
+        let adopted = adopt_proposed_structures(&outcome, &request, &ether_structure(), &reference)
             .expect("ether structure validates");
         let context = compile_mechanism_request(&adopted.outcome, &adopted.bundle)
             .expect("mechanism request")
@@ -2851,11 +2857,11 @@ mod tests {
 
     #[test]
     fn impossible_provisional_operation_state_fails_with_identity_diagnostic() {
-        let trusted = trusted();
-        let outcome = ether_outcome(&trusted);
+        let reference = reference();
+        let outcome = ether_outcome(&reference);
         let request =
-            structure_proposal_request(&outcome, &trusted).expect("ether structure request");
-        let adopted = adopt_proposed_structures(&outcome, &request, &ether_structure(), &trusted)
+            structure_proposal_request(&outcome, &reference).expect("ether structure request");
+        let adopted = adopt_proposed_structures(&outcome, &request, &ether_structure(), &reference)
             .expect("ether structure validates");
         let context = compile_mechanism_request(&adopted.outcome, &adopted.bundle)
             .expect("mechanism request")
@@ -3004,8 +3010,8 @@ mod tests {
 
     #[test]
     fn proposed_structure_unlocks_full_escalated_animation() {
-        let trusted = trusted();
-        let outcome = ether_outcome(&trusted);
+        let reference = reference();
+        let outcome = ether_outcome(&reference);
         assert!(
             !outcome.products_without_structure().is_empty(),
             "test premise: ambiguous C3H8O must stay ungenerated and uncatalogued"
@@ -3013,8 +3019,8 @@ mod tests {
 
         let structures = ether_structure();
         let request =
-            crate::structure_proposal_request(&outcome, &trusted).expect("structure request");
-        let adopted = crate::adopt_proposed_structures(&outcome, &request, &structures, &trusted)
+            crate::structure_proposal_request(&outcome, &reference).expect("structure request");
+        let adopted = crate::adopt_proposed_structures(&outcome, &request, &structures, &reference)
             .expect("proposed structure crosses catalogue validation");
         assert!(adopted.outcome.products_without_structure().is_empty());
         assert!(
@@ -3041,7 +3047,7 @@ mod tests {
             diagnostics: Vec::new(),
             structure_diagnostics: Vec::new(),
         };
-        let result = derive_mechanism(outcome.clone(), &trusted, &mut provider);
+        let result = derive_mechanism(outcome.clone(), &reference, &mut provider);
         let MechanismEscalationOutcome::Animated(animated) = result else {
             panic!(
                 "expected escalated animation: mech {:?} struct {:?} result {result:?}",
@@ -3052,8 +3058,8 @@ mod tests {
         assert_eq!(animated.structure_repair_count(), 0);
         assert_eq!(animated.total_repair_count(), 0);
         assert_eq!(
-            animated.frames().trust(),
-            chem_kernel::DerivationTrust::ReviewCandidate
+            animated.frames().provenance(),
+            chem_kernel::DerivationProvenance::Provisional
         );
         assert!(
             animated
@@ -3076,7 +3082,7 @@ mod tests {
             outcome,
             Some(&structures),
             &mechanism,
-            &trusted,
+            &reference,
         )
         .expect("cached escalation with structures revalidates");
         assert!(!replayed.frames().frames().is_empty());
@@ -3084,12 +3090,12 @@ mod tests {
 
     #[test]
     fn typed_provider_response_still_crosses_structure_wire_validation() {
-        let trusted = trusted();
-        let outcome = ether_outcome(&trusted);
+        let reference = reference();
+        let outcome = ether_outcome(&reference);
         let structures = ether_structure();
         let request =
-            crate::structure_proposal_request(&outcome, &trusted).expect("structure request");
-        let adopted = crate::adopt_proposed_structures(&outcome, &request, &structures, &trusted)
+            crate::structure_proposal_request(&outcome, &reference).expect("structure request");
+        let adopted = crate::adopt_proposed_structures(&outcome, &request, &structures, &reference)
             .expect("valid proposal");
         let mechanism = ether_mechanism(&adopted);
         let mut outside_wire_contract = structures.clone();
@@ -3104,7 +3110,7 @@ mod tests {
             ..FakeProvider::default()
         };
 
-        let result = derive_mechanism(outcome, &trusted, &mut provider);
+        let result = derive_mechanism(outcome, &reference, &mut provider);
 
         let MechanismEscalationOutcome::Animated(animated) = result else {
             panic!("expected repaired animation: {result:?}")

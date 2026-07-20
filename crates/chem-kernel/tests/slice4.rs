@@ -3,8 +3,8 @@ use std::{collections::BTreeSet, fs, path::PathBuf};
 use chem_catalogue::ValidatedCatalogueBundle;
 use chem_domain::{StructuralOperationView, canonical_json};
 use chem_kernel::{
-    CatalogueTrust, EvidenceTrust, ExpansionFailureClass, ValidatedEvidencePacket,
-    expand_review_candidate,
+    CatalogueProvenance, EvidenceProvenance, ExpansionFailureClass, ValidatedEvidencePacket,
+    expand_provisional,
 };
 use serde_json::Value;
 
@@ -23,7 +23,7 @@ fn canonical_expansion() -> chem_kernel::ExpandedStructuralReaction {
         "conformance/catalogue/lithium-rule-001.catalogue.json",
     ))
     .unwrap();
-    expand_review_candidate(
+    expand_provisional(
         "conformance/expansion/canonical-expansion-001.chems",
         source,
         &catalogue,
@@ -54,8 +54,8 @@ fn evidence() -> Vec<u8> {
 fn canonical_source_expands_without_executing_operations() {
     let expanded = canonical_expansion();
     assert_eq!(
-        expanded.claim().catalogue().trust,
-        CatalogueTrust::ReviewCandidate
+        expanded.claim().catalogue().provenance,
+        CatalogueProvenance::Provisional
     );
     assert_eq!(expanded.reactant_instances().len(), 4);
     assert_eq!(expanded.product_instances().len(), 3);
@@ -281,9 +281,8 @@ fn equivalent_declaration_order_has_identical_semantic_hir() {
             "      gasProduct := hydrogen\n      hydroxide := lithiumHydroxide\n      water := water\n      metal := lithium",
         );
     let catalogue = catalogue();
-    let first = expand_review_candidate("first.chems", &original, &catalogue, &evidence()).unwrap();
-    let second =
-        expand_review_candidate("second.chems", &reordered, &catalogue, &evidence()).unwrap();
+    let first = expand_provisional("first.chems", &original, &catalogue, &evidence()).unwrap();
+    let second = expand_provisional("second.chems", &reordered, &catalogue, &evidence()).unwrap();
     assert_ne!(
         first.claim().source().bytes_digest,
         second.claim().source().bytes_digest
@@ -348,8 +347,8 @@ fn assert_operation_premises(expanded: &chem_kernel::ExpandedStructuralReaction)
 fn every_derived_value_retains_source_catalogue_and_evidence_provenance() {
     let expanded = canonical_expansion();
     assert_eq!(
-        expanded.claim().evidence().trust,
-        EvidenceTrust::ExternalUntrusted
+        expanded.claim().evidence().provenance,
+        EvidenceProvenance::External
     );
     for binding in expanded
         .claim()
@@ -482,14 +481,13 @@ fn evidence_packet_is_order_canonical_duplicate_strict_and_digest_sensitive() {
 fn invalid_unsupported_and_corrupt_boundaries_remain_distinct() {
     let catalogue = catalogue();
     let invalid_equation = canonical_source().replacen("2 H2O[molecular]", "3 H2O[molecular]", 1);
-    let invalid =
-        expand_review_candidate("invalid.chems", &invalid_equation, &catalogue, &evidence())
-            .unwrap_err();
+    let invalid = expand_provisional("invalid.chems", &invalid_equation, &catalogue, &evidence())
+        .unwrap_err();
     assert_eq!(invalid.class(), ExpansionFailureClass::InvalidSource);
     assert_eq!(invalid.code(), "CHEMS-X005");
 
     let unsupported_source = canonical_source().replacen("of Water", "of UnknownWater", 1);
-    let unsupported = expand_review_candidate(
+    let unsupported = expand_provisional(
         "unsupported.chems",
         &unsupported_source,
         &catalogue,
@@ -511,7 +509,7 @@ fn invalid_unsupported_and_corrupt_boundaries_remain_distinct() {
     assert!(
         ValidatedCatalogueBundle::from_json(&serde_json::to_vec(&corrupt_catalogue).unwrap())
             .is_err(),
-        "corrupt trusted data must fail before the elaborator can receive it"
+        "corrupt reference data must fail before the elaborator can receive it"
     );
 }
 
@@ -520,7 +518,7 @@ fn formula_overflow_is_reported_at_the_equation_term() {
     let overflowing_term = "2 H18446744073709551616[molecular]";
     let source = canonical_source().replacen("2 H2O[molecular]", overflowing_term, 1);
     let error =
-        expand_review_candidate("overflow.chems", &source, &catalogue(), &evidence()).unwrap_err();
+        expand_provisional("overflow.chems", &source, &catalogue(), &evidence()).unwrap_err();
 
     assert_eq!(error.class(), ExpansionFailureClass::InvalidSource);
     assert_eq!(error.code(), "CHEMS-X005");
@@ -533,7 +531,7 @@ fn formula_overflow_is_reported_at_the_equation_term() {
 fn rule_binding_and_evidence_claim_mismatches_are_invalid() {
     let catalogue = catalogue();
     let wrong_binding = canonical_source().replacen("metal := lithium", "metal := water", 1);
-    let error = expand_review_candidate(
+    let error = expand_provisional(
         "wrong-binding.chems",
         &wrong_binding,
         &catalogue,
@@ -545,7 +543,7 @@ fn rule_binding_and_evidence_claim_mismatches_are_invalid() {
 
     let mut wrong_evidence: Value = serde_json::from_slice(&evidence()).unwrap();
     wrong_evidence["claims"][0]["subject"] = Value::String("oxygen".to_owned());
-    let error = expand_review_candidate(
+    let error = expand_provisional(
         "wrong-evidence.chems",
         &canonical_source(),
         &catalogue,

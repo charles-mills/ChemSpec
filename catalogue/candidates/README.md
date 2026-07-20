@@ -1,6 +1,6 @@
 # Catalogue candidate queue
 
-Each child directory is an untrusted catalogue shard containing exactly:
+Each child directory is a provisional catalogue shard containing exactly:
 
 - `candidate.json` — typed catalogue records only;
 - `example.chems` — one ordinary authored invocation; and
@@ -19,13 +19,13 @@ The promoted review currently covers these source surfaces:
 | `oxygen-reactions` | 68 representative elemental-oxygen outcomes and 81 fixed-charge main-group ion-pair experiences | `host-selected-ai-reviewed` and pinned in aggregate |
 | `covalent-combinations` | 20 explicit hydrogen-compound and interhalogen outcomes | `host-selected-ai-reviewed` and pinned in aggregate |
 
-See the current [`trusted catalogue coverage`](../../docs/catalogue-coverage.md)
+See the current [`reference catalogue coverage`](../../docs/catalogue-coverage.md)
 for the finite-domain summary and machine-readable authorities. Completed
 execution and review records are retained under
 [`docs/archive/catalogue/`](../../docs/archive/catalogue/).
 
 The reviewed surfaces are promoted together as the exact generated aggregate under
-`catalogue/trusted/core-chemistry/`, with a separate AI attestation and both
+`catalogue/reference/core-chemistry/`, with a separate AI attestation and both
 semantic digests pinned in `chem-catalogue`. The 118 element records provide
 identity metadata only; runnable reaction coverage is explicitly limited to
 the reviewed families and members named by the current attestation.

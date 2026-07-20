@@ -1,8 +1,8 @@
 //! Structure escalation: adopting model-proposed structural graphs for
 //! claimed species absent from the reviewed structure library.
 //!
-//! A proposal never touches the trusted catalogue. It is compiled into an
-//! isolated `Working` catalogue bundle that contains the complete trusted
+//! A proposal never mutates the reference catalogue. It is compiled into an
+//! isolated `Working` catalogue bundle that contains the complete reference
 //! document plus the proposed structures under one provisional premise, then
 //! crosses the identical catalogue validation (graph integrity, formula
 //! agreement, supported valence states) every reviewed structure crossed.
@@ -29,7 +29,7 @@ pub(crate) const GENERATED_STRUCTURE_PREMISE: &str = "premise.generated.structur
 /// An outcome whose formula-only species acquired validated model-proposed
 /// structures, together with the isolated working bundle those structures
 /// live in. The bundle is required for kernel expansion and never replaces
-/// the trusted catalogue.
+/// the reference catalogue.
 #[derive(Debug, Clone)]
 pub struct AdoptedProposedStructures {
     pub outcome: ValidatedStaticOutcome,
@@ -343,7 +343,7 @@ fn validated_working_bundle(
 ) -> Result<ValidatedCatalogueBundle, AgentError> {
     let mut document = catalogue.document().clone();
     document.publication = PublicationKind::Working;
-    // The premise must reference resolvable evidence. The trusted document's
+    // The premise must reference resolvable evidence. The reference document's
     // internal explanatory-model source is the honest anchor: a proposed
     // structure is a modeling assumption, not an empirical claim.
     let evidence = document

@@ -37,11 +37,6 @@ fn main() {
         assert!(ids.insert(id), "duplicate experience id `{id}`");
         let source_path = string("source_path");
         let evidence_path = string("evidence_path");
-        let status = string("status");
-        assert!(
-            matches!(status, "trusted" | "candidate"),
-            "experience status must be `trusted` or `candidate`"
-        );
         println!(
             "cargo:rerun-if-changed={}",
             root.join(source_path).display()
@@ -52,10 +47,6 @@ fn main() {
         );
         let source = fs::read_to_string(root.join(source_path)).expect("experience source");
         let evidence = fs::read_to_string(root.join(evidence_path)).expect("experience evidence");
-        if status == "candidate" {
-            continue;
-        }
-
         let participants = record["participants"]
             .as_array()
             .expect("experience participants must be an array");

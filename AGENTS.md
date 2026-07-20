@@ -1,9 +1,9 @@
 # ChemSpec agent guide
 
 This file applies to the whole repository. Keep changes aligned with the
-project's central trust boundary:
+project's central validation boundary:
 
-> The agent produces text; the validator produces trust; the chemistry engine
+> The agent produces text; the validator produces authority; the chemistry engine
 > produces meaning; the application produces the experience.
 
 No layer may bypass the layer immediately downstream of it. In particular,
@@ -41,7 +41,7 @@ to `1.96.1`; do not write against a newer API by accident.
   It parses syntax; it does not decide whether chemistry is supported.
 - `crates/agent`: the algorithmic reaction solver, naming, mechanism
   derivation, and provider contracts. Provider code returns claims, never
-  trusted chemistry.
+  validated chemistry.
 - `crates/chemspec-app`: Iced composition and presentation. It may display
   validation but may not confer it.
 - `fixtures`: reviewed integration artifacts. Expected chemistry must be
@@ -51,7 +51,13 @@ to `1.96.1`; do not write against a newer API by accident.
 Planned crates should preserve the documented system boundaries:
 only the chemistry engine constructs `ValidatedExperiment`; the simulation
 consumes validated meaning and remains renderer-independent; provider code
-returns source and provenance, never trusted chemistry.
+returns source and provenance, never validated chemistry.
+
+The bundled catalogue is reference data and an optimization, never an
+allow-list. Catalogue membership, review metadata, and pinned package identity
+do not authorize simulation. Only successful kernel validation authorizes
+simulation, and programmatic, reference-backed, and model-proposed paths receive
+identical capabilities after they pass it.
 
 Keep dependencies pointing toward stable domain types. Do not introduce Iced
 types into domain, language, validator, provider, or simulation contracts.

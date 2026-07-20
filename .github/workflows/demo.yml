@@ -27,6 +27,8 @@ jobs:
 
       - name: Install trunk
         uses: jetli/trunk-action@v0.5.1
+        with:
+          version: v0.21.14
 
       - name: Build demo
         working-directory: crates/chemspec-app

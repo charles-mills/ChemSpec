@@ -11,7 +11,7 @@ ExpandedStructuralReaction physical provenance
       "name": "ChemSpec.Theoretical",
       "version": "1",
       "digest": "cdf8afe54409acf1a4aa76ad772bd3e26207608f90cd0ee4c2f6f2ec0cf0bb4f",
-      "trust": "review_candidate"
+      "provenance": "provisional"
     },
     "reaction": "LithiumAndWater",
     "reactants": {
@@ -342,7 +342,7 @@ ExpandedStructuralReaction physical provenance
         "version": "1"
       },
       "digest": "03d828162c58c2f2fb7ed514b8ca39bc8c68dba55c1f8067e351da21fe1b5506",
-      "trust": "external_untrusted",
+      "provenance": "external",
       "observations": [
         {
           "predicate": "evolves",

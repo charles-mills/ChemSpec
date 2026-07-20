@@ -111,18 +111,22 @@ Typed electron-transfer operations still draw the exact electrons in flight,
 and validated ionic charge badges remain visible. Main-group atoms retain the
 ordinary Lewis-dot presentation.
 
-Ionic lattice layout includes every validated component for non-1:1 formula
-ratios. Charge-alternating grid neighbours are preferred; any excess ions are
-connected to their nearest opposite-charge lattice neighbour for presentation,
-so no component becomes a detached layout island. These connectors express
-many-body ionic membership, not covalent bonds or discrete molecules.
+Ionic lattice layout includes every covalently connected charged fragment for
+non-1:1 formula ratios. When a validated catalogue component aggregates several
+disconnected same-charge ions, the renderer deterministically expands those
+fragments into separate lattice members using only validated covalent edges and
+formal charges. Charge-alternating grid neighbours are preferred; any excess
+ions are connected to their nearest opposite-charge lattice neighbour for
+presentation, so no ion becomes a detached layout island. These connectors
+express many-body ionic membership, not covalent bonds or discrete molecules.
 
 The subsequent 3D page is a separate illustrative scale. It consumes a scene
 plan containing reusable visual assets and observation-gated effects, not the
 structural atom graph. Its elevated near-isometric camera is orthographic and
 fixed: there is no orbit, pan, zoom, shake, or cinematic camera motion. Timing
-and fluid/effect motion remain illustrative and carry a persistent
-virtual-model disclosure.
+and fluid/effect motion remain illustrative. The model view stays visually
+focused on the scene and playback controls instead of repeating a disclosure
+overlay or showing a terminal narration card.
 
 Completing the macroscopic timeline unlocks a final product record. On desktop,
 the page uses an even split: the left side is a full-height, continuously
@@ -218,6 +222,18 @@ text state.
 Responsive changes may alter composition but must not hide a product region
 without a visible navigation path to it.
 
+## macOS window integration
+
+On macOS the app canvas extends through the hidden, transparent native titlebar
+while the system traffic-light controls, window resizing, and standard window
+behaviours remain intact. Builder uses a compact additional top inset so its
+trailing toolbar shares the titlebar rail. Animation and result screens use a
+larger standard spacing step so leading navigation sits comfortably below the
+native controls. Neither layout encodes traffic-light coordinates, sizes, or
+insets. The Builder panel anchor is derived from the same page padding and
+toolbar dimensions. Other platforms retain their native titlebars and existing
+content geometry.
+
 ## Accessibility and states
 
 - Keyboard focus on controls and the request field uses the same high-contrast
@@ -225,6 +241,5 @@ without a visible navigation path to it.
 - Interactive controls retain a visible border on dark surfaces and never rely
   on hover alone.
 - Validated, assumption, offline, and future error states use explicit wording.
-- The simulation disclosure remains visible near the model at every breakpoint.
 - Scroll regions use stable heights and visible rails; source remains selectable
   text rather than being painted into the canvas.

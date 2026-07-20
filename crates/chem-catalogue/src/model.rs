@@ -55,7 +55,7 @@ pub struct CatalogueDocument {
 ///
 /// This artifact deliberately lives outside [`CatalogueEnvelope`]: candidate
 /// content cannot assert its own promotion. Its semantic digest is pinned by
-/// the host before it can authorize a [`crate::TrustedCatalogue`].
+/// the host before it can label a [`crate::ReferenceCatalogue`] as reviewed.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
 pub struct CatalogueReviewAttestation {
@@ -100,8 +100,34 @@ pub struct MacroscopicMaterialRecord {
     /// concern and omission preserves the conservative phase-only default.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub colour: Option<[u8; 3]>,
+    /// Optional reviewed physical behaviour when this exact material contacts
+    /// liquid water. It is a presentation capability only: it neither
+    /// predicts products nor changes structural validation.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub water_contact: Option<WaterContactBehaviourRecord>,
     #[serde(deserialize_with = "deserialize_unique_set")]
     pub premise_ids: BTreeSet<PremiseId>,
+}
+
+/// A reviewed, bounded physical behaviour for an exact material in contact
+/// with water. This is intentionally separate from phase and colour records:
+/// phase alone is not authority for a high-energy authored assembly.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(tag = "kind", rename_all = "snake_case", deny_unknown_fields)]
+pub enum WaterContactBehaviourRecord {
+    Explosive {
+        variant: ExplosiveWaterContactVariantRecord,
+    },
+}
+
+/// Authored-layout choice carried by a reviewed water-contact fact. The
+/// renderer receives this typed value only after structural validation.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum ExplosiveWaterContactVariantRecord {
+    Rubidium,
+    Caesium,
+    Francium,
 }
 
 #[derive(Debug)]

@@ -8,7 +8,7 @@
 
 use std::collections::BTreeMap;
 
-use chem_catalogue::TrustedCatalogue;
+use chem_catalogue::ReferenceCatalogue;
 use chem_domain::StructureDefinition;
 
 use crate::{chemistry, elements};
@@ -211,10 +211,10 @@ pub fn recognize(atomic_numbers: impl IntoIterator<Item = u8>) -> Option<Composi
         .find(|preview| preview.matches(atomic_numbers.iter().copied()))
 }
 
-/// A preview projected from one unambiguous graph in the host-pinned
+/// A preview projected from one unambiguous graph in the bundled reference
 /// catalogue or from the structure generator.
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub struct TrustedCompositionPreview {
+pub struct ReferenceCompositionPreview {
     pub structure_id: String,
     pub formula: String,
     /// Systematic or trivial name derived from the structure itself; None
@@ -238,7 +238,7 @@ pub struct PreviewAtom {
 }
 
 /// A stereocentre in preview index space: the four bonded neighbours (as
-/// indices into `TrustedCompositionPreview::atoms`, in the order the
+/// indices into `ReferenceCompositionPreview::atoms`, in the order the
 /// handedness is defined against) plus the winding of the last three viewed
 /// from the first listed neighbour toward the centre.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -260,7 +260,7 @@ pub struct PreviewIonicLink {
     pub end: usize,
 }
 
-impl TrustedCompositionPreview {
+impl ReferenceCompositionPreview {
     pub fn covalent_bonds(&self) -> &[PreviewCovalentBond] {
         &self.covalent_bonds
     }
@@ -274,11 +274,11 @@ impl TrustedCompositionPreview {
 /// programmatic structure generation. Recognition is no longer bounded by a
 /// curated list: any inventory the generator can build unambiguously gets a
 /// structural preview.
-pub fn trusted_preview(
+pub fn reference_preview(
     atomic_numbers: impl IntoIterator<Item = u8>,
-) -> Option<TrustedCompositionPreview> {
+) -> Option<ReferenceCompositionPreview> {
     let atomic_numbers = atomic_numbers.into_iter().collect::<Vec<_>>();
-    let catalogue = chemistry::trusted_catalogue().ok()?;
+    let catalogue = chemistry::reference_catalogue().ok()?;
     resolve_with_catalogue(catalogue, atomic_numbers.iter().copied())
         .or_else(|| generated_preview(&atomic_numbers))
 }
@@ -286,10 +286,10 @@ pub fn trusted_preview(
 /// Preview for a draft the user named: name-keyed canonical structures
 /// (ammonium cyanate vs urea) outrank the composition lookup, which can
 /// only ever answer with one structure per inventory.
-pub fn trusted_preview_named(
+pub fn reference_preview_named(
     name: &str,
     atomic_numbers: impl IntoIterator<Item = u8>,
-) -> Option<TrustedCompositionPreview> {
+) -> Option<ReferenceCompositionPreview> {
     let atomic_numbers = atomic_numbers.into_iter().collect::<Vec<_>>();
     let named = || {
         let mut counts = std::collections::BTreeMap::new();
@@ -306,11 +306,11 @@ pub fn trusted_preview_named(
         let formula = conventional_formula(&structure);
         preview_from_definition(&structure, &formula)
     };
-    named().or_else(|| trusted_preview(atomic_numbers))
+    named().or_else(|| reference_preview(atomic_numbers))
 }
 
 /// Structural preview straight from the generator: no catalogue involved.
-fn generated_preview(atomic_numbers: &[u8]) -> Option<TrustedCompositionPreview> {
+fn generated_preview(atomic_numbers: &[u8]) -> Option<ReferenceCompositionPreview> {
     let atomic_numbers = chemistry::standardize_elemental_draft(atomic_numbers);
     let mut counts = std::collections::BTreeMap::new();
     for number in atomic_numbers {
@@ -326,65 +326,15 @@ fn generated_preview(atomic_numbers: &[u8]) -> Option<TrustedCompositionPreview>
     preview_from_definition(&structure, &formula)
 }
 
-/// Formula text for a generated structure: cations first for ionic
-/// compounds, then non-O/H elements, then O, then H; molecular formulas
-/// lead with H instead (`H2O`, `HCl`, `H2SO4`).
 fn conventional_formula(structure: &StructureDefinition) -> String {
-    let graph = structure.graph();
-    let mut counts = BTreeMap::<String, u64>::new();
-    let mut cations = BTreeMap::<String, u64>::new();
-    for atom in graph.atoms().values() {
-        let element = atom.element().as_str().to_owned();
-        if structure.representation() == chem_domain::RepresentationKind::Ionic
-            && atom.electrons().formal_charge() > 0
-        {
-            *cations.entry(element).or_insert(0) += 1;
-        } else {
-            *counts.entry(element).or_insert(0) += 1;
-        }
-    }
-    let mut formula = String::new();
-    let mut append = |symbol: &str, count: u64| {
-        formula.push_str(symbol);
-        if count > 1 {
-            formula.push_str(&count.to_string());
-        }
-    };
-    for (symbol, count) in &cations {
-        append(symbol, *count);
-    }
-    // Hill-style: carbon leads organics, otherwise hydrogen acids lead
-    // with H (H2O, HCl, H2SO4).
-    if let Some(count) = counts.get("C") {
-        append("C", *count);
-    }
-    if cations.is_empty()
-        && let Some(count) = counts.get("H")
-    {
-        append("H", *count);
-    }
-    for (symbol, count) in &counts {
-        if symbol == "O" || symbol == "H" || symbol == "C" {
-            continue;
-        }
-        append(symbol, *count);
-    }
-    if let Some(count) = counts.get("O") {
-        append("O", *count);
-    }
-    if !cations.is_empty()
-        && let Some(count) = counts.get("H")
-    {
-        append("H", *count);
-    }
-    formula
+    structure.conventional_formula()
 }
 
-/// Resolves one exact structure identity from the host-pinned catalogue.
+/// Resolves one exact structure identity from the bundled reference catalogue.
 /// This is used when a reviewed experience already names its product graph.
 #[must_use]
-pub fn trusted_preview_by_structure_id(id: &str) -> Option<TrustedCompositionPreview> {
-    let catalogue = chemistry::trusted_catalogue().ok()?;
+pub fn reference_preview_by_structure_id(id: &str) -> Option<ReferenceCompositionPreview> {
+    let catalogue = chemistry::reference_catalogue().ok()?;
     let structure = catalogue
         .document()
         .structures
@@ -403,9 +353,9 @@ pub fn trusted_preview_by_structure_id(id: &str) -> Option<TrustedCompositionPre
 }
 
 fn resolve_with_catalogue(
-    catalogue: &TrustedCatalogue,
+    catalogue: &ReferenceCatalogue,
     atomic_numbers: impl IntoIterator<Item = u8>,
-) -> Option<TrustedCompositionPreview> {
+) -> Option<ReferenceCompositionPreview> {
     let atomic_numbers = atomic_numbers.into_iter().collect::<Vec<_>>();
     let atomic_numbers = chemistry::standardize_elemental_draft(&atomic_numbers);
     let selected = atomic_numbers.into_iter().try_fold(
@@ -420,7 +370,7 @@ fn resolve_with_catalogue(
         return None;
     }
 
-    let mut matches = Vec::<TrustedCompositionPreview>::new();
+    let mut matches = Vec::<ReferenceCompositionPreview>::new();
     for record in &catalogue.document().structures {
         add_matching_structure(
             catalogue,
@@ -440,7 +390,7 @@ fn resolve_with_catalogue(
         );
     }
 
-    let mut unique = Vec::<TrustedCompositionPreview>::new();
+    let mut unique = Vec::<ReferenceCompositionPreview>::new();
     for candidate in matches {
         if unique.iter().any(|existing| {
             previews_are_isomorphic(existing, &candidate).is_some_and(|equivalent| equivalent)
@@ -456,11 +406,11 @@ fn resolve_with_catalogue(
 }
 
 fn add_matching_structure(
-    catalogue: &TrustedCatalogue,
+    catalogue: &ReferenceCatalogue,
     id: &chem_domain::StructureId,
     formula: &str,
     selected: &BTreeMap<String, u64>,
-    matches: &mut Vec<TrustedCompositionPreview>,
+    matches: &mut Vec<ReferenceCompositionPreview>,
 ) {
     let Some(definition) = catalogue.structure(id) else {
         return;
@@ -481,7 +431,7 @@ fn add_matching_structure(
 fn preview_from_definition(
     definition: &StructureDefinition,
     formula: &str,
-) -> Option<TrustedCompositionPreview> {
+) -> Option<ReferenceCompositionPreview> {
     let graph = definition.graph();
     let atom_indices = graph
         .atoms()
@@ -561,7 +511,7 @@ fn preview_from_definition(
         ionic_links.extend(charge_topology(&positive, &negative));
     }
 
-    Some(TrustedCompositionPreview {
+    Some(ReferenceCompositionPreview {
         structure_id: definition.id().as_str().to_owned(),
         formula: crate::nomenclature::display_formula(formula),
         name: agent::structure_name(definition),
@@ -578,7 +528,7 @@ fn preview_from_definition(
 pub fn preview_from_validated_structure(
     definition: &StructureDefinition,
     formula: &str,
-) -> Option<TrustedCompositionPreview> {
+) -> Option<ReferenceCompositionPreview> {
     preview_from_definition(definition, formula)
 }
 
@@ -593,7 +543,7 @@ struct PreviewAtomSignature {
 }
 
 fn preview_atom_signature(
-    preview: &TrustedCompositionPreview,
+    preview: &ReferenceCompositionPreview,
     index: usize,
 ) -> PreviewAtomSignature {
     let atom = &preview.atoms[index];
@@ -619,7 +569,7 @@ fn preview_atom_signature(
 }
 
 fn preview_edge_signature(
-    preview: &TrustedCompositionPreview,
+    preview: &ReferenceCompositionPreview,
     left: usize,
     right: usize,
 ) -> (Option<u8>, bool) {
@@ -635,8 +585,8 @@ fn preview_edge_signature(
 
 #[allow(clippy::items_after_statements)]
 fn previews_are_isomorphic(
-    left: &TrustedCompositionPreview,
-    right: &TrustedCompositionPreview,
+    left: &ReferenceCompositionPreview,
+    right: &ReferenceCompositionPreview,
 ) -> Option<bool> {
     const MAX_PREVIEW_ISOMORPHISM_WORK: usize = 4_096;
 
@@ -667,8 +617,8 @@ fn previews_are_isomorphic(
     fn search(
         depth: usize,
         sources: &[usize],
-        left: &TrustedCompositionPreview,
-        right: &TrustedCompositionPreview,
+        left: &ReferenceCompositionPreview,
+        right: &ReferenceCompositionPreview,
         left_signatures: &[PreviewAtomSignature],
         right_signatures: &[PreviewAtomSignature],
         mapping: &mut [Option<usize>],
@@ -808,14 +758,14 @@ mod tests {
     }
 
     #[test]
-    fn trusted_previews_project_structure_instead_of_formula_switches() {
-        let oxygen = trusted_preview([8]).expect("single oxygen selection uses O2");
+    fn reference_previews_project_structure_instead_of_formula_switches() {
+        let oxygen = reference_preview([8]).expect("single oxygen selection uses O2");
         assert_eq!(oxygen.formula, "O₂");
         assert_eq!(oxygen.atoms.len(), 2);
         assert_eq!(oxygen.covalent_bonds().len(), 1);
         assert_eq!(oxygen.covalent_bonds()[0].order, 2);
 
-        let carbon_dioxide = trusted_preview([8, 6, 8]).expect("catalogued CO2 graph");
+        let carbon_dioxide = reference_preview([8, 6, 8]).expect("catalogued CO2 graph");
         assert_eq!(carbon_dioxide.formula, "CO₂");
         assert_eq!(carbon_dioxide.covalent_bonds().len(), 2);
         assert!(
@@ -825,7 +775,7 @@ mod tests {
                 .all(|bond| bond.order == 2)
         );
 
-        let magnesium_fluoride = trusted_preview([9, 12, 9]).expect("catalogued MgF2 graph");
+        let magnesium_fluoride = reference_preview([9, 12, 9]).expect("catalogued MgF2 graph");
         assert_eq!(magnesium_fluoride.formula, "MgF₂");
         assert!(magnesium_fluoride.covalent_bonds().is_empty());
         assert_eq!(magnesium_fluoride.ionic_links().len(), 2);
@@ -834,50 +784,51 @@ mod tests {
     #[test]
     fn named_previews_distinguish_the_wohler_pair() {
         let atoms = [7, 1, 1, 1, 1, 7, 6, 8];
-        let cyanate = trusted_preview_named("ammonium cyanate", atoms)
+        let cyanate = reference_preview_named("ammonium cyanate", atoms)
             .expect("named ammonium cyanate preview");
         assert!(
             !cyanate.ionic_links().is_empty(),
             "ammonium cyanate previews as an ionic salt"
         );
-        let urea = trusted_preview(atoms).expect("composition preview");
+        let urea = reference_preview(atoms).expect("composition preview");
         assert!(
             urea.ionic_links().is_empty(),
             "the bare CH4N2O composition previews as covalent urea"
         );
         // An unknown name falls back to the composition preview.
-        let fallback = trusted_preview_named("mystery compound", atoms).expect("fallback preview");
+        let fallback =
+            reference_preview_named("mystery compound", atoms).expect("fallback preview");
         assert!(fallback.ionic_links().is_empty());
     }
 
     #[test]
     fn uncatalogued_inventories_generate_structural_previews() {
-        let sulfuric_acid = trusted_preview([1, 1, 16, 8, 8, 8, 8]).expect("generated H2SO4");
+        let sulfuric_acid = reference_preview([1, 1, 16, 8, 8, 8, 8]).expect("generated H2SO4");
         assert_eq!(sulfuric_acid.formula, "H₂SO₄");
         assert_eq!(sulfuric_acid.atoms.len(), 7);
         assert_eq!(sulfuric_acid.covalent_bonds().len(), 6);
         assert!(sulfuric_acid.ionic_links().is_empty());
 
-        let methane = trusted_preview([6, 1, 1, 1, 1]).expect("generated CH4");
+        let methane = reference_preview([6, 1, 1, 1, 1]).expect("generated CH4");
         assert_eq!(methane.formula, "CH₄");
         assert_eq!(methane.covalent_bonds().len(), 4);
 
-        let sodium_sulfate = trusted_preview([11, 11, 16, 8, 8, 8, 8]).expect("generated Na2SO4");
+        let sodium_sulfate = reference_preview([11, 11, 16, 8, 8, 8, 8]).expect("generated Na2SO4");
         assert_eq!(sodium_sulfate.formula, "Na₂SO₄");
         assert!(!sodium_sulfate.ionic_links().is_empty());
     }
 
     #[test]
     fn exact_product_identity_resolves_reviewed_covalent_graphs() {
-        let ammonia = trusted_preview_by_structure_id("Ammonia").expect("reviewed ammonia graph");
+        let ammonia = reference_preview_by_structure_id("Ammonia").expect("reviewed ammonia graph");
         assert_eq!(ammonia.formula, "NH₃");
         assert_eq!(ammonia.covalent_bonds().len(), 3);
 
-        let iodine_heptafluoride = trusted_preview_by_structure_id("InterhalogenIF7")
+        let iodine_heptafluoride = reference_preview_by_structure_id("InterhalogenIF7")
             .expect("reviewed iodine heptafluoride graph");
         assert_eq!(iodine_heptafluoride.formula, "IF₇");
         assert_eq!(iodine_heptafluoride.covalent_bonds().len(), 7);
         assert!(iodine_heptafluoride.ionic_links().is_empty());
-        assert!(trusted_preview_by_structure_id("NotAReviewedStructure").is_none());
+        assert!(reference_preview_by_structure_id("NotAReviewedStructure").is_none());
     }
 }

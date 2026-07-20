@@ -1,7 +1,7 @@
 use std::{fs, path::PathBuf};
 
 use chem_catalogue::{CatalogueEnvelope, ValidatedCatalogueBundle};
-use chem_kernel::{ExpansionFailureClass, expand_review_candidate};
+use chem_kernel::{ExpansionFailureClass, expand_provisional};
 use serde_json::{Value, json};
 
 fn root() -> PathBuf {
@@ -385,7 +385,7 @@ fn unchanged_chems_source_expands_through_generalized_rule_to_concrete_hir() {
         fs::read_to_string(root().join("conformance/end-to-end/lithium-outcome-001.chems"))
             .unwrap();
     let evidence = generalized_evidence();
-    let expanded = expand_review_candidate(
+    let expanded = expand_provisional(
         "lithium-outcome-001.chems",
         &source,
         &generalized_lithium_catalogue(),
@@ -423,7 +423,7 @@ fn generalized_role_shape_errors_remain_invalid_source() {
             )
             .replace("2 Li[metallic]", "Li[metallic]");
     let evidence = generalized_evidence();
-    let error = expand_review_candidate(
+    let error = expand_provisional(
         "wrong-coefficient.chems",
         &source,
         &generalized_lithium_catalogue(),
@@ -443,7 +443,7 @@ fn lithium_sodium_and_potassium_share_one_public_rule_surface() {
         ("sodium", "Na", "SodiumMetal", "SodiumHydroxide"),
         ("potassium", "K", "PotassiumMetal", "PotassiumHydroxide"),
     ] {
-        let expanded = expand_review_candidate(
+        let expanded = expand_provisional(
             &format!("{name}-water.chems"),
             &member_source(name, symbol, metal, hydroxide),
             &catalogue,
@@ -483,7 +483,7 @@ fn lithium_sodium_and_potassium_share_one_public_rule_surface() {
 fn calcium_is_unsupported_before_generalized_operation_expansion() {
     let source = member_source("calcium", "Ca", "CalciumMetal", "LithiumHydroxide")
         .replace("CaOH[ionic]", "LiOH[ionic]");
-    let error = expand_review_candidate(
+    let error = expand_provisional(
         "calcium-water.chems",
         &source,
         &generalized_lithium_catalogue(),
@@ -503,7 +503,7 @@ fn concrete_legacy_rules_continue_to_elaborate_during_migration() {
     let evidence =
         fs::read(root().join("conformance/observations/lithium-observations-001.input.json"))
             .unwrap();
-    let expanded = expand_review_candidate(
+    let expanded = expand_provisional(
         "legacy-lithium.chems",
         &source,
         &generalized_lithium_catalogue(),
@@ -549,7 +549,7 @@ reaction DativeFixture where
         "sources":[{"id":"S1","title":"Reviewed dative fixture","publisher":"ChemSpec","url":"https://example.invalid/dative","supports":["R1"]}]
     }))
     .unwrap();
-    let expanded = expand_review_candidate(
+    let expanded = expand_provisional(
         "dative.chems",
         source,
         &generalized_dative_catalogue(),
@@ -601,7 +601,7 @@ reaction AmbiguityFixture where
         "sources":[{"id":"S1","title":"Ambiguity fixture","publisher":"ChemSpec","url":"https://example.invalid/ambiguity","supports":["R1"]}]
     }))
     .unwrap();
-    let error = expand_review_candidate(
+    let error = expand_provisional(
         "ambiguous.chems",
         source,
         &generalized_ambiguous_catalogue(),
@@ -616,7 +616,7 @@ reaction AmbiguityFixture where
     assert_eq!(error.code(), "CHEMS-X016");
 
     let no_match = source.replace("Rules.G4Ambiguous", "Rules.G4NoMatch");
-    let error = expand_review_candidate(
+    let error = expand_provisional(
         "no-match.chems",
         &no_match,
         &generalized_ambiguous_catalogue(),
@@ -628,7 +628,7 @@ reaction AmbiguityFixture where
     assert!(error.to_string().contains("no graph match"));
 
     let selected_unsupported = source.replace("Rules.G4Ambiguous", "Rules.G4SelectedUnsupported");
-    let error = expand_review_candidate(
+    let error = expand_provisional(
         "selected-unsupported.chems",
         &selected_unsupported,
         &generalized_ambiguous_catalogue(),

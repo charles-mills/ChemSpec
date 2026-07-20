@@ -9,6 +9,7 @@ use chem_domain::StructuralOperationView;
 use chem_kernel::SimulationFrame;
 use chem_presentation::{
     ContextLabel, EducationalPlan, EducationalSceneKind, ExplanationLabel, ExplanationLabelKind,
+    ProtonTransferInterpretation,
 };
 use iced::mouse::Cursor;
 use iced::widget::canvas::{self, Path, Stroke};
@@ -156,6 +157,11 @@ struct RenderMetallicDomain {
 
 #[derive(Debug, Clone)]
 enum RenderOperation {
+    ProtonTransfer {
+        hydrogen: String,
+        donor: String,
+        acceptor: String,
+    },
     TransferMetallicElectron {
         domain: String,
         donor_site: String,
@@ -216,7 +222,7 @@ impl From<&SimulationFrame> for RenderFrame {
                 non_bonding_electrons: atom.electrons.non_bonding_electrons(),
                 unpaired_electrons: atom.electrons.unpaired_electrons(),
             })
-            .collect();
+            .collect::<Vec<_>>();
         let covalent_bonds = frame
             .covalent_edges()
             .values()
@@ -229,7 +235,7 @@ impl From<&SimulationFrame> for RenderFrame {
                     (order.numerator(), order.denominator())
                 }),
             })
-            .collect();
+            .collect::<Vec<_>>();
         let ionic_associations = frame
             .ionic_associations()
             .values()
@@ -238,13 +244,20 @@ impl From<&SimulationFrame> for RenderFrame {
                 components: association
                     .components
                     .iter()
-                    .map(|(group, atoms)| RenderIonicComponent {
-                        atoms: atoms.iter().map(|atom| atom.as_str().to_owned()).collect(),
-                        charge: association
-                            .component_charges
-                            .get(group)
-                            .copied()
-                            .unwrap_or(0),
+                    .flat_map(|(group, component_atoms)| {
+                        split_render_ionic_component(
+                            &atoms,
+                            &covalent_bonds,
+                            component_atoms
+                                .iter()
+                                .map(|atom| atom.as_str().to_owned())
+                                .collect(),
+                            association
+                                .component_charges
+                                .get(group)
+                                .copied()
+                                .unwrap_or(0),
+                        )
                     })
                     .collect(),
             })
@@ -269,6 +282,83 @@ impl From<&SimulationFrame> for RenderFrame {
             ionic_associations,
             metallic_domains,
         }
+    }
+}
+
+/// Expands an aggregate catalogue component into its covalently connected
+/// charged fragments for presentation. Some reviewed templates group repeated
+/// monatomic cations (for example both K+ sites in K2CO3) into one +2 group;
+/// treating that group as one visual ion leaves all but one site unanchored.
+/// Neutral or charge-inconsistent fragments retain the validated aggregate so
+/// presentation never invents ionic membership from an unsafe partition.
+fn split_render_ionic_component(
+    atoms: &[RenderAtom],
+    covalent_bonds: &[RenderBond],
+    mut component_atoms: Vec<String>,
+    aggregate_charge: i64,
+) -> Vec<RenderIonicComponent> {
+    component_atoms.sort();
+    let members = component_atoms.iter().cloned().collect::<BTreeSet<_>>();
+    let mut adjacency = component_atoms
+        .iter()
+        .map(|atom| (atom.clone(), BTreeSet::new()))
+        .collect::<BTreeMap<_, _>>();
+    for bond in covalent_bonds {
+        if members.contains(&bond.left) && members.contains(&bond.right) {
+            if let Some(neighbours) = adjacency.get_mut(&bond.left) {
+                neighbours.insert(bond.right.clone());
+            }
+            if let Some(neighbours) = adjacency.get_mut(&bond.right) {
+                neighbours.insert(bond.left.clone());
+            }
+        }
+    }
+
+    let charges = atoms
+        .iter()
+        .map(|atom| (atom.id.as_str(), i64::from(atom.formal_charge)))
+        .collect::<BTreeMap<_, _>>();
+    let mut visited = BTreeSet::new();
+    let mut fragments = Vec::new();
+    for seed in &component_atoms {
+        if !visited.insert(seed.clone()) {
+            continue;
+        }
+        let mut queue = VecDeque::from([seed.clone()]);
+        let mut fragment = Vec::new();
+        while let Some(current) = queue.pop_front() {
+            fragment.push(current.clone());
+            for neighbour in &adjacency[&current] {
+                if visited.insert(neighbour.clone()) {
+                    queue.push_back(neighbour.clone());
+                }
+            }
+        }
+        fragment.sort();
+        let charge = fragment
+            .iter()
+            .map(|atom| charges.get(atom.as_str()).copied().unwrap_or(0))
+            .sum();
+        fragments.push(RenderIonicComponent {
+            atoms: fragment,
+            charge,
+        });
+    }
+
+    let partition_is_ionic = fragments.len() > 1
+        && fragments.iter().all(|fragment| fragment.charge != 0)
+        && fragments
+            .iter()
+            .map(|fragment| fragment.charge)
+            .sum::<i64>()
+            == aggregate_charge;
+    if partition_is_ionic {
+        fragments
+    } else {
+        vec![RenderIonicComponent {
+            atoms: component_atoms,
+            charge: aggregate_charge,
+        }]
     }
 }
 
@@ -660,6 +750,7 @@ impl Diagram {
         before: &SimulationFrame,
         after: &SimulationFrame,
         operation_transitions: &[(&SimulationFrame, &SimulationFrame)],
+        proton_transfers: &[&ProtonTransferInterpretation],
         progress: f32,
         explanation: Option<&ExplanationLabel>,
         context_labels: &[ContextLabel],
@@ -668,18 +759,30 @@ impl Diagram {
         positions: BTreeMap<String, Point>,
         camera: Rectangle,
     ) -> Self {
-        Self {
-            camera,
-            before: RenderFrame::from(before),
-            after: RenderFrame::from(after),
-            operations: operation_transitions
+        let operations = if proton_transfers.is_empty() {
+            operation_transitions
                 .iter()
                 .filter_map(|(before, after)| {
                     after
                         .active_operation()
                         .map(|active| render_operation(active.operation.view(), before, after))
                 })
-                .collect(),
+                .collect()
+        } else {
+            proton_transfers
+                .iter()
+                .map(|transfer| RenderOperation::ProtonTransfer {
+                    hydrogen: transfer.hydrogen.clone(),
+                    donor: transfer.donor.clone(),
+                    acceptor: transfer.acceptor.clone(),
+                })
+                .collect()
+        };
+        Self {
+            camera,
+            before: RenderFrame::from(before),
+            after: RenderFrame::from(after),
+            operations,
             progress: progress.clamp(0.0, 1.0),
             explanation: explanation.cloned(),
             context_labels: context_labels.to_vec(),
@@ -2705,6 +2808,9 @@ fn electron_state_delta(
 
 fn operation_moves_atom_electrons(operations: &[StructuralOperation], atom_id: &str) -> bool {
     operations.iter().any(|operation| match operation {
+        StructuralOperation::ProtonTransfer {
+            hydrogen, acceptor, ..
+        } => hydrogen == atom_id || acceptor == atom_id,
         StructuralOperation::TransferMetallicElectron { acceptor, .. } => acceptor == atom_id,
         StructuralOperation::MetallicMembership { site, .. } => site == atom_id,
         StructuralOperation::CleaveCovalent { left, right, .. }
@@ -3041,6 +3147,9 @@ fn draw_operation_motion(
 ) {
     for operation in operations {
         match operation {
+            StructuralOperation::ProtonTransfer {
+                hydrogen, acceptor, ..
+            } => draw_proton_transfer(frame, hydrogen, acceptor, positions, progress, scale),
             StructuralOperation::TransferMetallicElectron {
                 donor_site,
                 acceptor,
@@ -3283,6 +3392,41 @@ fn draw_covalent_electron_motion(
     }
 }
 
+/// Moves one complete lone pair from the proton acceptor into the forming
+/// H–acceptor bond. Every primitive kernel ledger transition remains in the
+/// exact frame sequence, but the learner sees the chemically meaningful paired
+/// movement represented by the composite presentation event.
+fn draw_proton_transfer(
+    frame: &mut canvas::Frame,
+    hydrogen: &str,
+    acceptor: &str,
+    positions: &BTreeMap<String, Point>,
+    progress: f32,
+    scale: f32,
+) {
+    let (Some(hydrogen_center), Some(acceptor_center)) =
+        (positions.get(hydrogen), positions.get(acceptor))
+    else {
+        return;
+    };
+    let direction = *hydrogen_center - *acceptor_center;
+    let magnitude = vector_magnitude(direction).max(1.0);
+    let along = direction / magnitude;
+    let perpendicular = Vector::new(-along.y, along.x);
+    let source_center = *acceptor_center + along * 30.0 * scale;
+    let target_center = lerp_point(*acceptor_center, *hydrogen_center, 0.5);
+    for offset in [-3.2_f32, 3.2] {
+        draw_electron_route(
+            frame,
+            source_center + perpendicular * offset * scale,
+            target_center + perpendicular * offset * scale,
+            progress,
+            -18.0 + offset * 2.0,
+            scale,
+        );
+    }
+}
+
 fn atom<'a>(frame: &'a StructuralFrame, id: &str) -> Option<&'a AtomState> {
     frame.atoms.iter().find(|atom| atom.id == id)
 }
@@ -3402,7 +3546,12 @@ fn draw_observation_context(
     }
     let observations = labels
         .iter()
-        .filter(|label| label.kind == ExplanationLabelKind::ObservationExplanation)
+        .filter(|label| {
+            matches!(
+                label.kind,
+                ExplanationLabelKind::ObservationExplanation | ExplanationLabelKind::CompletionNote
+            )
+        })
         .collect::<Vec<_>>();
     if observations.is_empty() {
         return;
@@ -3418,7 +3567,7 @@ fn draw_observation_context(
             Point::new(x, bounds.height - 52.0 * scale),
             Size::new(width, 30.0 * scale),
         );
-        draw_glass_panel(frame, rect, IONIC, reveal, 15.0 * scale);
+        draw_glass_panel(frame, rect, IONIC, reveal, 15.0 * scale, true);
         frame.fill(
             &Path::circle(
                 Point::new(rect.x + 13.0 * scale, rect.center_y()),
@@ -3535,7 +3684,7 @@ fn draw_explanation_label(
         Size::new(width, text_layout.height),
     );
     let accent = explanation_color(label.kind);
-    draw_glass_panel(frame, rect, accent, alpha, 16.0 * scale);
+    draw_glass_panel(frame, rect, accent, alpha, 16.0 * scale, false);
     frame.fill(
         &rounded_rectangle(
             Rectangle::new(
@@ -3700,6 +3849,7 @@ fn draw_glass_panel(
     accent: Color,
     alpha: f32,
     radius: f32,
+    top_highlight: bool,
 ) {
     frame.fill(
         &rounded_rectangle(
@@ -3719,13 +3869,15 @@ fn draw_glass_panel(
             .with_color(accent.scale_alpha(alpha * 0.42))
             .with_width(1.0),
     );
-    frame.fill(
-        &rounded_rectangle(
-            Rectangle::new(rect.position(), Size::new(rect.width, rect.height * 0.45)),
-            radius,
-        ),
-        Color::WHITE.scale_alpha(alpha * 0.018),
-    );
+    if top_highlight {
+        frame.fill(
+            &rounded_rectangle(
+                Rectangle::new(rect.position(), Size::new(rect.width, rect.height * 0.45)),
+                radius,
+            ),
+            Color::WHITE.scale_alpha(alpha * 0.018),
+        );
+    }
 }
 
 fn rounded_rectangle(rect: Rectangle, radius: f32) -> Path {
@@ -3735,7 +3887,8 @@ fn rounded_rectangle(rect: Rectangle, radius: f32) -> Path {
 const fn explanation_color(kind: ExplanationLabelKind) -> Color {
     match kind {
         ExplanationLabelKind::ObservationExplanation => IONIC,
-        ExplanationLabelKind::StructuralChangeExplanation => ACCENT,
+        ExplanationLabelKind::StructuralChangeExplanation
+        | ExplanationLabelKind::CompletionNote => ACCENT,
     }
 }
 
@@ -3743,6 +3896,7 @@ const fn explanation_title(kind: ExplanationLabelKind) -> &'static str {
     match kind {
         ExplanationLabelKind::StructuralChangeExplanation => "WHAT CHANGED",
         ExplanationLabelKind::ObservationExplanation => "OBSERVATION",
+        ExplanationLabelKind::CompletionNote => "REACTION COMPLETE",
     }
 }
 
@@ -3816,6 +3970,11 @@ fn active_atoms(operations: &[RenderOperation]) -> BTreeSet<&str> {
     operations
         .iter()
         .flat_map(|operation| match operation {
+            RenderOperation::ProtonTransfer {
+                hydrogen,
+                donor,
+                acceptor,
+            } => vec![hydrogen.as_str(), donor.as_str(), acceptor.as_str()],
             RenderOperation::TransferMetallicElectron {
                 donor_site,
                 acceptor,
@@ -3981,6 +4140,158 @@ mod tests {
         };
 
         assert_eq!(ionic_anchor_id(&hydroxide, &frame), Some("o"));
+    }
+
+    #[test]
+    fn grouped_same_sign_ions_expand_into_distinct_lattice_members() {
+        let atoms = vec![
+            ion_atom("k1", "K", 1),
+            ion_atom("k2", "K", 1),
+            ion_atom("c", "C", 0),
+            ion_atom("o1", "O", 0),
+            ion_atom("o2", "O", -1),
+            ion_atom("o3", "O", -1),
+        ];
+        let bonds = vec![
+            RenderBond {
+                left: "c".to_owned(),
+                right: "o1".to_owned(),
+                order: 2,
+                effective_order: None,
+            },
+            RenderBond {
+                left: "c".to_owned(),
+                right: "o2".to_owned(),
+                order: 1,
+                effective_order: None,
+            },
+            RenderBond {
+                left: "c".to_owned(),
+                right: "o3".to_owned(),
+                order: 1,
+                effective_order: None,
+            },
+        ];
+        let mut components =
+            split_render_ionic_component(&atoms, &bonds, vec!["k1".to_owned(), "k2".to_owned()], 2);
+        components.extend(split_render_ionic_component(
+            &atoms,
+            &bonds,
+            vec![
+                "c".to_owned(),
+                "o1".to_owned(),
+                "o2".to_owned(),
+                "o3".to_owned(),
+            ],
+            -2,
+        ));
+        let frame = RenderFrame {
+            atoms,
+            covalent_bonds: bonds,
+            ionic_associations: vec![RenderIonicAssociation {
+                id: "potassium-carbonate".to_owned(),
+                components,
+            }],
+            metallic_domains: Vec::new(),
+        };
+
+        assert_eq!(frame.ionic_associations[0].components.len(), 3);
+        assert_eq!(
+            frame.ionic_associations[0]
+                .components
+                .iter()
+                .map(|component| component.charge)
+                .collect::<Vec<_>>(),
+            [1, 1, -2]
+        );
+        let group = &lattice_groups(&frame)[0];
+        assert_eq!(group.members.len(), 3);
+        assert!(group.members.iter().enumerate().all(|(index, _)| {
+            group
+                .pairs
+                .iter()
+                .any(|(left, right)| *left == index || *right == index)
+        }));
+        assert_eq!(connected_components(&frame).len(), 1);
+
+        let guarded = split_render_ionic_component(
+            &frame.atoms,
+            &frame.covalent_bonds,
+            vec!["k1".to_owned(), "c".to_owned()],
+            1,
+        );
+        assert_eq!(
+            guarded.len(),
+            1,
+            "a neutral disconnected fragment must retain the validated aggregate"
+        );
+    }
+
+    #[test]
+    fn potassium_carbonate_catalogue_frame_connects_both_potassium_ions() {
+        let request = crate::chemistry::ReactionRequest::acid_carbonate_gas_evolution(
+            crate::chemistry::AlkaliMetal::Potassium,
+            crate::chemistry::Halogen::Chlorine,
+        );
+        let run = crate::chemistry::run(request).expect("potassium carbonate reaction validates");
+        let frame = RenderFrame::from(
+            run.frames()
+                .frames()
+                .first()
+                .expect("validated reaction has an initial frame"),
+        );
+        let association = frame
+            .ionic_associations
+            .iter()
+            .find(|association| {
+                association.components.iter().any(|component| {
+                    component
+                        .atoms
+                        .iter()
+                        .any(|id| atom(&frame, id).is_some_and(|atom| atom.element == "K"))
+                })
+            })
+            .expect("initial frame contains potassium carbonate");
+        let potassium_components = association
+            .components
+            .iter()
+            .filter(|component| {
+                component.atoms.len() == 1
+                    && atom(&frame, &component.atoms[0]).is_some_and(|atom| atom.element == "K")
+            })
+            .collect::<Vec<_>>();
+
+        assert_eq!(potassium_components.len(), 2);
+        assert!(
+            potassium_components
+                .iter()
+                .all(|component| component.charge == 1)
+        );
+        let group = lattice_groups(&frame)
+            .into_iter()
+            .find(|group| {
+                group.members.iter().any(|member| {
+                    member_component(&frame, *member)
+                        .atoms
+                        .iter()
+                        .any(|id| atom(&frame, id).is_some_and(|atom| atom.element == "K"))
+                })
+            })
+            .expect("potassium carbonate has a lattice group");
+        for potassium in potassium_components {
+            let member = group
+                .members
+                .iter()
+                .position(|member| member_component(&frame, *member).atoms == potassium.atoms)
+                .expect("each potassium ion is a lattice member");
+            assert!(
+                group
+                    .pairs
+                    .iter()
+                    .any(|(left, right)| *left == member || *right == member),
+                "each potassium ion must have an ionic connector"
+            );
+        }
     }
 
     #[test]

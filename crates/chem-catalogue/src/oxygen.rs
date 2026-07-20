@@ -82,7 +82,7 @@ pub struct ValidatedOxygenScreening {
 }
 
 impl ValidatedOxygenScreening {
-    /// Parses and validates oxygen screening data against the trusted element
+    /// Parses and validates oxygen screening data against the reference element
     /// and structure catalogue.
     ///
     /// # Errors
@@ -250,7 +250,7 @@ mod tests {
     use super::*;
 
     const CATALOGUE: &[u8] =
-        include_bytes!("../../../catalogue/trusted/core-chemistry/catalogue.json");
+        include_bytes!("../../../catalogue/reference/core-chemistry/catalogue.json");
     const OXYGEN: &[u8] = include_bytes!("../../../catalogue/oxygen-screening/oxygen.json");
 
     fn screening() -> ValidatedOxygenScreening {

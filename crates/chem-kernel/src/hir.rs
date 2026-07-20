@@ -17,20 +17,19 @@ use serde_json::Value;
 
 use crate::{EvidencePacketReference, ExpansionError};
 
-/// Whether expansion used the production trust boundary or an explicit review candidate.
+/// Factual provenance of the catalogue data used during expansion.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize)]
 #[serde(rename_all = "snake_case")]
-pub enum CatalogueTrust {
-    ReviewCandidate,
-    Trusted,
+pub enum CatalogueProvenance {
+    Provisional,
+    ReviewedReference,
 }
 
-/// Evidence packets are runtime research inputs, never host-authenticated
-/// chemistry authority.
+/// Provenance of evidence packets used by a derivation.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize)]
 #[serde(rename_all = "snake_case")]
-pub enum EvidenceTrust {
-    ExternalUntrusted,
+pub enum EvidenceProvenance {
+    External,
 }
 
 /// Reaction side retained in typed HIR.
@@ -112,7 +111,7 @@ pub struct CatalogueReference {
     pub name: String,
     pub version: String,
     pub digest: ContentDigest,
-    pub trust: CatalogueTrust,
+    pub provenance: CatalogueProvenance,
 }
 
 /// One resolved authored structure declaration.
@@ -228,7 +227,7 @@ pub struct ResolvedObservation {
 pub struct ResolvedEvidence {
     pub packet: EvidencePacketReference,
     pub digest: ContentDigest,
-    pub trust: EvidenceTrust,
+    pub provenance: EvidenceProvenance,
     pub observations: Vec<ResolvedObservation>,
 }
 
@@ -353,15 +352,14 @@ pub(crate) struct ExpandedStructuralReactionParts {
     pub premise_provenance: BTreeMap<PremiseId, CatalogueOrigin>,
 }
 
-/// Unforgeable production expansion. Only [`crate::expand_trusted`] can
-/// construct this wrapper; Slice 5 accepts this type rather than inspecting a
-/// mutable trust marker on ordinary review-candidate HIR.
+/// Expansion derived from packaged reference data, retaining its reviewed or
+/// provisional provenance.
 #[derive(Debug, Clone)]
-pub struct TrustedExpandedStructuralReaction {
+pub struct ReferenceExpandedStructuralReaction {
     pub(crate) expanded: ExpandedStructuralReaction,
 }
 
-impl Deref for TrustedExpandedStructuralReaction {
+impl Deref for ReferenceExpandedStructuralReaction {
     type Target = ExpandedStructuralReaction;
 
     fn deref(&self) -> &Self::Target {
@@ -512,11 +510,11 @@ impl ExpandedStructuralReaction {
             &mut output,
             0,
             &format!(
-                "catalogue: {}@{} {} trust={:?}",
+                "catalogue: {}@{} {} provenance={:?}",
                 self.claim.catalogue.name,
                 self.claim.catalogue.version,
                 self.claim.catalogue.digest,
-                self.claim.catalogue.trust
+                self.claim.catalogue.provenance
             ),
         );
         push_line(
@@ -637,10 +635,10 @@ impl ExpandedStructuralReaction {
             &mut output,
             0,
             &format!(
-                "evidence: {} digest={} trust={:?}",
+                "evidence: {} digest={} provenance={:?}",
                 self.claim.evidence.packet.qualified(),
                 self.claim.evidence.digest,
-                self.claim.evidence.trust
+                self.claim.evidence.provenance
             ),
         );
         for observation in &self.claim.evidence.observations {

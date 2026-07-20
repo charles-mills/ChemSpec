@@ -54,6 +54,9 @@ Reusable cues include focus, highlight, electron-state display, typed
 structural-operation animation, equation emphasis, and transition. Typed
 observations remain available to the macroscopic plan, but the guided
 structural timeline does not add separate observation-explanation scenes.
+The `Disappears` predicate remains in trusted frames for macroscopic effects,
+but neither the molecular timeline nor the macroscopic annotation track emits
+a reactant-consumption popup or summary chip for it.
 
 The host-selected profile supplies the display equation for the current pinned
 experience. Neither planner nor renderer derives stoichiometry from drawn atoms,
@@ -67,6 +70,57 @@ produces a bond-formation explanation targeted at the affected atoms, while an
 observation predicate selects gas-evolution, consumption, product-formation, or
 colour wording. Introductory and summary copy remains generic unless the pinned
 presentation profile supplies learner-facing display text.
+
+For an ordinary `TransferElectron` operation, the targeted context line names
+the donor, receiver, and exact electron count. Its shared explanation states
+that the transfer makes the products more stable overall and that the giver
+becomes more positive while the receiver becomes more negative. Electrolysis
+uses one `ELECTROLYSIS · ELECTRON FLOW` heading followed by a single body of
+anode, cathode, and external-circuit text; it does not split the first electrode
+sentence into a differently styled subtitle. Electrical work remains part of
+its context-specific explanation.
+
+`CleaveCovalent` explains that bond breaking requires energy and that energy
+available under the reaction conditions permits the shared electron pair to
+redistribute as the atoms form new bonds.
+When the validated local structure instead proves cleavage of a protonated
+carbonate C–O group, the narration identifies the coupled reorganization: the
+remaining C–O bond strengthens, proton transfer makes water, and stable carbon
+dioxide and water form. This specialization is selected from the trusted atom
+and bond graph rather than a reaction name or display equation.
+Under an exact `electricity` context, the wording instead identifies the applied
+potential and electrode electron transfer; it does not imply that a stable bond
+breaks spontaneously or that electrolysis products are favourable without
+electrical work.
+
+`FormCovalent` narration follows the validated bond order: single, double, and
+triple formation describes one, two, or three shared electron pairs respectively,
+then identifies electrostatic attraction between both nuclei and the shared
+electrons as the bonding interaction.
+
+Proton transfer is a derived, typed educational event rather than a reaction-
+family caption. The planner recognizes it only when the trusted sequence proves
+that the same H loses one single-bonded heavy partner and gains another, and
+that the new partner was initially a closed-shell lone-pair donor (or the
+old bonding pair was explicitly allocated to the donor). Every exact kernel
+operation between those endpoints remains in the scene, but presentation groups
+the closed span into one learner beat. Narration describes the acceptor lone
+pair forming the new bond and identifies the event as proton transfer. The
+renderer moves the complete pair into the bond; it does
+not expose charge-reconciliation bookkeeping as a literal standalone jump.
+Radical, photochemical, and electrochemical contexts, hydrogen-to-hydrogen
+bonding, and sequences that fail the structural proof retain their ordinary
+typed operation narration.
+
+When that proven proton transfer ends in only water and an oppositely charged
+ionic salt product, the final molecular summary derives the cation and anion
+labels from the validated ionic components and points back to their atoms. It
+explains that the ions are spectators which tend to remain separate in aqueous
+solution, and that evaporation followed by crystallisation is what allows the
+ions to form a salt. The planner does not select this explanation from a
+reaction name: any additional non-water molecular product, such as carbon
+dioxide in acid-carbonate gas evolution, prevents the neutralisation-specific
+tip from appearing.
 
 The planner emits completed typed labels such as `ContextLabel` and
 `ExplanationLabel`. A label carries its semantic kind, already composed title
@@ -115,6 +169,14 @@ connector, and target halo. Connector lines have no arrowhead unless direction
 itself carries scientific meaning. This merged beat keeps the change and its
 meaning in one visual context without duplicating labels or interrupting flow.
 
+Stoichiometric coefficients can also require equivalent operations that are
+separated by other validated transitions. Those operations remain distinct in
+the trusted frame sequence and still animate, but the planner narrates each
+typed operation signature only once. It does not add multiplicity filler such
+as “the same change happens at several places.” Product-assignment operations
+remain visible structural transitions without explanatory cards; the final
+product summary carries one unanchored **Reaction complete** note instead.
+
 The 2D renderer evaluates every visual from an absolute educational playhead.
 The media timeline is scrubbable, displays elapsed and total time, exposes
 chapter boundaries, and provides explicit previous/next chapter controls.
@@ -126,8 +188,10 @@ discarding it.
 Atoms are laid out as deterministic connected components using only trusted
 covalent bonds, full charged components of ionic associations, and
 metallic-domain membership. An ionic association is never collapsed to an
-arbitrary atom pair: its visual anchor is the formal-charge-bearing atom when
-one is present, with a component-centre fallback. Stable
+arbitrary atom pair. A validated component that aggregates multiple disconnected
+charged ions is first expanded into its covalently connected charged fragments;
+each fragment's visual anchor is the formal-charge-bearing atom when one is
+present, with a component-centre fallback. Stable
 component slots prevent unrelated molecules from reshuffling when a local
 operation changes. Before/after relations are rendered together: new bonds and
 associations trace in, removed ones retract, and metallic domains morph without
@@ -196,7 +260,8 @@ uses a stable object-ID seed for controlled low-poly variation, so meshes do not
 change shape as the playhead advances.
 
 The default lighting combines ambient, key, fill, hemispheric, and rim terms so
-clear glass, liquid, reactants, and effects remain readable. Three-dimensional
+clear glass, liquid, reactants, and effects remain readable without cast
+shadows. Planar and environment reflections remain visible. Three-dimensional
 playback advances continuously through the complete scene plan; play/pause,
 restart, timeline, and speed are presentation controls rather than manual
 chemistry-stage gates. Orbit, pan, zoom, shake, and cinematic camera motion are

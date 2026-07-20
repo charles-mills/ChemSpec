@@ -1,36 +1,36 @@
 {
-    "schema_version":  1,
-    "id":  "Evidence.IonPairReaction@1",
-    "claims":  [
-                   {
-                       "id":  "R1",
-                       "subject_role":  "product",
-                       "subject":  "salt",
-                       "predicate":  "forms",
-                       "sources":  [
-                                       "S1"
-                                   ]
-                   },
-                   {
-                       "id":  "R2",
-                       "subject_role":  "reactant",
-                       "subject":  "metal",
-                       "predicate":  "disappears",
-                       "sources":  [
-                                       "S1"
-                                   ]
-                   }
-               ],
-    "sources":  [
-                    {
-                        "id":  "S1",
-                        "title":  "Ionic Bonding",
-                        "publisher":  "OpenStax",
-                        "url":  "https://openstax.org/books/chemistry-2e/pages/7-1-ionic-bonding",
-                        "supports":  [
-                                         "R1",
-                                         "R2"
-                                     ]
-                    }
-                ]
+  "schema_version": 1,
+  "id": "Evidence.IonPairReaction@1",
+  "claims": [
+    {
+      "id": "R1",
+      "subject_role": "product",
+      "subject": "salt",
+      "predicate": "forms",
+      "sources": [
+        "S1"
+      ]
+    },
+    {
+      "id": "R2",
+      "subject_role": "reactant",
+      "subject": "metal",
+      "predicate": "disappears",
+      "sources": [
+        "S1"
+      ]
+    }
+  ],
+  "sources": [
+    {
+      "id": "S1",
+      "title": "Ionic Bonding",
+      "publisher": "OpenStax",
+      "url": "https://openstax.org/books/chemistry-2e/pages/7-1-ionic-bonding",
+      "supports": [
+        "R1",
+        "R2"
+      ]
+    }
+  ]
 }
