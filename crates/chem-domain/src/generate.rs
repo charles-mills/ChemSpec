@@ -848,6 +848,9 @@ pub fn generate_structure(
         if let Some(structure) = generate_allotrope(id.clone(), inventory, &nonmetals) {
             return Some(structure);
         }
+        if let Some(structure) = generate_canonical_open_shell(id.clone(), inventory) {
+            return Some(structure);
+        }
         if let Some(structure) = generate_canonical_molecule(id.clone(), inventory) {
             return Some(structure);
         }
@@ -865,6 +868,56 @@ pub fn generate_structure(
     } else {
         generate_ionic(id, inventory, &metals, &nonmetals)
     }
+}
+
+/// Canonical classroom radicals that the paired-electron graph search must
+/// deliberately decline. Their odd electron is explicit, so viewers and
+/// validators receive the real open-shell state rather than a closed-shell
+/// imitation or a formula-only fallback.
+fn generate_canonical_open_shell(
+    id: StructureId,
+    inventory: &ElementInventory,
+) -> Option<StructureDefinition> {
+    let matches = |expected: &[(&str, u64)]| {
+        inventory.elements().len() == expected.len()
+            && expected.iter().all(|(symbol, count)| {
+                inventory
+                    .elements()
+                    .iter()
+                    .find(|(element, _)| element.as_str() == *symbol)
+                    .is_some_and(|(_, actual)| actual == count)
+            })
+    };
+    let atom = |index: usize, symbol: &str, charge: i16, lone: u8, unpaired: u8| {
+        Some(Atom::new(
+            atom_id(index)?,
+            ElementSymbol::new(symbol).ok()?,
+            ElectronState::new(charge, lone, unpaired).ok()?,
+        ))
+    };
+
+    let (symbols, atoms, bonds) = if matches(&[("N", 1), ("O", 1)]) {
+        (
+            vec!["N".to_owned(), "O".to_owned()],
+            vec![atom(0, "N", 0, 3, 1)?, atom(1, "O", 0, 4, 0)?],
+            vec![(0, 1, 2)],
+        )
+    } else if matches(&[("N", 1), ("O", 2)]) {
+        (
+            vec!["N".to_owned(), "O".to_owned(), "O".to_owned()],
+            vec![
+                atom(0, "N", 1, 1, 1)?,
+                atom(1, "O", 0, 4, 0)?,
+                atom(2, "O", -1, 6, 0)?,
+            ],
+            vec![(0, 1, 2), (0, 2, 1)],
+        )
+    } else {
+        return None;
+    };
+    let bonds = make_bonds(&symbols, &bonds, 0)?;
+    let graph = StructuralGraph::new(atoms, bonds, [], [], []).ok()?;
+    StructureDefinition::new(id, inventory.clone(), RepresentationKind::Molecular, graph).ok()
 }
 
 /// A metallic structure for any portion of one elemental metal: every site
@@ -1479,6 +1532,32 @@ mod tests {
         // The sibling even-electron compounds still resolve.
         assert!(structure(&[("C", 3), ("H", 6)]).is_some(), "propene");
         assert!(structure(&[("C", 2), ("H", 6)]).is_some(), "ethane");
+    }
+
+    #[test]
+    fn nitrogen_oxide_radicals_keep_their_open_shell_state() {
+        let nitric_oxide = structure(&[("N", 1), ("O", 1)]).expect("NO radical");
+        assert_eq!(
+            nitric_oxide
+                .graph()
+                .atoms()
+                .values()
+                .map(|atom| atom.electrons().unpaired_electrons())
+                .sum::<u8>(),
+            1
+        );
+
+        let nitrogen_dioxide = structure(&[("N", 1), ("O", 2)]).expect("NO2 radical");
+        assert_eq!(
+            nitrogen_dioxide
+                .graph()
+                .atoms()
+                .values()
+                .map(|atom| atom.electrons().unpaired_electrons())
+                .sum::<u8>(),
+            1
+        );
+        assert_eq!(bond_orders(&nitrogen_dioxide), [Some((3, 2)), Some((3, 2))]);
     }
 
     /// (effective numerator, denominator) per bond, None for localized.

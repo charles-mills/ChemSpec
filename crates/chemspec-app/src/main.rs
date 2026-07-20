@@ -7873,6 +7873,33 @@ mod tests {
     }
 
     #[test]
+    fn acid_carbonate_cleavage_explains_carbon_dioxide_and_water_formation() {
+        for request in chemistry::ReactionRequest::ALL {
+            if !matches!(
+                request.family(),
+                chemistry::ReactionFamily::AcidCarbonateGasEvolution
+                    | chemistry::ReactionFamily::AcidBicarbonateGasEvolution
+            ) {
+                continue;
+            }
+            let run = chemistry::run(request).expect("pinned request validates");
+            let plan = compile_educational_plan(run.frames(), run.declaration().required_context())
+                .expect("educational plan compiles");
+            assert!(
+                plan.scenes
+                    .iter()
+                    .flat_map(|scene| &scene.cues)
+                    .any(|cue| matches!(
+                        cue,
+                        chem_presentation::EducationalCue::ShowExplanation { label }
+                            if label.text.contains("stable CO₂ and H₂O")
+                    )),
+                "{request:?} must explain the carbonate-specific driving products"
+            );
+        }
+    }
+
+    #[test]
     fn educational_copy_is_scientific_concise_and_finishes_with_one_note() {
         let mut labels = Vec::new();
         for request in chemistry::ReactionRequest::ALL {
@@ -7954,6 +7981,84 @@ mod tests {
         assert!(all_copy.contains("water molecules surround and stabilize"));
         assert!(all_copy.contains("METALLIC BONDING CHANGES"));
         assert!(all_copy.contains("positive metal ion cores and delocalised electrons"));
+    }
+
+    #[test]
+    fn every_neutralisation_ends_with_a_dynamic_spectator_ion_tip() {
+        let mut checked = 0;
+        for request in chemistry::ReactionRequest::ALL {
+            if !matches!(
+                request.family(),
+                chemistry::ReactionFamily::AcidBaseNeutralization
+            ) {
+                continue;
+            }
+            checked += 1;
+            let run = chemistry::run(request).expect("pinned neutralisation validates");
+            let plan = compile_educational_plan(run.frames(), run.declaration().required_context())
+                .expect("educational plan compiles");
+            let summary = plan.scenes.last().expect("plan ends with a summary");
+
+            let context = summary.cues.iter().find_map(|cue| match cue {
+                chem_presentation::EducationalCue::ShowContext { label }
+                    if label.title == "SPECTATOR IONS" =>
+                {
+                    Some(label)
+                }
+                _ => None,
+            });
+            let explanation = summary.cues.iter().find_map(|cue| match cue {
+                chem_presentation::EducationalCue::ShowExplanation { label }
+                    if label.text.contains("are spectator ions") =>
+                {
+                    Some(label)
+                }
+                _ => None,
+            });
+            let (context, explanation) = (
+                context.expect("neutralisation summary has spectator-ion context"),
+                explanation.expect("neutralisation summary has spectator-ion explanation"),
+            );
+            assert!(context.text.contains('⁺'), "{request:?}: {}", context.text);
+            assert!(context.text.contains('⁻'), "{request:?}: {}", context.text);
+            assert!(explanation.text.contains("In aqueous solution"));
+            assert!(explanation.text.contains("tend to remain separate"));
+            assert!(
+                explanation
+                    .text
+                    .contains("water is evaporated and crystallisation occurs")
+            );
+            assert!(explanation.text.ends_with("the ions form a salt."));
+            assert!(explanation.connector);
+            assert!(!explanation.target_atoms.is_empty());
+        }
+        assert_eq!(checked, 9);
+    }
+
+    #[test]
+    fn spectator_ion_tip_does_not_misclassify_acid_carbonate_gas_evolution() {
+        for request in chemistry::ReactionRequest::ALL {
+            if !matches!(
+                request.family(),
+                chemistry::ReactionFamily::AcidCarbonateGasEvolution
+                    | chemistry::ReactionFamily::AcidBicarbonateGasEvolution
+            ) {
+                continue;
+            }
+            let run = chemistry::run(request).expect("pinned gas evolution validates");
+            let plan = compile_educational_plan(run.frames(), run.declaration().required_context())
+                .expect("educational plan compiles");
+            assert!(
+                plan.scenes.iter().flat_map(|scene| &scene.cues).all(|cue| {
+                    !matches!(
+                        cue,
+                        chem_presentation::EducationalCue::ShowContext { label }
+                            if label.title == "SPECTATOR IONS"
+                    )
+                }),
+                "{request:?} is gas evolution, not salt-and-water neutralisation"
+            );
+        }
     }
 
     #[test]
@@ -8191,11 +8296,18 @@ mod tests {
         let mut observed_reactions = 0;
         for request in chemistry::ReactionRequest::ALL {
             let run = chemistry::run(request).expect("pinned request validates");
-            let has_observations = run
+            let has_presented_observations = run
                 .frames()
                 .frames()
                 .iter()
-                .any(|frame| !frame.observations().is_empty());
+                .flat_map(chem_kernel::SimulationFrame::observations)
+                .any(|observation| {
+                    matches!(
+                        observation.predicate,
+                        chem_catalogue::ObservationPredicate::Evolves
+                            | chem_catalogue::ObservationPredicate::Colour
+                    )
+                });
             let plan = compile_educational_plan(run.frames(), run.declaration().required_context())
                 .expect("educational plan compiles");
             let observation_scenes = plan
@@ -8203,7 +8315,7 @@ mod tests {
                 .iter()
                 .filter(|scene| scene.kind == EducationalSceneKind::ObservationConnection)
                 .collect::<Vec<_>>();
-            if !has_observations {
+            if !has_presented_observations {
                 assert!(
                     observation_scenes.is_empty(),
                     "{request:?} invented an observation scene"
@@ -8213,7 +8325,7 @@ mod tests {
             observed_reactions += 1;
             assert!(
                 !observation_scenes.is_empty(),
-                "{request:?} has observations but no observation scene"
+                "{request:?} has presentable observations but no observation scene"
             );
             for scene in &observation_scenes {
                 assert!(
@@ -8229,8 +8341,8 @@ mod tests {
                         chem_presentation::EducationalCue::ShowExplanation { label }
                             if label.kind
                                 == chem_presentation::ExplanationLabelKind::ObservationExplanation
-                                // A leader line exists exactly when there are
-                                // atoms to point at (disappearances have none).
+                                // Presented molecular observations point back
+                                // to the atoms that establish the visible event.
                                 && label.connector != label.target_atoms.is_empty()
                     )),
                     "{request:?} observation scene lacks a coherent explanation card"

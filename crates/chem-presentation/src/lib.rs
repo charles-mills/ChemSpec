@@ -11,6 +11,7 @@ use std::fmt;
 use chem_catalogue::ObservationPredicate;
 use chem_domain::{
     AtomId, ContentDigest, IonicAssociationId, Phase, RepresentationKind, StructuralOperationView,
+    conventional_formula,
 };
 use chem_kernel::{FrameObservation, ObservationStatus, SimulationFrame, SimulationFrames};
 
@@ -216,6 +217,7 @@ pub fn compile_educational_plan(
     )];
 
     let mut transition_index = 1;
+    let mut has_proton_transfer = false;
     // Stoichiometric coefficients require one validated operation per concrete
     // atom set, but a repeated operation signature is only one teaching idea.
     // Keep every operation in the timeline while narrating that idea once.
@@ -228,6 +230,7 @@ pub fn compile_educational_plan(
             .active_operation()
             .ok_or(PlanError::MissingOperation(first_after.ordinal()))?;
         let proton_transfers = proton_transfer_batch_at(sequence, group_start, required_context);
+        has_proton_transfer |= proton_transfers.is_some();
         let signature = proton_transfers.as_ref().map_or_else(
             || operation_signature(before, first_after, first_operation.operation.view()),
             |batch| proton_transfer_signature(sequence, &batch.transfers),
@@ -379,6 +382,9 @@ pub fn compile_educational_plan(
 
     // The summary recaps every observation the reaction established, so the
     // macroscopic story stays on screen alongside the final structures.
+    let spectator_ions = has_proton_transfer
+        .then(|| spectator_ion_narration(last))
+        .flatten();
     let mut summary_cues = vec![
         EducationalCue::EstablishFrame {
             frame: last.trace().state_digest,
@@ -396,7 +402,7 @@ pub fn compile_educational_plan(
     summary_cues.extend(
         last.observations()
             .iter()
-            .filter(|observation| observation.predicate != ObservationPredicate::Disappears)
+            .filter(|observation| present_structural_observation_box(observation.predicate))
             .map(|observation| EducationalCue::ShowContext {
                 label: ContextLabel {
                     kind: ExplanationLabelKind::ObservationExplanation,
@@ -407,17 +413,184 @@ pub fn compile_educational_plan(
                 },
             }),
     );
+    if let Some(narration) = &spectator_ions {
+        summary_cues.extend([
+            EducationalCue::ShowContext {
+                label: narration.context.clone(),
+            },
+            EducationalCue::ShowExplanation {
+                label: narration.explanation.clone(),
+            },
+        ]);
+    }
+    let summary_duration_ms = spectator_ions.as_ref().map_or(4_200, |narration| {
+        explanation_duration(&narration.explanation.text).max(4_200)
+    });
     scenes.push(scene(
         EducationalSceneKind::Summary,
         last,
         last,
-        4_200,
+        summary_duration_ms,
         summary_cues,
     ));
     Ok(EducationalPlan {
         id: frames.digest().map_err(|_| PlanError::Digest)?,
         scenes,
     })
+}
+
+/// Builds the final aqueous spectator-ion explanation only from a validated
+/// salt-and-water product state. Requiring every non-ionic product to be water
+/// keeps acid-carbonate gas evolution and other proton-transfer chemistry out
+/// of this neutralisation-specific teaching beat.
+fn spectator_ion_narration(frame: &SimulationFrame) -> Option<OperationNarration> {
+    let (association, salt_atoms) =
+        frame
+            .ionic_associations()
+            .values()
+            .find_map(|association| {
+                let atoms = association
+                    .components
+                    .values()
+                    .flatten()
+                    .cloned()
+                    .collect::<BTreeSet<_>>();
+                frame
+                    .product_membership()
+                    .values()
+                    .any(|product| product == &atoms)
+                    .then_some((association, atoms))
+            })?;
+
+    let mut has_water = false;
+    for product in frame.product_membership().values() {
+        if product == &salt_atoms {
+            continue;
+        }
+        if !is_water_product(frame, product) {
+            return None;
+        }
+        has_water = true;
+    }
+    if !has_water {
+        return None;
+    }
+
+    let mut positive = None;
+    let mut negative = None;
+    let mut target_atoms = Vec::new();
+    for (group, atoms) in &association.components {
+        let charge = association.component_charges.get(group).copied()?;
+        if charge == 0 {
+            return None;
+        }
+        let label = ionic_component_label(frame, atoms, charge);
+        if charge > 0 {
+            positive.get_or_insert(label);
+        } else {
+            negative.get_or_insert(label);
+        }
+        target_atoms.extend(atoms.iter().map(AtomId::as_str).map(str::to_owned));
+    }
+    let (positive, negative) = (positive?, negative?);
+    target_atoms.sort();
+    target_atoms.dedup();
+
+    let kind = ExplanationLabelKind::StructuralChangeExplanation;
+    Some(OperationNarration {
+        context: ContextLabel {
+            kind,
+            title: "SPECTATOR IONS".to_owned(),
+            text: format!("{positive} and {negative} remain separate in solution"),
+            target_atoms: target_atoms.clone(),
+            connector: true,
+        },
+        explanation: ExplanationLabel {
+            kind,
+            text: format!(
+                "In aqueous solution, {positive} and {negative} are spectator ions and tend to remain separate. It is only when water is evaporated and crystallisation occurs that the ions form a salt."
+            ),
+            target_atoms,
+            connector: true,
+        },
+    })
+}
+
+fn is_water_product(frame: &SimulationFrame, atoms: &BTreeSet<AtomId>) -> bool {
+    if atoms.len() != 3 {
+        return false;
+    }
+    let mut hydrogen = 0;
+    let mut oxygen = 0;
+    for atom in atoms {
+        match frame.atoms().get(atom).map(|atom| atom.element.as_str()) {
+            Some("H") => hydrogen += 1,
+            Some("O") => oxygen += 1,
+            _ => return false,
+        }
+    }
+    hydrogen == 2 && oxygen == 1
+}
+
+fn ionic_component_label(frame: &SimulationFrame, atoms: &BTreeSet<AtomId>, charge: i64) -> String {
+    let mut counts = BTreeMap::<String, u64>::new();
+    for atom in atoms {
+        if let Some(atom) = frame.atoms().get(atom) {
+            *counts.entry(atom.element.as_str().to_owned()).or_default() += 1;
+        }
+    }
+    let formula = conventional_formula(
+        counts
+            .iter()
+            .map(|(symbol, count)| (symbol.as_str(), *count)),
+    )
+    .chars()
+    .map(unicode_subscript_digit)
+    .collect::<String>();
+    format!("{formula}{}", ionic_charge_suffix(charge))
+}
+
+const fn unicode_subscript_digit(character: char) -> char {
+    match character {
+        '0' => '₀',
+        '1' => '₁',
+        '2' => '₂',
+        '3' => '₃',
+        '4' => '₄',
+        '5' => '₅',
+        '6' => '₆',
+        '7' => '₇',
+        '8' => '₈',
+        '9' => '₉',
+        other => other,
+    }
+}
+
+fn ionic_charge_suffix(charge: i64) -> String {
+    let magnitude = charge.unsigned_abs();
+    let mut suffix = if magnitude == 1 {
+        String::new()
+    } else {
+        magnitude
+            .to_string()
+            .chars()
+            .map(|digit| match digit {
+                '0' => '⁰',
+                '1' => '¹',
+                '2' => '²',
+                '3' => '³',
+                '4' => '⁴',
+                '5' => '⁵',
+                '6' => '⁶',
+                '7' => '⁷',
+                '8' => '⁸',
+                '9' => '⁹',
+                other => other,
+            })
+            .collect()
+    };
+    suffix.push(if charge > 0 { '⁺' } else { '⁻' });
+    suffix
 }
 
 fn has_active_observation(frame: &SimulationFrame) -> bool {
@@ -498,6 +671,9 @@ fn proton_transfer_from_cleavage(
     } else {
         return None;
     };
+    if atom_symbol(before, cleavage_after, donor) == "H" {
+        return None;
+    }
 
     for (formation_index, formation_after) in sequence.iter().enumerate().skip(cleavage_index + 1) {
         let Some(active) = formation_after.active_operation() else {
@@ -633,7 +809,7 @@ fn observation_scene(
         .iter()
         .filter(|observation| {
             observation.status == ObservationStatus::Active
-                && observation.predicate != ObservationPredicate::Disappears
+                && present_structural_observation_box(observation.predicate)
         })
         .collect::<Vec<_>>();
     let first = observed.first()?;
@@ -927,7 +1103,11 @@ fn operation_narration(
                 atom_symbol(before, after, right),
                 bond_order_name(expected_order.order())
             ),
-            covalent_cleavage_explanation(required_context).to_owned(),
+            covalent_cleavage_explanation(
+                required_context,
+                is_protonated_carbonate_cleavage(before, left, right),
+            )
+            .to_owned(),
             atom_targets([left, right]),
         ),
         StructuralOperationView::FormCovalent {
@@ -1057,13 +1237,8 @@ fn operation_narration(
             } else {
                 (
                     format!("{donor_symbol} → {acceptor_symbol} · {count} {electrons}"),
-                    if count == 1 {
-                        "An electron jumps from one atom to the other: the giver becomes more positive and the receiver more negative."
-                            .to_owned()
-                    } else {
-                        "Electrons jump from one atom to the other: the giver becomes more positive and the receiver more negative."
-                            .to_owned()
-                    },
+                    "This transfer makes the products more stable overall. The giver becomes more positive and the receiver more negative."
+                        .to_owned(),
                     atom_targets([donor, acceptor]),
                 )
             }
@@ -1103,12 +1278,53 @@ fn operation_narration(
     }
 }
 
-fn covalent_cleavage_explanation(required_context: &str) -> &'static str {
+fn covalent_cleavage_explanation(
+    required_context: &str,
+    protonated_carbonate: bool,
+) -> &'static str {
     if required_context.eq_ignore_ascii_case("electricity") {
         "The applied potential supplies electrical energy and drives electron transfer at the electrodes. This allows the bond's electrons to rearrange so the atoms can form the product bonds."
+    } else if protonated_carbonate {
+        "Acid has protonated the carbonate oxygens. This C–O bond breaks as the remaining C–O bond strengthens to a second C=O bond and proton transfer turns the departing oxygen group into water, producing stable CO₂ and H₂O."
     } else {
         "Breaking a covalent bond requires energy. Energy available under the reaction conditions allows the shared electron pair to redistribute as the atoms form new bonds."
     }
+}
+
+/// Identifies the local, validated structural motif behind acid–carbonate gas
+/// evolution without relying on a reaction name or untrusted display formula.
+fn is_protonated_carbonate_cleavage(
+    before: &SimulationFrame,
+    left: &AtomId,
+    right: &AtomId,
+) -> bool {
+    let (carbon, oxygen) = match (
+        atom_symbol(before, before, left).as_str(),
+        atom_symbol(before, before, right).as_str(),
+    ) {
+        ("C", "O") => (left, right),
+        ("O", "C") => (right, left),
+        _ => return false,
+    };
+
+    let bonded_to = |center: &AtomId, element: &str| {
+        before
+            .covalent_edges()
+            .values()
+            .filter_map(|edge| {
+                if &edge.left == center {
+                    Some(&edge.right)
+                } else if &edge.right == center {
+                    Some(&edge.left)
+                } else {
+                    None
+                }
+            })
+            .filter(|neighbour| atom_symbol(before, before, neighbour) == element)
+            .count()
+    };
+
+    bonded_to(carbon, "O") == 3 && bonded_to(oxygen, "H") >= 1
 }
 
 fn covalent_formation_explanation(order: u8) -> String {
@@ -1131,9 +1347,9 @@ fn electrolysis_transfer_text(
     electrons: &str,
 ) -> (String, String) {
     (
-        format!("Anode: {donor} transfers {count} {electrons}"),
+        String::new(),
         format!(
-            "Cathode: {acceptor} receives {count} {electrons}. Oxidation occurs at the anode and reduction at the cathode; electrons travel through the external circuit, not directly between these ions."
+            "Anode: {donor} transfers {count} {electrons}. Cathode: {acceptor} receives {count} {electrons}. Oxidation occurs at the anode and reduction at the cathode; electrons travel through the external circuit, not directly between these ions."
         ),
     )
 }
@@ -1237,6 +1453,17 @@ fn observation_text(predicate: ObservationPredicate, value: Option<&str>) -> Str
             |colour| format!("You would see the mixture turn {colour} as this product forms."),
         ),
     }
+}
+
+/// Generic product formation is already visible in the structural result, so
+/// only observations that add distinct information get a dedicated molecular-
+/// timeline box. `Forms` remains available to the macroscopic presentation and
+/// to authorize visual effects.
+const fn present_structural_observation_box(predicate: ObservationPredicate) -> bool {
+    matches!(
+        predicate,
+        ObservationPredicate::Evolves | ObservationPredicate::Colour
+    )
 }
 
 /// One-line recap of an observation for the summary chips.
@@ -5088,8 +5315,25 @@ mod tests {
         authorize_metal_displacement_assembly, authorize_solid_solid_synthesis_assembly,
         compile_real_world_timeline, covalent_cleavage_explanation, covalent_formation_explanation,
         effect_authorization_is_compatible, electrolysis_transfer_text,
-        macroscopic_beat_duration_ms, precipitation_colours_from_materials, visual_colour,
+        macroscopic_beat_duration_ms, precipitation_colours_from_materials,
+        present_structural_observation_box, visual_colour,
     };
+
+    #[test]
+    fn generic_product_formation_does_not_get_a_structural_observation_box() {
+        assert!(!present_structural_observation_box(
+            ObservationPredicate::Forms
+        ));
+        assert!(!present_structural_observation_box(
+            ObservationPredicate::Disappears
+        ));
+        assert!(present_structural_observation_box(
+            ObservationPredicate::Evolves
+        ));
+        assert!(present_structural_observation_box(
+            ObservationPredicate::Colour
+        ));
+    }
 
     fn precipitation_material(
         binding: &str,
@@ -6012,27 +6256,33 @@ mod tests {
 
     #[test]
     fn electrolysis_transfer_copy_uses_electrodes_not_direct_ion_motion() {
-        let (anode, cathode) = electrolysis_transfer_text("Cl", "Ag", 1, "electron");
-        assert_eq!(anode, "Anode: Cl transfers 1 electron");
-        assert!(cathode.starts_with("Cathode: Ag receives 1 electron."));
-        assert!(cathode.contains("external circuit"));
-        assert!(cathode.contains("not directly between these ions"));
-        assert!(!cathode.contains("jumps"));
+        let (subtitle, body) = electrolysis_transfer_text("Cl", "Ag", 1, "electron");
+        assert!(subtitle.is_empty());
+        assert!(
+            body.starts_with("Anode: Cl transfers 1 electron. Cathode: Ag receives 1 electron.")
+        );
+        assert!(body.contains("external circuit"));
+        assert!(body.contains("not directly between these ions"));
+        assert!(!body.contains("jumps"));
     }
 
     #[test]
     fn covalent_cleavage_copy_explains_the_energy_source_and_electron_rearrangement() {
-        let ordinary = covalent_cleavage_explanation("heat");
+        let ordinary = covalent_cleavage_explanation("heat", false);
         assert!(ordinary.starts_with("Breaking a covalent bond requires energy."));
         assert!(ordinary.contains("shared electron pair to redistribute"));
         assert!(ordinary.ends_with("as the atoms form new bonds."));
 
-        let electrolysis = covalent_cleavage_explanation("electricity");
+        let electrolysis = covalent_cleavage_explanation("electricity", false);
         assert!(electrolysis.starts_with("The applied potential"));
         assert!(electrolysis.contains("electrical energy"));
         assert!(electrolysis.contains("electron transfer at the electrodes"));
         assert!(electrolysis.contains("form the product bonds"));
         assert!(!electrolysis.contains("more favourable"));
+
+        let carbonate = covalent_cleavage_explanation("mixing", true);
+        assert!(carbonate.contains("protonated the carbonate oxygens"));
+        assert!(carbonate.contains("stable CO₂ and H₂O"));
     }
 
     #[test]
