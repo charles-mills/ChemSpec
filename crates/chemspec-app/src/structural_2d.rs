@@ -742,6 +742,7 @@ pub struct Diagram {
     positions: BTreeMap<String, Point>,
     /// World rectangle the view frames, in virtual coordinates.
     camera: Rectangle,
+    interactive: bool,
 }
 
 impl Diagram {
@@ -789,7 +790,16 @@ impl Diagram {
             context,
             ambient_progress: ambient_progress.clamp(0.0, 1.0),
             positions,
+            interactive: true,
         }
+    }
+
+    /// Keeps the simulation's exact drawing language while presenting an
+    /// inert record rather than a drag-enabled scene.
+    #[must_use]
+    pub const fn static_view(mut self) -> Self {
+        self.interactive = false;
+        self
     }
 
     /// Nearest draggable thing to a virtual-space point: an atom within its
@@ -857,6 +867,9 @@ impl canvas::Program<DragEvent> for Diagram {
         bounds: Rectangle,
         cursor: Cursor,
     ) -> Option<canvas::Action<DragEvent>> {
+        if !self.interactive {
+            return None;
+        }
         let (fit, offset) = camera_transform(bounds, self.camera);
         match event {
             canvas::Event::Mouse(mouse::Event::ButtonPressed(mouse::Button::Left)) => {
@@ -893,6 +906,9 @@ impl canvas::Program<DragEvent> for Diagram {
         bounds: Rectangle,
         cursor: Cursor,
     ) -> mouse::Interaction {
+        if !self.interactive {
+            return mouse::Interaction::default();
+        }
         if *dragging {
             return mouse::Interaction::Grabbing;
         }

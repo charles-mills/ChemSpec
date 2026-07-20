@@ -129,18 +129,22 @@ focused on the scene and playback controls instead of repeating a disclosure
 overlay or showing a terminal narration card.
 
 Completing the macroscopic timeline unlocks a final product record. On desktop,
-the page uses an even split: the left side is a full-height, continuously
-rotating perspective 3D product model, while the right side presents molecule
-properties as a staggered typewriter readout. The model is compiled from
-final-frame product membership, atoms, formal charges, and covalent
-relationships; ionic products use an association enclosure instead of fake
-bonds. Covalent lines and their multiplicity come only from validated edges;
-generic VSEPR-informed geometry uses connectivity and non-bonding-electron
-counts to keep bonded atoms legible without reaction-specific layout code.
-Formulae, composition, structure class, atom and bond counts,
-net formal charge, and exact-decimal reference molar mass are deterministic
-local presentation values. The renderer never selects a product by reaction
-name.
+the page uses an even split: the left side presents the validated final frame
+through the same structural 2D renderer, atom-shell language, relationship
+styling, and story-anchored layout used by the molecular simulation. It is a
+static record rather than a second interactive simulation. The right side
+lists one collapsed disclosure per product. Opening a disclosure reveals its
+formula, composition, structure class, atom and bond counts, net formal charge,
+and exact-decimal reference molar mass immediately; no property text is typed
+or progressively revealed. All values remain deterministic local presentation
+data compiled from final-frame membership and bundled element metadata.
+
+The result record also offers **More info** for a brief presentation-only Codex
+note about required temperature, pressure, catalysts, and industrial or
+environmental occurrence. Local mode keeps the action visible and answers
+immediately that the feature is unavailable. Codex output is bounded to two or
+three short paragraphs, is labelled as reaction context, and cannot alter the
+validated reaction, catalogue, or frames.
 
 The result screen keeps the established instrument language: nested near-black
 surfaces, one-pixel borders, compact uppercase eyebrows, restrained green and
@@ -149,9 +153,9 @@ blue accents, broad model whitespace, and explicit validation wording. Below
 one vertical scroll region. Property rows switch to a vertical label-value
 composition, and the desktop record uses height-aware density plus its own
 scroll boundary so long values and short viewports do not clip. The 3D product
-completes one 360-degree revolution in roughly 18 seconds, while property rows
-reveal sequentially with a visible cursor and
-stable row geometry.
+view and typewriter sequence are absent: the final structural view and every
+closed disclosure heading are present on the first paint. Opening a product
+changes only that product's information region.
 
 ## Tokens
 
@@ -205,11 +209,9 @@ run only while the trusted frame sequence is playing. Native hover, press,
 focus, selected, and disabled feedback requires no unconditional
 subscription.
 
-The product record is the one intentional post-playback continuous view: its
-subscription advances the user-requested rotating 3D model and deterministic
-typewriter reveal only while that screen is visible. Leaving the screen removes
-the subscription. The same elapsed value reconstructs the same model angle and
-text state.
+The product record is static and owns no continuous tick subscription. Product
+disclosures change only in response to user intent, and the finite More info
+request returns through a generation-scoped completion message.
 
 ## Responsive composition
 

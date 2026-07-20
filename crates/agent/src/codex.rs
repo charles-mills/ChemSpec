@@ -173,17 +173,21 @@ const MECHANISM_RESULT_SCHEMA: &str = include_str!("../schemas/mechanism-respons
 const STRUCTURE_RESULT_SCHEMA: &str = include_str!("../schemas/structure-response.json");
 const OXIDE_APPEARANCE_RESULT_SCHEMA: &str =
     include_str!("../schemas/oxide-appearance-response.json");
+const REACTION_MORE_INFO_RESULT_SCHEMA: &str =
+    include_str!("../schemas/reaction-more-info-response.json");
 
 const CLAIM_PROMPT_TEMPLATE: &str = include_str!("../prompts/dynamic-reaction.md");
 const MECHANISM_PROMPT_TEMPLATE: &str = include_str!("../prompts/dynamic-mechanism.md");
 const STRUCTURE_PROMPT_TEMPLATE: &str = include_str!("../prompts/dynamic-structure.md");
 const OXIDE_APPEARANCE_PROMPT_TEMPLATE: &str = include_str!("../prompts/oxide-appearance.md");
+const REACTION_MORE_INFO_PROMPT_TEMPLATE: &str = include_str!("../prompts/reaction-more-info.md");
 pub const FAST_CLAIM_TIMEOUT: Duration = Duration::from_secs(30);
 pub const MECHANISM_TIMEOUT: Duration = Duration::from_mins(3);
 // Appearance research includes live-source discovery and one bounded repair
 // pass. A one-minute shared deadline can expire before the validated repair
 // finishes, delaying the exact product-bound material update.
 pub const OXIDE_APPEARANCE_TIMEOUT: Duration = Duration::from_mins(3);
+pub const REACTION_MORE_INFO_TIMEOUT: Duration = Duration::from_mins(1);
 const MAX_ARTIFACT_BYTES: u64 = 2 * 1024 * 1024;
 const PREFLIGHT_PROBE_TIMEOUT: Duration = Duration::from_secs(5);
 const PREFLIGHT_TOTAL_TIMEOUT: Duration = Duration::from_secs(20);
@@ -447,6 +451,49 @@ impl CodexProvider {
         unreachable!("the bounded oxide appearance loop always returns")
     }
 
+    /// Produces a short, presentation-only note about the operating context
+    /// of an already-validated reaction. The response cannot alter chemistry,
+    /// frames, validation, or catalogue content.
+    ///
+    /// # Errors
+    ///
+    /// Returns a preflight, invocation, schema, or paragraph-contract error.
+    pub fn reaction_more_info(&self, reaction: &str) -> Result<String, AgentError> {
+        let reaction = reaction.trim();
+        if reaction.is_empty() || reaction.chars().count() > 1_000 {
+            return Err(AgentError::new(
+                AgentErrorKind::InvalidRequest,
+                "reaction more info",
+                "the validated reaction label is empty or too long",
+            ));
+        }
+        let deadline = Instant::now() + REACTION_MORE_INFO_TIMEOUT;
+        let preflight = self.preflight_until(deadline)?;
+        if !preflight.authenticated {
+            return Err(AgentError::new(
+                AgentErrorKind::ProviderUnavailable,
+                "Codex preflight",
+                "Codex is installed but not authenticated",
+            ));
+        }
+        let temporary = TemporaryRun::create()?;
+        let schema_path = temporary.path.join("reaction-more-info.schema.json");
+        let result_path = temporary.path.join("reaction-more-info.json");
+        fs::write(&schema_path, REACTION_MORE_INFO_RESULT_SCHEMA).map_err(|error| {
+            AgentError::from_source(AgentErrorKind::ProviderFailure, "Codex run setup", error)
+        })?;
+        let prompt = REACTION_MORE_INFO_PROMPT_TEMPLATE.replace("{{REACTION}}", reaction);
+        let bytes = self.invoke(
+            &temporary,
+            &schema_path,
+            &result_path,
+            &prompt,
+            deadline,
+            false,
+        )?;
+        parse_reaction_more_info(&bytes)
+    }
+
     /// Requests one mapping/operation proposal for an immutable, locally
     /// compiled labelled reaction. Search is deliberately disabled.
     ///
@@ -702,6 +749,42 @@ impl CodexProvider {
             .mechanism_deadline
             .get_or_insert_with(|| Instant::now() + MECHANISM_TIMEOUT)
     }
+}
+
+fn parse_reaction_more_info(bytes: &[u8]) -> Result<String, AgentError> {
+    let value: serde_json::Value = serde_json::from_slice(bytes).map_err(|error| {
+        AgentError::from_source(
+            AgentErrorKind::InvalidProviderOutput,
+            "reaction more info",
+            error,
+        )
+    })?;
+    let answer = value
+        .as_object()
+        .filter(|object| object.len() == 1)
+        .and_then(|object| object.get("answer"))
+        .and_then(serde_json::Value::as_str)
+        .map(str::trim)
+        .filter(|answer| !answer.is_empty())
+        .ok_or_else(|| {
+            AgentError::new(
+                AgentErrorKind::InvalidProviderOutput,
+                "reaction more info",
+                "Codex returned an invalid answer object",
+            )
+        })?;
+    let paragraphs = answer
+        .split("\n\n")
+        .filter(|paragraph| !paragraph.trim().is_empty())
+        .count();
+    if !(2..=3).contains(&paragraphs) {
+        return Err(AgentError::new(
+            AgentErrorKind::InvalidProviderOutput,
+            "reaction more info",
+            "Codex must return two or three short paragraphs",
+        ));
+    }
+    Ok(answer.to_owned())
 }
 
 impl MechanismProvider for CodexProvider {
@@ -1223,6 +1306,9 @@ mod tests {
             appearance["properties"]["schema_version"]["const"],
             json!(1)
         );
+        let more_info: serde_json::Value = serde_json::from_str(REACTION_MORE_INFO_RESULT_SCHEMA)
+            .expect("reaction more-info schema");
+        assert_eq!(more_info["properties"]["answer"]["maxLength"], json!(2400));
         assert_eq!(appearance["properties"]["sources"]["maxItems"], json!(3));
     }
 
@@ -1337,6 +1423,7 @@ mod tests {
             MECHANISM_RESULT_SCHEMA,
             STRUCTURE_RESULT_SCHEMA,
             OXIDE_APPEARANCE_RESULT_SCHEMA,
+            REACTION_MORE_INFO_RESULT_SCHEMA,
         ] {
             assert!(!schema.contains("oneOf"), "strict mode rejects oneOf");
             assert!(
@@ -1350,6 +1437,32 @@ mod tests {
             let value: serde_json::Value = serde_json::from_str(schema).expect("schema JSON");
             assert_consts_typed(&value);
         }
+    }
+
+    #[test]
+    fn reaction_more_info_prompt_is_brief_and_safety_bounded() {
+        let prompt =
+            REACTION_MORE_INFO_PROMPT_TEMPLATE.replace("{{REACTION}}", "2 H₂ + O₂ → 2 H₂O");
+        assert!(prompt.contains("temperature"));
+        assert!(prompt.contains("pressure"));
+        assert!(prompt.contains("catalysts"));
+        assert!(prompt.contains("industry or the environment"));
+        assert!(prompt.contains("2–3 short paragraphs"));
+        assert!(prompt.contains("Do not provide step-by-step"));
+        assert!(!prompt.contains("{{"));
+    }
+
+    #[test]
+    fn reaction_more_info_requires_two_or_three_paragraphs() {
+        let valid = br#"{"answer":"Conditions paragraph.\n\nOccurrence paragraph."}"#;
+        assert_eq!(
+            parse_reaction_more_info(valid).expect("two paragraphs are valid"),
+            "Conditions paragraph.\n\nOccurrence paragraph."
+        );
+        assert!(parse_reaction_more_info(br#"{"answer":"Only one paragraph."}"#).is_err());
+        assert!(
+            parse_reaction_more_info(br#"{"answer":"One.\n\nTwo.\n\nThree.\n\nFour."}"#).is_err()
+        );
     }
 
     #[test]

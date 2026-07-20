@@ -423,16 +423,6 @@ pub fn summary_properties_panel(_: &Theme) -> container::Style {
         })
 }
 
-pub fn summary_product_heading(_: &Theme) -> container::Style {
-    container::Style::default()
-        .background(color::ACCENT_FAINT.scale_alpha(0.72))
-        .border(border_style(
-            color::ACCENT.scale_alpha(0.36),
-            1.0,
-            radius::CONTROL,
-        ))
-}
-
 pub fn summary_property_row(started: bool, active: bool) -> container::Style {
     let background = if active {
         color::ACCENT_FAINT.scale_alpha(0.74)
@@ -451,11 +441,11 @@ pub fn summary_property_row(started: bool, active: bool) -> container::Style {
         .border(border_style(border, 1.0, radius::CONTROL))
 }
 
-pub fn summary_trust_strip(_: &Theme) -> container::Style {
+pub fn summary_more_info_panel(_: &Theme) -> container::Style {
     container::Style::default()
-        .background(color::SUCCESS.scale_alpha(0.07))
+        .background(color::ACCENT_FAINT.scale_alpha(0.52))
         .border(border_style(
-            color::SUCCESS.scale_alpha(0.32),
+            color::ACCENT.scale_alpha(0.34),
             1.0,
             radius::CONTROL,
         ))
