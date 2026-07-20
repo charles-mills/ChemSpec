@@ -2072,12 +2072,21 @@ impl SceneLayout {
             let vessel_center = Vec3::new(0.0, bench_top + 0.90, 0.0);
             let liquid_center = Vec3::new(0.0, bench_top + 0.81, 0.0);
             let liquid_surface = bench_top + 1.543;
+            // The sealed gas chambers hold no standing liquid: without this
+            // the bench renders a light-through-liquid caustic footprint
+            // around a vessel that contains only gas.
+            let dry_chamber = vessel.is_some_and(|object| {
+                matches!(
+                    object.asset,
+                    AssetProfile::SolidGasSynthesisAssembly | AssetProfile::GasGasSynthesisAssembly
+                )
+            });
             return Self {
                 bench_top,
                 has_vessel: true,
                 vessel_center,
                 vessel_scale: Vec3::new(0.99, 0.90, 0.99),
-                has_liquid: true,
+                has_liquid: !dry_chamber,
                 liquid_center,
                 liquid_surface,
                 reaction_point: Vec3::new(0.0, liquid_surface + 0.045, 0.0),

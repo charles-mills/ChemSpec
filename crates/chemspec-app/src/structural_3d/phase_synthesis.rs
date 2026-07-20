@@ -16,8 +16,11 @@ const CHAMBER_RADIUS: f32 = 0.58;
 const CHAMBER_HEIGHT: f32 = 1.16;
 const PLATE_RADIUS: f32 = 0.76;
 const PLATE_HEIGHT: f32 = 0.07;
-const STEEL: [f32; 4] = [0.46, 0.48, 0.52, 1.0];
-const GLASS: [f32; 4] = [0.62, 0.84, 0.94, 0.20];
+const STEEL: [f32; 4] = [0.56, 0.58, 0.62, 1.0];
+/// Matte powder-coated housing: large horizontal metal surfaces bloom badly
+/// under the key light, so the plate and lid stay dark and diffuse.
+const HOUSING: [f32; 4] = [0.235, 0.255, 0.285, 1.0];
+const GLASS: [f32; 4] = [0.62, 0.84, 0.94, 0.10];
 
 /// Fraction of the reactants converted into the gaseous product.
 fn conversion(progress: f32) -> f32 {
@@ -32,6 +35,14 @@ fn activity(progress: f32) -> f32 {
 /// How far the two gas charges have drifted into one another (gas–gas).
 fn approach(progress: f32) -> f32 {
     smooth01((progress - 0.05) / 0.30)
+}
+
+/// A colourless gas is close to invisible in a real chamber. Concentration
+/// cues keep a faint educational presence, while visibly coloured gases
+/// (chlorine, bromine vapour, nitrogen dioxide) carry full weight.
+fn colour_visibility(colour: [f32; 4]) -> f32 {
+    let chroma = colour[0].max(colour[1]).max(colour[2]) - colour[0].min(colour[1]).min(colour[2]);
+    0.30 + 0.70 * smooth01(chroma / 0.22)
 }
 
 fn bound_rgba(
@@ -54,17 +65,17 @@ fn add_reaction_chamber(
 ) {
     let plate_top = bench_top + PLATE_HEIGHT;
     add_cylinder(
-        &mut meshes.metallic,
+        &mut meshes.opaque,
         Vec3::new(0.0, bench_top, 0.0),
         Vec3::new(0.0, plate_top, 0.0),
         PLATE_RADIUS,
-        STEEL,
+        HOUSING,
     );
     add_disc(
-        &mut meshes.metallic,
+        &mut meshes.opaque,
         Vec3::new(0.0, plate_top, 0.0),
         PLATE_RADIUS,
-        STEEL,
+        HOUSING,
     );
     let lid_y = plate_top + CHAMBER_HEIGHT;
     add_cylinder_wall(
@@ -74,27 +85,26 @@ fn add_reaction_chamber(
         CHAMBER_RADIUS,
         GLASS,
     );
-    add_disc(&mut meshes.glass, Vec3::new(0.0, lid_y, 0.0), CHAMBER_RADIUS, GLASS);
-    // Collar ring seating the glass onto the plate, and a lid ring above.
-    add_cylinder(
-        &mut meshes.metallic,
-        Vec3::new(0.0, plate_top, 0.0),
-        Vec3::new(0.0, plate_top + 0.06, 0.0),
-        CHAMBER_RADIUS + 0.025,
-        STEEL,
-    );
-    add_cylinder(
-        &mut meshes.metallic,
-        Vec3::new(0.0, lid_y - 0.015, 0.0),
-        Vec3::new(0.0, lid_y + 0.035, 0.0),
-        CHAMBER_RADIUS + 0.025,
-        STEEL,
-    );
     add_disc(
-        &mut meshes.metallic,
-        Vec3::new(0.0, lid_y + 0.035, 0.0),
-        CHAMBER_RADIUS + 0.025,
-        STEEL,
+        &mut meshes.opaque,
+        Vec3::new(0.0, lid_y + 0.024, 0.0),
+        CHAMBER_RADIUS + 0.012,
+        HOUSING,
+    );
+    // Slim collar rings seating the glass at the plate and the lid.
+    add_cylinder(
+        &mut meshes.opaque,
+        Vec3::new(0.0, plate_top, 0.0),
+        Vec3::new(0.0, plate_top + 0.042, 0.0),
+        CHAMBER_RADIUS + 0.012,
+        HOUSING,
+    );
+    add_cylinder(
+        &mut meshes.opaque,
+        Vec3::new(0.0, lid_y - 0.008, 0.0),
+        Vec3::new(0.0, lid_y + 0.024, 0.0),
+        CHAMBER_RADIUS + 0.012,
+        HOUSING,
     );
     // Relief valve on the lid.
     add_cylinder(
@@ -142,7 +152,7 @@ fn add_reaction_front(
     phase: f32,
     seed: u64,
 ) {
-    const BEADS: u32 = 14;
+    const BEADS: u32 = 18;
     const FRONT_COLOUR: [f32; 4] = [1.0, 0.30, 0.05, 0.55];
     for bead in 0..BEADS {
         let unit = bead as f32 / (BEADS - 1) as f32;
@@ -168,7 +178,7 @@ fn add_reaction_front(
         add_sphere(
             &mut meshes.emissive,
             position,
-            (0.020 * presence * pulse).max(0.000_5),
+            (0.017 * presence * pulse).max(0.000_5),
             alpha(FRONT_COLOUR, FRONT_COLOUR[3] * presence * pulse),
             3,
             5,
@@ -185,6 +195,7 @@ fn add_reaction_front(
     }
 }
 
+#[allow(clippy::too_many_lines)]
 pub(super) fn add_phase_synthesis_assembly(
     meshes: &mut SceneMeshes,
     plan: &ScenePlan,
@@ -203,15 +214,16 @@ pub(super) fn add_phase_synthesis_assembly(
     let converted = conversion(progress);
     let active = activity(progress);
     let floor_y = layout.bench_top + PLATE_HEIGHT;
-    let gas_centre_y = floor_y + CHAMBER_HEIGHT * 0.52;
-    let reactant_a = bound_rgba(&synthesis.reactant_a, 0.32, ordinal, ordinal_progress);
-    let reactant_b = bound_rgba(&synthesis.reactant_b, 0.32, ordinal, ordinal_progress);
+    let gas_centre_y = floor_y + CHAMBER_HEIGHT * 0.55;
+    let reactant_a = bound_rgba(&synthesis.reactant_a, 0.40, ordinal, ordinal_progress);
+    let reactant_b = bound_rgba(&synthesis.reactant_b, 0.40, ordinal, ordinal_progress);
     let product = bound_rgba(&synthesis.product, 0.34, ordinal, ordinal_progress);
     let inlet_colours: &[[f32; 4]] = match synthesis.variant {
         PhaseSynthesisVariant::SolidGas => &[reactant_b],
         PhaseSynthesisVariant::GasGas => &[reactant_a, reactant_b],
     };
     add_reaction_chamber(meshes, layout.bench_top, inlet_colours);
+    let gas_start = meshes.gas.len();
     let turbulence = 0.16 + active * 0.36;
     match synthesis.variant {
         PhaseSynthesisVariant::SolidGas => {
@@ -224,21 +236,25 @@ pub(super) fn add_phase_synthesis_assembly(
             synthesis::add_powder_heap(
                 &mut meshes.opaque,
                 Vec3::new(0.0, floor_y, 0.0),
-                0.30,
-                0.060,
+                0.32,
+                0.066,
                 (1.0 - converted * 0.78).max(0.06),
                 [solid, solid],
                 None,
-                18,
+                26,
                 seed.rotate_left(3),
             );
-            let reactant_density = (1.0 - converted) * (0.55 + active * 0.25);
+            let reactant_density =
+                (1.0 - converted) * (0.75 + active * 0.25) * colour_visibility(reactant_b);
             if reactant_density > 0.001 {
                 add_gas_density_field(
                     &mut meshes.gas,
                     Vec3::new(0.0, gas_centre_y, 0.0),
-                    Vec3::new(0.50, 0.52, 0.50),
-                    alpha(reactant_b, reactant_b[3] * (1.0 - converted).max(0.05)),
+                    Vec3::new(0.32, 0.42, 0.32),
+                    alpha(
+                        reactant_b,
+                        reactant_b[3] * colour_visibility(reactant_b) * (1.0 - converted).max(0.05),
+                    ),
                     seed.rotate_left(11),
                     phase,
                     reactant_density,
@@ -255,23 +271,25 @@ pub(super) fn add_phase_synthesis_assembly(
         PhaseSynthesisVariant::GasGas => {
             // The two charges drift from their inlet sides into the middle
             // of the chamber, thinning as the product takes over.
-            let drift = 0.26 * (1.0 - approach(progress) * 0.85);
-            let reactant_density = (1.0 - converted) * (0.55 + active * 0.25);
-            for (index, (colour, side)) in
-                [(reactant_a, -1.0_f32), (reactant_b, 1.0)].into_iter().enumerate()
+            let drift = 0.22 * (1.0 - approach(progress) * 0.85);
+            let reactant_density = (1.0 - converted) * (0.75 + active * 0.25);
+            for (channel, (colour, side)) in
+                [(11_u32, (reactant_a, -1.0_f32)), (27, (reactant_b, 1.0))]
             {
                 if reactant_density <= 0.001 {
                     continue;
                 }
-                let channel = 11 + 8 * index as u32;
                 add_gas_density_field(
                     &mut meshes.gas,
                     Vec3::new(side * drift, gas_centre_y, 0.0),
-                    Vec3::new(0.38, 0.48, 0.44),
-                    alpha(colour, colour[3] * (1.0 - converted).max(0.05)),
+                    Vec3::new(0.26, 0.40, 0.30),
+                    alpha(
+                        colour,
+                        colour[3] * colour_visibility(colour) * (1.0 - converted).max(0.05),
+                    ),
                     seed.rotate_left(channel),
                     phase,
-                    reactant_density,
+                    reactant_density * colour_visibility(colour),
                     GasFlowControls::contained(
                         0.45 + active * 0.30,
                         turbulence,
@@ -285,13 +303,16 @@ pub(super) fn add_phase_synthesis_assembly(
     }
     // The gaseous product builds from the reaction zone outward until it
     // fills the chamber.
-    let product_density = converted * 0.85;
+    let product_density = converted * 0.95 * colour_visibility(product);
     if product_density > 0.001 {
         add_gas_density_field(
             &mut meshes.gas,
             Vec3::new(0.0, gas_centre_y, 0.0),
-            Vec3::new(0.50, 0.54, 0.50),
-            alpha(product, product[3] * converted.max(0.05)),
+            Vec3::new(0.32, 0.44, 0.32),
+            alpha(
+                product,
+                product[3] * colour_visibility(product) * converted.max(0.05),
+            ),
             seed.rotate_left(19),
             phase,
             product_density,
@@ -303,6 +324,24 @@ pub(super) fn add_phase_synthesis_assembly(
                 seed.rotate_left(19),
             ),
         );
+    }
+    // The chamber is sealed: press every concentration splat back inside
+    // the shell instead of letting soft splat footprints leak past the
+    // glass onto the bench.
+    for splat in &mut meshes.gas[gas_start..] {
+        let centre = Vec3::from_array(splat.center);
+        let inner = CHAMBER_RADIUS - 0.05 - splat.radius * 0.5;
+        let radial = Vec3::new(centre.x, 0.0, centre.z);
+        let clamped = if radial.length() > inner {
+            radial.normalize_or_zero() * inner
+        } else {
+            radial
+        };
+        let y = centre.y.clamp(
+            floor_y + 0.05 + splat.radius * 0.4,
+            floor_y + CHAMBER_HEIGHT - 0.06 - splat.radius * 0.4,
+        );
+        splat.center = [clamped.x, y, clamped.z];
     }
     if synthesis.show_reaction_front {
         add_reaction_front(
