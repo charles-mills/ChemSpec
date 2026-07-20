@@ -55,14 +55,17 @@ fn bound_rgba(
     mix_color(base, target, amount)
 }
 
-/// The sealed chamber itself: steel plate, glass shell with a flat lid,
-/// collar ring, top relief valve, and one inlet port per gaseous reactant.
-/// A coloured band on each inlet names the gas it admits.
+/// The sealed chamber: a chamfered housing plate, a tall glass shell with
+/// a glass lid, bright rim lips top and bottom like the house beaker, thin
+/// steel clamp bands, a relief valve with a handwheel, and one flanged
+/// inlet port per gaseous reactant with a colour band naming its gas.
+#[allow(clippy::too_many_lines)]
 fn add_reaction_chamber(
     meshes: &mut SceneMeshes,
     bench_top: f32,
     inlet_colours: &[[f32; 4]],
 ) {
+    const RIM_GLASS: [f32; 4] = [0.80, 0.93, 1.0, 0.42];
     let plate_top = bench_top + PLATE_HEIGHT;
     add_cylinder(
         &mut meshes.opaque,
@@ -77,6 +80,14 @@ fn add_reaction_chamber(
         PLATE_RADIUS,
         HOUSING,
     );
+    // A polished chamfer edge lifts the plate off the bench visually.
+    add_ring(
+        &mut meshes.metallic,
+        Vec3::new(0.0, plate_top, 0.0),
+        PLATE_RADIUS - 0.015,
+        0.014,
+        STEEL,
+    );
     let lid_y = plate_top + CHAMBER_HEIGHT;
     add_cylinder_wall(
         &mut meshes.glass,
@@ -85,65 +96,94 @@ fn add_reaction_chamber(
         CHAMBER_RADIUS,
         GLASS,
     );
-    add_disc(
-        &mut meshes.opaque,
-        Vec3::new(0.0, lid_y + 0.024, 0.0),
-        CHAMBER_RADIUS + 0.012,
-        HOUSING,
+    add_disc(&mut meshes.glass, Vec3::new(0.0, lid_y, 0.0), CHAMBER_RADIUS, GLASS);
+    // Bright glass lips where the shell meets the lid and the plate: the
+    // same rim-highlight language as the shared laboratory beaker.
+    add_ring(
+        &mut meshes.glass,
+        Vec3::new(0.0, lid_y, 0.0),
+        CHAMBER_RADIUS,
+        0.020,
+        RIM_GLASS,
     );
-    // Slim collar rings seating the glass at the plate and the lid.
-    add_cylinder(
-        &mut meshes.opaque,
-        Vec3::new(0.0, plate_top, 0.0),
-        Vec3::new(0.0, plate_top + 0.042, 0.0),
-        CHAMBER_RADIUS + 0.012,
-        HOUSING,
+    add_ring(
+        &mut meshes.glass,
+        Vec3::new(0.0, plate_top + 0.012, 0.0),
+        CHAMBER_RADIUS,
+        0.014,
+        RIM_GLASS,
     );
-    add_cylinder(
-        &mut meshes.opaque,
-        Vec3::new(0.0, lid_y - 0.008, 0.0),
-        Vec3::new(0.0, lid_y + 0.024, 0.0),
-        CHAMBER_RADIUS + 0.012,
-        HOUSING,
+    // Thin steel clamp bands rather than dark slabs.
+    add_ring(
+        &mut meshes.metallic,
+        Vec3::new(0.0, plate_top + 0.045, 0.0),
+        CHAMBER_RADIUS + 0.006,
+        0.011,
+        STEEL,
     );
-    // Relief valve on the lid.
+    add_ring(
+        &mut meshes.metallic,
+        Vec3::new(0.0, lid_y - 0.045, 0.0),
+        CHAMBER_RADIUS + 0.006,
+        0.011,
+        STEEL,
+    );
+    // Relief valve: stem, handwheel, and cap finial.
     add_cylinder(
         &mut meshes.metallic,
         Vec3::new(0.0, lid_y, 0.0),
-        Vec3::new(0.0, lid_y + 0.16, 0.0),
-        0.055,
+        Vec3::new(0.0, lid_y + 0.17, 0.0),
+        0.042,
+        STEEL,
+    );
+    add_ring(
+        &mut meshes.metallic,
+        Vec3::new(0.0, lid_y + 0.115, 0.0),
+        0.085,
+        0.017,
         STEEL,
     );
     add_sphere(
         &mut meshes.metallic,
-        Vec3::new(0.0, lid_y + 0.19, 0.0),
-        0.065,
+        Vec3::new(0.0, lid_y + 0.185, 0.0),
+        0.038,
         STEEL,
         5,
         8,
     );
-    // One inlet port per gaseous reactant, entering low on the shell where
-    // the feed pipework would sit. The band colour names the gas.
+    // One inlet port per gaseous reactant: barrel, wall flange, end cap,
+    // and the colour band naming the gas it admits.
     for (index, band) in inlet_colours.iter().enumerate() {
         let side = if index == 0 { -1.0 } else { 1.0 };
-        let port_y = plate_top + 0.24;
-        let outer = Vec3::new(side * (CHAMBER_RADIUS + 0.20), port_y, 0.16);
+        let port_y = plate_top + 0.26;
+        let outer = Vec3::new(side * (CHAMBER_RADIUS + 0.21), port_y, 0.16);
         let inner = Vec3::new(side * (CHAMBER_RADIUS - 0.02), port_y, 0.16);
-        add_cylinder(&mut meshes.metallic, outer, inner, 0.045, STEEL);
-        add_sphere(&mut meshes.metallic, outer, 0.062, STEEL, 5, 8);
+        let axis = (inner - outer).normalize_or_zero();
+        add_cylinder(&mut meshes.metallic, outer, inner, 0.042, STEEL);
+        add_sphere(&mut meshes.metallic, outer, 0.055, STEEL, 5, 8);
+        // Flange washer where the barrel meets the glass.
+        add_cylinder(
+            &mut meshes.metallic,
+            inner - axis * 0.045,
+            inner - axis * 0.015,
+            0.062,
+            STEEL,
+        );
         add_cylinder(
             &mut meshes.opaque,
-            outer + (inner - outer) * 0.30,
-            outer + (inner - outer) * 0.52,
-            0.052,
+            outer + (inner - outer) * 0.28,
+            outer + (inner - outer) * 0.50,
+            0.048,
             [band[0], band[1], band[2], 1.0],
         );
     }
 }
 
-/// The glowing reaction zone. Gas–gas: a shimmering curtain of emissive
-/// beads along the mixing interface. Solid–gas: a ring of embers hugging
-/// the solid charge, spitting sparks while the surface reacts.
+/// The glowing reaction zone. A coherent seam of soft emissive lobes
+/// carries the glow — a shimmering curtain along the mixing interface for
+/// gas–gas, a ring hugging the solid charge for solid–gas — with finer
+/// pulsing beads riding the seam and sparks spitting off the solid burn.
+#[allow(clippy::too_many_lines)]
 fn add_reaction_front(
     meshes: &mut SceneMeshes,
     floor_y: f32,
@@ -152,33 +192,55 @@ fn add_reaction_front(
     phase: f32,
     seed: u64,
 ) {
-    const BEADS: u32 = 18;
+    const LOBES: u32 = 7;
+    const BEADS: u32 = 14;
     const FRONT_COLOUR: [f32; 4] = [1.0, 0.30, 0.05, 0.55];
+    const CORE_COLOUR: [f32; 4] = [1.0, 0.52, 0.16, 0.30];
+    let seam_point = |unit: f32, wobble: f32, lift: f32| match variant {
+        PhaseSynthesisVariant::GasGas => Vec3::new(
+            wobble * 0.05,
+            floor_y + 0.18 + unit * 0.68 + lift,
+            (unit - 0.5) * 0.52 + wobble * 0.04,
+        ),
+        PhaseSynthesisVariant::SolidGas => {
+            let angle = unit * std::f32::consts::TAU + phase * 0.22;
+            Vec3::new(
+                angle.cos() * 0.26,
+                floor_y + 0.05 + lift + wobble.abs() * 0.02,
+                angle.sin() * 0.26,
+            )
+        }
+    };
+    // The soft body of the seam: overlapping translucent-emissive lobes
+    // breathing on offset rhythms so the glow reads as one living front.
+    for lobe in 0..LOBES {
+        let unit = lobe as f32 / (LOBES - 1) as f32;
+        let wobble = (phase * (1.1 + seeded_unit(seed, lobe, 531) * 0.7)
+            + seeded_unit(seed, lobe, 532) * 6.0)
+            .sin();
+        let breath = 0.72 + 0.28 * (phase * 1.7 + seeded_unit(seed, lobe, 533) * 6.0).sin();
+        add_sphere(
+            &mut meshes.emissive,
+            seam_point(unit, wobble, 0.0),
+            (0.075 * presence * breath).max(0.000_5),
+            alpha(CORE_COLOUR, CORE_COLOUR[3] * presence * breath),
+            4,
+            6,
+        );
+    }
     for bead in 0..BEADS {
-        let unit = bead as f32 / (BEADS - 1) as f32;
         let wobble = (phase * (1.6 + seeded_unit(seed, bead, 521) * 1.2)
             + seeded_unit(seed, bead, 522) * 6.0)
             .sin();
-        let position = match variant {
-            PhaseSynthesisVariant::GasGas => Vec3::new(
-                wobble * 0.05,
-                floor_y + 0.16 + unit * 0.74,
-                (seeded_unit(seed, bead, 523) - 0.5) * 0.62,
-            ),
-            PhaseSynthesisVariant::SolidGas => {
-                let angle = unit * std::f32::consts::TAU + phase * 0.22;
-                Vec3::new(
-                    angle.cos() * 0.26,
-                    floor_y + 0.05 + wobble.abs() * 0.02,
-                    angle.sin() * 0.26,
-                )
-            }
-        };
         let pulse = 0.6 + 0.4 * (phase * 2.4 + seeded_unit(seed, bead, 524) * 6.0).sin();
         add_sphere(
             &mut meshes.emissive,
-            position,
-            (0.017 * presence * pulse).max(0.000_5),
+            seam_point(
+                seeded_unit(seed, bead, 523),
+                wobble,
+                seeded_unit(seed, bead, 525) * 0.05,
+            ),
+            (0.014 * presence * pulse).max(0.000_5),
             alpha(FRONT_COLOUR, FRONT_COLOUR[3] * presence * pulse),
             3,
             5,
@@ -214,7 +276,7 @@ pub(super) fn add_phase_synthesis_assembly(
     let converted = conversion(progress);
     let active = activity(progress);
     let floor_y = layout.bench_top + PLATE_HEIGHT;
-    let gas_centre_y = floor_y + CHAMBER_HEIGHT * 0.55;
+    let gas_centre_y = floor_y + CHAMBER_HEIGHT * 0.52;
     let reactant_a = bound_rgba(&synthesis.reactant_a, 0.40, ordinal, ordinal_progress);
     let reactant_b = bound_rgba(&synthesis.reactant_b, 0.40, ordinal, ordinal_progress);
     let product = bound_rgba(&synthesis.product, 0.34, ordinal, ordinal_progress);
@@ -250,7 +312,7 @@ pub(super) fn add_phase_synthesis_assembly(
                 add_gas_density_field(
                     &mut meshes.gas,
                     Vec3::new(0.0, gas_centre_y, 0.0),
-                    Vec3::new(0.32, 0.42, 0.32),
+                    Vec3::new(0.40, 0.50, 0.40),
                     alpha(
                         reactant_b,
                         reactant_b[3] * colour_visibility(reactant_b) * (1.0 - converted).max(0.05),
@@ -282,7 +344,7 @@ pub(super) fn add_phase_synthesis_assembly(
                 add_gas_density_field(
                     &mut meshes.gas,
                     Vec3::new(side * drift, gas_centre_y, 0.0),
-                    Vec3::new(0.26, 0.40, 0.30),
+                    Vec3::new(0.32, 0.48, 0.36),
                     alpha(
                         colour,
                         colour[3] * colour_visibility(colour) * (1.0 - converted).max(0.05),
@@ -308,7 +370,7 @@ pub(super) fn add_phase_synthesis_assembly(
         add_gas_density_field(
             &mut meshes.gas,
             Vec3::new(0.0, gas_centre_y, 0.0),
-            Vec3::new(0.32, 0.44, 0.32),
+            Vec3::new(0.40, 0.52, 0.40),
             alpha(
                 product,
                 product[3] * colour_visibility(product) * converted.max(0.05),
