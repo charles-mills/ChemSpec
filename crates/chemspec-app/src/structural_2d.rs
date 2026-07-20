@@ -2859,23 +2859,19 @@ fn draw_polyatomic_net_charges(
         if !settled {
             continue;
         }
-        // The badge belongs on the atom that actually carries the charge
-        // (OH⁻ reads as H⁻ if it lands on the hydrogen); geometry only
-        // breaks ties between equally-charged candidates.
-        let Some((anchor, anchor_position)) = members
-            .iter()
-            .filter_map(|id| positions.get(*id).map(|point| (*id, *point)))
-            .max_by(|left, right| {
-                let magnitude = |id: &str| {
-                    atom(after, id)
-                        .or_else(|| atom(before, id))
-                        .map_or(0, |state| state.formal_charge.unsigned_abs())
-                };
-                magnitude(left.0)
-                    .cmp(&magnitude(right.0))
-                    .then_with(|| (left.1.x - left.1.y).total_cmp(&(right.1.x - right.1.y)))
-            })
-        else {
+        // Keep the badge on one stable, sign-correct atom. Geometry cannot
+        // break ties here: equivalent charged sites in nitrate, carbonate,
+        // and similar polyatomic ions move as partners associate, which used
+        // to make the badge jump between atoms despite unchanged chemistry.
+        let net_charge = if after_net != 0 {
+            after_net
+        } else {
+            before_net
+        };
+        let Some(anchor) = polyatomic_charge_anchor(&members, before, after, net_charge) else {
+            continue;
+        };
+        let Some(anchor_position) = positions.get(anchor).copied() else {
             continue;
         };
         let focus_opacity = if focus_active
@@ -2906,6 +2902,27 @@ fn draw_polyatomic_net_charges(
             draw_charge(frame, badge, after_net, alpha * progress, scale);
         }
     }
+}
+
+/// Chooses one deterministic atom on which to seat a polyatomic ion's net
+/// charge badge. Atoms whose formal-charge sign matches the component's net
+/// charge take precedence, then greater magnitude, then stable atom ID.
+fn polyatomic_charge_anchor<'a>(
+    members: &[&'a str],
+    before: &StructuralFrame,
+    after: &StructuralFrame,
+    net_charge: i16,
+) -> Option<&'a str> {
+    members.iter().copied().min_by_key(|id| {
+        let charge = atom(after, id)
+            .or_else(|| atom(before, id))
+            .map_or(0, |state| state.formal_charge);
+        (
+            charge.signum() != net_charge.signum(),
+            std::cmp::Reverse(charge.unsigned_abs()),
+            *id,
+        )
+    })
 }
 
 fn is_metallic_site(frame: &StructuralFrame, atom_id: &str) -> bool {
@@ -2971,6 +2988,7 @@ fn atom_bond_angles(
     angles
 }
 
+<<<<<<< HEAD
 /// Darkens (factor < 1) or lightens a colour toward white (factor > 1).
 fn shade(color: Color, factor: f32) -> Color {
     if factor <= 1.0 {
@@ -2991,6 +3009,8 @@ fn shade(color: Color, factor: f32) -> Color {
     }
 }
 
+=======
+>>>>>>> 02b036f (molecularfixes)
 fn draw_atom_shell(
     frame: &mut canvas::Frame,
     atom: &AtomState,
@@ -3001,15 +3021,12 @@ fn draw_atom_shell(
     scale: f32,
 ) {
     let radius = atom_visual_radius(&atom.element) * (if active { 1.12 } else { 1.0 }) * scale;
-    let fill = element_color(&atom.element);
     let pulse = 0.5 + 0.5 * (phase * std::f32::consts::TAU * 3.0).sin();
-    // Only the atoms doing something wear a glow; the old always-on aura
-    // read as a muddy charcoal blob behind every atom.
+    frame.fill(
+        &Path::circle(center, radius + (10.0 + pulse * 4.0) * scale),
+        element_color(&atom.element).scale_alpha(alpha * if active { 0.13 } else { 0.05 }),
+    );
     if active {
-        frame.fill(
-            &Path::circle(center, radius + (10.0 + pulse * 4.0) * scale),
-            fill.scale_alpha(alpha * 0.12),
-        );
         frame.stroke(
             &Path::circle(center, radius + 7.0 * scale),
             Stroke::default()
@@ -3018,43 +3035,27 @@ fn draw_atom_shell(
         );
     }
     frame.fill(
-        &Path::circle(center + Vector::new(0.0, 2.5 * scale), radius + 1.0 * scale),
-        color::SHADOW.scale_alpha(alpha * 0.30),
+        &Path::circle(center + Vector::new(0.0, 3.0 * scale), radius + 2.0 * scale),
+        color::SHADOW.scale_alpha(alpha * 0.24),
     );
-    frame.fill(&Path::circle(center, radius), fill.scale_alpha(alpha));
-    // Crisp tonal rim + a soft upper glint give the disc definition
-    // without pretending to be a 3D sphere.
+    frame.fill(
+        &Path::circle(center, radius),
+        element_color(&atom.element).scale_alpha(alpha),
+    );
     frame.stroke(
         &Path::circle(center, radius),
         Stroke::default()
-            .with_color(shade(fill, 0.55).scale_alpha(alpha * 0.95))
-            .with_width(1.6 * scale),
-    );
-    let glint = Path::new(|builder| {
-        builder.arc(canvas::path::Arc {
-            center,
-            radius: radius - 3.0 * scale,
-            start_angle: iced::Radians(-2.6),
-            end_angle: iced::Radians(-0.55),
-        });
-    });
-    frame.stroke(
-        &glint,
-        Stroke {
-            line_cap: canvas::stroke::LineCap::Round,
-            ..Stroke::default()
-                .with_color(Color::WHITE.scale_alpha(alpha * 0.30))
-                .with_width(2.0 * scale)
-        },
+            .with_color(Color::WHITE.scale_alpha(alpha * 0.26))
+            .with_width(scale),
     );
     frame.fill_text(canvas::Text {
         content: atom.element.clone(),
         position: center,
-        color: shade(fill, 0.22).scale_alpha(alpha),
-        size: iced::Pixels(14.5 * scale),
+        color: color::CANVAS.scale_alpha(alpha),
+        size: iced::Pixels(15.0 * scale),
         align_x: iced::alignment::Horizontal::Center.into(),
         align_y: iced::alignment::Vertical::Center,
-        font: fonts::SEMIBOLD,
+        font: fonts::REGULAR,
         ..canvas::Text::default()
     });
 }
@@ -3260,14 +3261,9 @@ fn electron_domain_occupancies(count: u8, unpaired: u8) -> Vec<u8> {
 }
 
 fn draw_electron_dot(frame: &mut canvas::Frame, position: Point, alpha: f32, scale: f32) {
-    // The dark seat keeps lone pairs legible over bright discs and rims.
-    frame.fill(
-        &Path::circle(position, 2.9 * scale),
-        CANVAS.scale_alpha(alpha * 0.65),
-    );
     frame.fill(
         &Path::circle(position, 2.0 * scale),
-        Color::WHITE.scale_alpha(alpha * 0.95),
+        Color::WHITE.scale_alpha(alpha * 0.92),
     );
 }
 
@@ -4541,6 +4537,58 @@ mod tests {
         };
 
         assert_eq!(ionic_anchor_id(&hydroxide, &frame), Some("o"));
+    }
+
+    #[test]
+    fn polyatomic_charge_anchor_is_stable_and_sign_correct_for_equivalent_oxygens() {
+        let frame = RenderFrame {
+            atoms: vec![
+                ion_atom("n", "N", 1),
+                ion_atom("o1", "O", 0),
+                ion_atom("o2", "O", -1),
+                ion_atom("o3", "O", -1),
+            ],
+            covalent_bonds: Vec::new(),
+            ionic_associations: Vec::new(),
+            metallic_domains: Vec::new(),
+        };
+
+        assert_eq!(
+            polyatomic_charge_anchor(&["n", "o1", "o2", "o3"], &frame, &frame, -1),
+            Some("o2")
+        );
+        assert_eq!(
+            polyatomic_charge_anchor(&["o3", "o2", "o1", "n"], &frame, &frame, -1),
+            Some("o2"),
+            "member ordering must not move the badge between equivalent oxygens"
+        );
+        assert_eq!(
+            polyatomic_charge_anchor(&["n", "o1", "o2", "o3"], &frame, &frame, 1),
+            Some("n"),
+            "the anchor must carry the same charge sign as the ion"
+        );
+
+        let carbonate = RenderFrame {
+            atoms: vec![
+                ion_atom("c", "C", 0),
+                ion_atom("o1", "O", 0),
+                ion_atom("o2", "O", -1),
+                ion_atom("o3", "O", -1),
+            ],
+            covalent_bonds: Vec::new(),
+            ionic_associations: Vec::new(),
+            metallic_domains: Vec::new(),
+        };
+        assert_eq!(
+            polyatomic_charge_anchor(
+                &["c", "o1", "o2", "o3"],
+                &carbonate,
+                &carbonate,
+                -2,
+            ),
+            Some("o2"),
+            "carbonate must keep its net badge on one stable negative oxygen"
+        );
     }
 
     #[test]
