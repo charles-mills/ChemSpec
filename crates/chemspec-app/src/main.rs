@@ -3821,6 +3821,16 @@ impl App {
                 Some((before, after))
             })
             .collect::<Vec<_>>();
+        let proton_transfers = educational_scene
+            .cues
+            .iter()
+            .filter_map(|cue| match cue {
+                chem_presentation::EducationalCue::InterpretProtonTransfer { transfer } => {
+                    Some(transfer)
+                }
+                _ => None,
+            })
+            .collect::<Vec<_>>();
         let scene_progress = if educational_scene.duration_ms == 0 {
             1.0
         } else {
@@ -3912,6 +3922,7 @@ impl App {
                 before_frame,
                 frame,
                 &operation_transitions,
+                &proton_transfers,
                 scene_progress,
                 explanation,
                 &context_labels,
@@ -7943,6 +7954,136 @@ mod tests {
         assert!(all_copy.contains("water molecules surround and stabilize"));
         assert!(all_copy.contains("METALLIC BONDING CHANGES"));
         assert!(all_copy.contains("positive metal ion cores and delocalised electrons"));
+    }
+
+    #[test]
+    fn proton_transfer_is_derived_across_every_reviewed_acid_base_family() {
+        let mut applicable = 0;
+        let mut inapplicable = 0;
+        for request in chemistry::ReactionRequest::ALL {
+            let run = chemistry::run(request).expect("pinned request validates");
+            let plan = compile_educational_plan(run.frames(), run.declaration().required_context())
+                .expect("educational plan compiles");
+            let proton_scenes = plan
+                .scenes
+                .iter()
+                .filter(|scene| {
+                    scene.cues.iter().any(|cue| {
+                        matches!(
+                            cue,
+                            chem_presentation::EducationalCue::InterpretProtonTransfer { .. }
+                        )
+                    })
+                })
+                .collect::<Vec<_>>();
+            let is_acid_base = matches!(
+                request.family(),
+                chemistry::ReactionFamily::AcidBaseNeutralization
+                    | chemistry::ReactionFamily::AcidBicarbonateGasEvolution
+                    | chemistry::ReactionFamily::AcidCarbonateGasEvolution
+            );
+            if is_acid_base {
+                applicable += 1;
+                assert!(
+                    !proton_scenes.is_empty(),
+                    "{request:?} must derive proton transfer from its validated operations"
+                );
+                for scene in &proton_scenes {
+                    let transfer = scene.cues.iter().find_map(|cue| match cue {
+                        chem_presentation::EducationalCue::InterpretProtonTransfer { transfer } => {
+                            Some(transfer)
+                        }
+                        _ => None,
+                    });
+                    let transfer = transfer.expect("proton scene carries typed interpretation");
+                    let hydrogen = run
+                        .frames()
+                        .frames()
+                        .iter()
+                        .find_map(|frame| {
+                            frame
+                                .atoms()
+                                .values()
+                                .find(|atom| atom.id.as_str() == transfer.hydrogen)
+                        })
+                        .expect("interpreted hydrogen belongs to trusted frames");
+                    assert_eq!(hydrogen.element.as_str(), "H");
+                    assert_ne!(transfer.donor, transfer.acceptor);
+                    assert!(scene.cues.iter().any(|cue| matches!(
+                        cue,
+                        chem_presentation::EducationalCue::ApplyOperations { operations }
+                            if operations.len() >= 2
+                    )));
+                }
+                assert!(
+                    proton_scenes
+                        .iter()
+                        .any(|scene| scene.cues.iter().any(|cue| matches!(
+                            cue,
+                            chem_presentation::EducationalCue::ShowContext { label }
+                                if label.title == "PROTON TRANSFER"
+                        )))
+                );
+                assert!(
+                    proton_scenes
+                        .iter()
+                        .any(|scene| scene.cues.iter().any(|cue| matches!(
+                            cue,
+                            chem_presentation::EducationalCue::ShowExplanation { label }
+                                if label.text.contains("two electrons")
+                                    && label.text.ends_with("This is a proton transfer.")
+                        )))
+                );
+                assert!(plan.scenes.iter().flat_map(|scene| &scene.cues).all(|cue| {
+                    !matches!(
+                        cue,
+                        chem_presentation::EducationalCue::ShowExplanation { label }
+                            if label.text.starts_with("An electron jumps")
+                    )
+                }));
+            } else {
+                inapplicable += 1;
+                assert!(
+                    proton_scenes.is_empty(),
+                    "{request:?} must retain its non-proton-transfer interpretation"
+                );
+            }
+        }
+        assert_eq!(applicable, 27);
+        assert_eq!(inapplicable, 12);
+    }
+
+    #[test]
+    fn dynamic_neutralisation_gets_proton_transfer_but_metal_water_redox_does_not() {
+        let catalogue = chemistry::reference_catalogue().expect("reference catalogue");
+        let mut provider = agent::UnsupportedMechanismProvider;
+        for (outcome, expected) in [
+            (dynamic_copper_oxide_neutralisation_static(), true),
+            (dynamic_lithium_static(), false),
+        ] {
+            let presentation = enrich_static_outcome(outcome, catalogue, &mut provider)
+                .expect("algorithmic presentation enrichment");
+            let (outcome, frames) = match &presentation {
+                DynamicPresentationOutcome::ReviewedFamily(animated) => {
+                    (animated.static_outcome(), animated.frames())
+                }
+                DynamicPresentationOutcome::Escalated(animated) => {
+                    (animated.static_outcome(), animated.frames())
+                }
+                DynamicPresentationOutcome::Static { diagnostic, .. } => {
+                    panic!("expected an animated result: {diagnostic}")
+                }
+            };
+            let plan = compile_educational_plan(frames, outcome.declaration().required_context())
+                .expect("educational plan");
+            let has_proton_transfer = plan.scenes.iter().flat_map(|scene| &scene.cues).any(|cue| {
+                matches!(
+                    cue,
+                    chem_presentation::EducationalCue::InterpretProtonTransfer { .. }
+                )
+            });
+            assert_eq!(has_proton_transfer, expected);
+        }
     }
 
     #[test]

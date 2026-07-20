@@ -55,8 +55,8 @@ structural-operation animation, equation emphasis, and transition. Typed
 observations remain available to the macroscopic plan, but the guided
 structural timeline does not add separate observation-explanation scenes.
 The `Disappears` predicate remains in trusted frames for macroscopic effects,
-but the molecular timeline emits neither a reactant-consumption popup nor a
-summary chip for it.
+but neither the molecular timeline nor the macroscopic annotation track emits
+a reactant-consumption popup or summary chip for it.
 
 The host-selected profile supplies the display equation for the current pinned
 experience. Neither planner nor renderer derives stoichiometry from drawn atoms,
@@ -83,6 +83,20 @@ electrical work.
 triple formation describes one, two, or three shared electron pairs respectively,
 then identifies electrostatic attraction between both nuclei and the shared
 electrons as the bonding interaction.
+
+Proton transfer is a derived, typed educational event rather than a reaction-
+family caption. The planner recognizes it only when the trusted sequence proves
+that the same H loses one single-bonded heavy partner and gains another, and
+that the new partner was initially a closed-shell lone-pair donor (or the
+old bonding pair was explicitly allocated to the donor). Every exact kernel
+operation between those endpoints remains in the scene, but presentation groups
+the closed span into one learner beat. Narration describes the acceptor lone
+pair forming the new bond and identifies the event as proton transfer. The
+renderer moves the complete pair into the bond; it does
+not expose charge-reconciliation bookkeeping as a literal standalone jump.
+Radical, photochemical, and electrochemical contexts, hydrogen-to-hydrogen
+bonding, and sequences that fail the structural proof retain their ordinary
+typed operation narration.
 
 The planner emits completed typed labels such as `ContextLabel` and
 `ExplanationLabel`. A label carries its semantic kind, already composed title

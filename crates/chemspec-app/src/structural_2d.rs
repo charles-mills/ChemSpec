@@ -9,6 +9,7 @@ use chem_domain::StructuralOperationView;
 use chem_kernel::SimulationFrame;
 use chem_presentation::{
     ContextLabel, EducationalPlan, EducationalSceneKind, ExplanationLabel, ExplanationLabelKind,
+    ProtonTransferInterpretation,
 };
 use iced::mouse::Cursor;
 use iced::widget::canvas::{self, Path, Stroke};
@@ -156,6 +157,11 @@ struct RenderMetallicDomain {
 
 #[derive(Debug, Clone)]
 enum RenderOperation {
+    ProtonTransfer {
+        hydrogen: String,
+        donor: String,
+        acceptor: String,
+    },
     TransferMetallicElectron {
         domain: String,
         donor_site: String,
@@ -744,6 +750,7 @@ impl Diagram {
         before: &SimulationFrame,
         after: &SimulationFrame,
         operation_transitions: &[(&SimulationFrame, &SimulationFrame)],
+        proton_transfers: &[&ProtonTransferInterpretation],
         progress: f32,
         explanation: Option<&ExplanationLabel>,
         context_labels: &[ContextLabel],
@@ -752,18 +759,30 @@ impl Diagram {
         positions: BTreeMap<String, Point>,
         camera: Rectangle,
     ) -> Self {
-        Self {
-            camera,
-            before: RenderFrame::from(before),
-            after: RenderFrame::from(after),
-            operations: operation_transitions
+        let operations = if proton_transfers.is_empty() {
+            operation_transitions
                 .iter()
                 .filter_map(|(before, after)| {
                     after
                         .active_operation()
                         .map(|active| render_operation(active.operation.view(), before, after))
                 })
-                .collect(),
+                .collect()
+        } else {
+            proton_transfers
+                .iter()
+                .map(|transfer| RenderOperation::ProtonTransfer {
+                    hydrogen: transfer.hydrogen.clone(),
+                    donor: transfer.donor.clone(),
+                    acceptor: transfer.acceptor.clone(),
+                })
+                .collect()
+        };
+        Self {
+            camera,
+            before: RenderFrame::from(before),
+            after: RenderFrame::from(after),
+            operations,
             progress: progress.clamp(0.0, 1.0),
             explanation: explanation.cloned(),
             context_labels: context_labels.to_vec(),
@@ -2789,6 +2808,9 @@ fn electron_state_delta(
 
 fn operation_moves_atom_electrons(operations: &[StructuralOperation], atom_id: &str) -> bool {
     operations.iter().any(|operation| match operation {
+        StructuralOperation::ProtonTransfer {
+            hydrogen, acceptor, ..
+        } => hydrogen == atom_id || acceptor == atom_id,
         StructuralOperation::TransferMetallicElectron { acceptor, .. } => acceptor == atom_id,
         StructuralOperation::MetallicMembership { site, .. } => site == atom_id,
         StructuralOperation::CleaveCovalent { left, right, .. }
@@ -3125,6 +3147,9 @@ fn draw_operation_motion(
 ) {
     for operation in operations {
         match operation {
+            StructuralOperation::ProtonTransfer {
+                hydrogen, acceptor, ..
+            } => draw_proton_transfer(frame, hydrogen, acceptor, positions, progress, scale),
             StructuralOperation::TransferMetallicElectron {
                 donor_site,
                 acceptor,
@@ -3364,6 +3389,41 @@ fn draw_covalent_electron_motion(
     for (index, (source, target)) in sources.into_iter().zip(targets).enumerate() {
         let bend = if index.is_multiple_of(2) { -8.0 } else { 8.0 };
         draw_electron_route(frame, source, target, progress, bend, scale);
+    }
+}
+
+/// Moves one complete lone pair from the proton acceptor into the forming
+/// H–acceptor bond. Every primitive kernel ledger transition remains in the
+/// exact frame sequence, but the learner sees the chemically meaningful paired
+/// movement represented by the composite presentation event.
+fn draw_proton_transfer(
+    frame: &mut canvas::Frame,
+    hydrogen: &str,
+    acceptor: &str,
+    positions: &BTreeMap<String, Point>,
+    progress: f32,
+    scale: f32,
+) {
+    let (Some(hydrogen_center), Some(acceptor_center)) =
+        (positions.get(hydrogen), positions.get(acceptor))
+    else {
+        return;
+    };
+    let direction = *hydrogen_center - *acceptor_center;
+    let magnitude = vector_magnitude(direction).max(1.0);
+    let along = direction / magnitude;
+    let perpendicular = Vector::new(-along.y, along.x);
+    let source_center = *acceptor_center + along * 30.0 * scale;
+    let target_center = lerp_point(*acceptor_center, *hydrogen_center, 0.5);
+    for offset in [-3.2_f32, 3.2] {
+        draw_electron_route(
+            frame,
+            source_center + perpendicular * offset * scale,
+            target_center + perpendicular * offset * scale,
+            progress,
+            -18.0 + offset * 2.0,
+            scale,
+        );
     }
 }
 
@@ -3907,6 +3967,11 @@ fn active_atoms(operations: &[RenderOperation]) -> BTreeSet<&str> {
     operations
         .iter()
         .flat_map(|operation| match operation {
+            RenderOperation::ProtonTransfer {
+                hydrogen,
+                donor,
+                acceptor,
+            } => vec![hydrogen.as_str(), donor.as_str(), acceptor.as_str()],
             RenderOperation::TransferMetallicElectron {
                 donor_site,
                 acceptor,
