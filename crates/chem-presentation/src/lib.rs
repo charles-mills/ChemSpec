@@ -61,6 +61,18 @@ pub struct EducationalOperation {
     pub affected_atoms: Vec<String>,
 }
 
+/// A chemically meaningful interpretation of a validated operation sequence.
+///
+/// The kernel retains its exact primitive electron ledger. Presentation emits
+/// this event only when the trusted graph sequence proves that one H loses a
+/// heavy-atom partner and gains a closed-shell lone-pair donor.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct ProtonTransferInterpretation {
+    pub hydrogen: String,
+    pub donor: String,
+    pub acceptor: String,
+}
+
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum EducationalCue {
     EstablishFrame {
@@ -68,6 +80,9 @@ pub enum EducationalCue {
     },
     ApplyOperations {
         operations: Vec<EducationalOperation>,
+    },
+    InterpretProtonTransfer {
+        transfer: ProtonTransferInterpretation,
     },
     ShowObservation {
         predicate: ObservationPredicate,
@@ -212,12 +227,21 @@ pub fn compile_educational_plan(
         let first_operation = first_after
             .active_operation()
             .ok_or(PlanError::MissingOperation(first_after.ordinal()))?;
-        let signature = operation_signature(before, first_after, first_operation.operation.view());
-        let first_narration = operation_narration(
-            before,
-            first_after,
-            first_operation.operation.view(),
-            required_context,
+        let proton_transfers = proton_transfer_batch_at(sequence, group_start, required_context);
+        let signature = proton_transfers.as_ref().map_or_else(
+            || operation_signature(before, first_after, first_operation.operation.view()),
+            |batch| proton_transfer_signature(sequence, &batch.transfers),
+        );
+        let first_narration = proton_transfers.as_ref().map_or_else(
+            || {
+                operation_narration(
+                    before,
+                    first_after,
+                    first_operation.operation.view(),
+                    required_context,
+                )
+            },
+            |batch| proton_transfer_narration(sequence, &batch.transfers[0]),
         );
         let mut affected = first_narration
             .explanation
@@ -225,9 +249,17 @@ pub fn compile_educational_plan(
             .iter()
             .cloned()
             .collect::<BTreeSet<_>>();
-        let mut group_end = group_start;
+        let mut group_end = proton_transfers
+            .as_ref()
+            .map_or(group_start, |batch| batch.end);
 
-        while group_end + 1 < sequence.len() && !has_active_observation(&sequence[group_end]) {
+        while proton_transfers.is_none()
+            && group_end + 1 < sequence.len()
+            && !has_active_observation(&sequence[group_end])
+        {
+            if proton_transfer_batch_at(sequence, group_end + 1, required_context).is_some() {
+                break;
+            }
             let candidate_before = &sequence[group_end];
             let candidate_after = &sequence[group_end + 1];
             let candidate_operation = candidate_after
@@ -313,6 +345,14 @@ pub fn compile_educational_plan(
             },
             EducationalCue::ApplyOperations { operations },
         ];
+        if let Some(batch) = proton_transfers {
+            cues.extend(
+                batch
+                    .transfers
+                    .into_iter()
+                    .map(|transfer| EducationalCue::InterpretProtonTransfer { transfer }),
+            );
+        }
         if narrate_operation {
             cues.extend([
                 EducationalCue::ShowContext {
@@ -385,6 +425,198 @@ fn has_active_observation(frame: &SimulationFrame) -> bool {
         .observations()
         .iter()
         .any(|observation| observation.status == ObservationStatus::Active)
+}
+
+/// Recognizes a proton transfer from validated graph and electron-state
+/// transitions rather than from a reaction family or species name.
+///
+/// A graph-diff mechanism may place charge reconciliation and other coupled
+/// structural edits between the old H bond and the new one. Those operations
+/// remain exact bookkeeping, but are not useful as standalone mechanism copy.
+/// Presentation combines the closed span only when it can prove:
+///
+/// - the same H loses one single-bonded heavy partner and gains another;
+/// - the acceptor was initially closed-shell with a lone pair, or the
+///   old bonding pair was explicitly allocated to the donor; and
+/// - the reaction context does not identify radical, photochemical, or
+///   electrochemical chemistry.
+#[derive(Debug)]
+struct ProtonTransferBatch {
+    transfers: Vec<ProtonTransferInterpretation>,
+    end: usize,
+}
+
+fn proton_transfer_batch_at(
+    sequence: &[SimulationFrame],
+    transition_index: usize,
+    required_context: &str,
+) -> Option<ProtonTransferBatch> {
+    if excludes_proton_transfer_interpretation(required_context) || transition_index == 0 {
+        return None;
+    }
+    let mut transfers = Vec::new();
+    let mut end = transition_index;
+    let mut scan = transition_index;
+    loop {
+        if let Some((transfer, formation_index)) = proton_transfer_from_cleavage(sequence, scan) {
+            transfers.push(transfer);
+            end = end.max(formation_index);
+        } else if scan == transition_index {
+            return None;
+        }
+        if scan >= end {
+            break;
+        }
+        scan += 1;
+    }
+    Some(ProtonTransferBatch { transfers, end })
+}
+
+fn proton_transfer_from_cleavage(
+    sequence: &[SimulationFrame],
+    cleavage_index: usize,
+) -> Option<(ProtonTransferInterpretation, usize)> {
+    let cleavage_after = sequence.get(cleavage_index)?;
+    let StructuralOperationView::CleaveCovalent {
+        left,
+        right,
+        expected_order,
+        allocation,
+        ..
+    } = cleavage_after.active_operation()?.operation.view()
+    else {
+        return None;
+    };
+    if expected_order.order() != 1 {
+        return None;
+    }
+    let before = sequence.get(cleavage_index.checked_sub(1)?)?;
+    let (hydrogen, donor) = if atom_symbol(before, cleavage_after, left) == "H" {
+        (left, right)
+    } else if atom_symbol(before, cleavage_after, right) == "H" {
+        (right, left)
+    } else {
+        return None;
+    };
+
+    for (formation_index, formation_after) in sequence.iter().enumerate().skip(cleavage_index + 1) {
+        let Some(active) = formation_after.active_operation() else {
+            continue;
+        };
+        let StructuralOperationView::FormCovalent {
+            left, right, order, ..
+        } = active.operation.view()
+        else {
+            continue;
+        };
+        if order.order() != 1 || (left != hydrogen && right != hydrogen) {
+            continue;
+        }
+        let acceptor = if left == hydrogen { right } else { left };
+        if acceptor == donor || atom_symbol(before, formation_after, acceptor) == "H" {
+            return None;
+        }
+        let pair_stays_with_donor = matches!(
+            allocation,
+            chem_domain::ElectronAllocation::HeterolyticTo(recipient) if recipient == donor
+        );
+        let acceptor_before = &sequence.first()?.atoms().get(acceptor)?.electrons;
+        let acceptor_can_donate_pair = acceptor_before.non_bonding_electrons() >= 2
+            && acceptor_before.unpaired_electrons() == 0;
+        if !pair_stays_with_donor && !acceptor_can_donate_pair {
+            return None;
+        }
+        return Some((
+            ProtonTransferInterpretation {
+                hydrogen: hydrogen.as_str().to_owned(),
+                donor: donor.as_str().to_owned(),
+                acceptor: acceptor.as_str().to_owned(),
+            },
+            formation_index,
+        ));
+    }
+    None
+}
+
+fn excludes_proton_transfer_interpretation(required_context: &str) -> bool {
+    let context = required_context.to_ascii_lowercase();
+    [
+        "electricity",
+        "light",
+        "ultraviolet",
+        "photochemical",
+        "radical",
+    ]
+    .iter()
+    .any(|marker| context.contains(marker))
+}
+
+fn proton_transfer_signature(
+    sequence: &[SimulationFrame],
+    transfers: &[ProtonTransferInterpretation],
+) -> String {
+    let mut pairs = transfers
+        .iter()
+        .map(|transfer| {
+            format!(
+                "{}:{}",
+                atom_symbol_by_id(sequence, &transfer.donor),
+                atom_symbol_by_id(sequence, &transfer.acceptor),
+            )
+        })
+        .collect::<Vec<_>>();
+    pairs.sort();
+    format!("proton-transfer:{}", pairs.join("+"))
+}
+
+fn proton_transfer_narration(
+    sequence: &[SimulationFrame],
+    transfer: &ProtonTransferInterpretation,
+) -> OperationNarration {
+    let donor = atom_symbol_by_id(sequence, &transfer.donor);
+    let acceptor = atom_symbol_by_id(sequence, &transfer.acceptor);
+    let context = if donor == acceptor {
+        format!("H transfers between two {donor} atoms")
+    } else {
+        format!("H transfers from {donor} to {acceptor}")
+    };
+    let target_atoms = vec![
+        transfer.acceptor.clone(),
+        transfer.hydrogen.clone(),
+        transfer.donor.clone(),
+    ];
+    let kind = ExplanationLabelKind::StructuralChangeExplanation;
+    OperationNarration {
+        context: ContextLabel {
+            kind,
+            title: "PROTON TRANSFER".to_owned(),
+            text: context,
+            target_atoms: target_atoms.clone(),
+            connector: true,
+        },
+        explanation: ExplanationLabel {
+            kind,
+            text: "The accepting atom uses a lone pair—two electrons—to form a bond with H. The original H–donor bonding pair remains with the donor. This is a proton transfer."
+                .to_owned(),
+            target_atoms,
+            connector: true,
+        },
+    }
+}
+
+fn atom_symbol_by_id(sequence: &[SimulationFrame], atom_id: &str) -> String {
+    sequence
+        .iter()
+        .find_map(|frame| {
+            frame
+                .atoms()
+                .values()
+                .find(|atom| atom.id.as_str() == atom_id)
+        })
+        .map_or_else(
+            || "Atom".to_owned(),
+            |atom| atom.element.as_str().to_owned(),
+        )
 }
 
 /// A dedicated beat connecting a freshly activated observation to the atoms
@@ -4755,11 +4987,10 @@ fn compile_macroscopic_annotations(
         let Ok(ordinal) = u16::try_from(frame.ordinal()) else {
             continue;
         };
-        for observation in frame
-            .observations()
-            .iter()
-            .filter(|observation| observation.status == ObservationStatus::Active)
-        {
+        for observation in frame.observations().iter().filter(|observation| {
+            observation.status == ObservationStatus::Active
+                && observation.predicate != ObservationPredicate::Disappears
+        }) {
             annotations.push(MacroscopicAnnotation {
                 start_ordinal: ordinal,
                 end_ordinal: final_ordinal,

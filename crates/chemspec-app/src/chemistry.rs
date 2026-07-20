@@ -3337,6 +3337,14 @@ mod tests {
                 .expect("profile effects are bound to validated observations");
             assert_eq!(plan.profile_id, profile.id);
             assert!(!plan.timeline.beats.is_empty());
+            assert!(
+                plan.annotations.iter().all(|annotation| {
+                    annotation.title != "REACTANT CONSUMED"
+                        && !annotation.text.contains("reactant is being used up")
+                }),
+                "`{}` must not emit a reactant-consumption annotation",
+                request.id()
+            );
             for effect in &profile.effects {
                 if matches!(
                     effect.authorization,
