@@ -141,7 +141,9 @@ Completing the macroscopic timeline unlocks a final product record. On desktop,
 the page uses an even split: the left side presents the validated final frame
 through the same structural 2D renderer, atom-shell language, relationship
 styling, and story-anchored layout used by the molecular simulation. It is a
-static record rather than a second interactive simulation. The right side
+non-interactive record rather than a second draggable simulation. Each product
+group has a subtle, deterministic ambient drift that translates the group as a
+rigid unit, preserving its exact atom and relationship geometry. The right side
 lists one collapsed disclosure per product. Opening a disclosure reveals its
 formula, composition, structure class, atom and bond counts, net formal charge,
 and exact-decimal reference molar mass immediately; no property text is typed
@@ -204,9 +206,12 @@ shadow.
 
 Interaction feedback should complete in roughly 120–180 ms, panel or state
 transitions in 220–300 ms, and explanatory scene transitions in 400–600 ms.
-Motion must describe a state change, not run decoratively. Continuous ticks are
-allowed only while playback or a real loading state is active. Reduced-motion
-mode removes spatial movement while preserving opacity and status feedback.
+Motion that communicates a state change takes priority over decoration.
+Continuous molecular motion may add subdued liveness to a visible molecular
+canvas, but must not imply a chemical change; its tick ends with that canvas.
+Other continuous ticks are allowed only while playback or a real loading state
+is active. Reduced-motion mode removes spatial movement while preserving
+opacity and status feedback.
 
 Electricity-driven electron-transfer scenes label oxidation at the anode and
 reduction at the cathode. They do not draw an electron route directly between
@@ -222,11 +227,14 @@ run only while the trusted frame sequence is playing. Native hover, press,
 focus, selected, and disabled feedback requires no unconditional
 subscription.
 
-The product record owns no continuous decorative or playback tick. Its only
-timer is the 450 ms Prof. Codex ellipsis while a More info or follow-up request
-is actively loading; omitting that loading state cancels the subscription.
-Product disclosures otherwise change only in response to user intent, and each
-finite chat request returns through a generation-scoped completion message.
+The product record owns one ambient-motion tick while it is visible. It
+changes only renderer positions derived from the validated final-frame homes;
+it never mutates the frame, membership, or chemistry. Leaving the product
+record cancels that subscription. Its other timer is the 450 ms Prof. Codex
+ellipsis while a More info or follow-up request is actively loading; omitting
+that loading state cancels the subscription. Product disclosures otherwise
+change only in response to user intent, and each finite chat request returns
+through a generation-scoped completion message.
 
 ## Responsive composition
 

@@ -269,6 +269,39 @@ enum ProductSummaryPane {
 /// The properties panel never grows past this share of the window height,
 /// even for a product list long enough to need its own scrolling.
 const PRODUCT_SUMMARY_PROPERTIES_MAX_SHARE: f32 = 0.4;
+/// A long, closed loop keeps the result-stage motion calm and reproducible.
+const PRODUCT_SUMMARY_MOTION_CYCLE_TICKS: u16 = 600;
+
+/// Gives each validated product group a small independent drift while keeping
+/// every atom and relationship inside that group rigidly aligned. This is
+/// presentation-only: the final frame and its story-authored homes are never
+/// mutated.
+#[allow(clippy::cast_precision_loss)]
+fn product_summary_positions(
+    frame: &chem_kernel::SimulationFrame,
+    homes: &std::collections::BTreeMap<String, iced::Point>,
+    tick: u16,
+) -> std::collections::BTreeMap<String, iced::Point> {
+    let mut positions = homes.clone();
+    let cycle = f32::from(tick % PRODUCT_SUMMARY_MOTION_CYCLE_TICKS)
+        / f32::from(PRODUCT_SUMMARY_MOTION_CYCLE_TICKS);
+    let phase = cycle * std::f32::consts::TAU;
+
+    for (index, atoms) in frame.product_membership().values().enumerate() {
+        let offset_phase = index as f32 * 2.399_963_1;
+        let offset = iced::Vector::new(
+            (phase * 2.0 + offset_phase).sin() * 4.0,
+            (phase + offset_phase).sin() * 7.0,
+        );
+        for atom in atoms {
+            if let Some(position) = positions.get_mut(atom.as_str()) {
+                *position += offset;
+            }
+        }
+    }
+
+    positions
+}
 
 fn product_summary_pane_configuration() -> pane_grid::Configuration<ProductSummaryPane> {
     pane_grid::Configuration::Split {
@@ -1509,6 +1542,7 @@ enum Message {
     RetryOxideAppearance,
     ProductDetailsToggled(usize),
     ProductSummaryPaneResized(pane_grid::ResizeEvent),
+    ProductSummaryTick,
     ReactionMoreInfoSuggested(&'static str),
     ReactionMoreInfoThinkingTick,
     ReactionMoreInfoDraftChanged(String),
@@ -1956,6 +1990,7 @@ struct App {
     next_oxide_appearance_run_id: u64,
     open_product_details: std::collections::BTreeSet<usize>,
     product_summary_panes: pane_grid::State<ProductSummaryPane>,
+    product_summary_motion_tick: u16,
     reaction_more_info: MoreInfoState,
     reaction_more_info_messages: Vec<ReactionMoreInfoTurn>,
     reaction_more_info_draft: String,
@@ -2016,6 +2051,7 @@ impl Default for App {
             product_summary_panes: pane_grid::State::with_configuration(
                 product_summary_pane_configuration(),
             ),
+            product_summary_motion_tick: 0,
             reaction_more_info: MoreInfoState::Idle,
             reaction_more_info_messages: Vec::new(),
             reaction_more_info_draft: String::new(),
@@ -2458,6 +2494,7 @@ impl App {
         self.structural_animation = None;
         self.structural_error = None;
         self.open_product_details.clear();
+        self.product_summary_motion_tick = 0;
         self.reset_reaction_more_info();
         self.structural_shortcut_state = StructuralShortcutState::Inactive;
         self.keyboard_navigation_active = false;
@@ -2633,6 +2670,7 @@ impl App {
             }
             message @ (Message::ProductDetailsToggled(_)
             | Message::ProductSummaryPaneResized(_)
+            | Message::ProductSummaryTick
             | Message::ReactionMoreInfoSuggested(_)
             | Message::ReactionMoreInfoThinkingTick
             | Message::ReactionMoreInfoDraftChanged(_)
@@ -2717,6 +2755,14 @@ impl App {
             }
             Message::ProductSummaryPaneResized(event) => {
                 self.product_summary_panes.resize(event.split, event.ratio);
+            }
+            Message::ProductSummaryTick => {
+                // A cancelled subscription may leave one message queued after
+                // navigation, so keep the screen boundary explicit here too.
+                if self.screen == Screen::ProductSummary {
+                    self.product_summary_motion_tick =
+                        (self.product_summary_motion_tick + 1) % PRODUCT_SUMMARY_MOTION_CYCLE_TICKS;
+                }
             }
             Message::ReactionMoreInfoSuggested(question) => {
                 return self.request_reaction_more_info(Some(question));
@@ -4071,6 +4117,12 @@ impl App {
             Subscription::none()
         };
 
+        let product_summary_motion = if self.screen == Screen::ProductSummary {
+            iced::time::every(theme::motion::TICK).map(|_| Message::ProductSummaryTick)
+        } else {
+            Subscription::none()
+        };
+
         Subscription::batch([
             resize,
             frame_dump,
@@ -4078,6 +4130,7 @@ impl App {
             screen,
             dynamic_build,
             dynamic_theatre,
+            product_summary_motion,
             reaction_more_info_thinking,
             input,
         ])
@@ -6254,6 +6307,8 @@ impl App {
         let Some(final_homes) = animation.home_timeline.last() else {
             return Self::structural_unavailable_view("The final product layout is unavailable");
         };
+        let product_positions =
+            product_summary_positions(final_frame, final_homes, self.product_summary_motion_tick);
         let back = button(text(MACROSCOPIC_VIEW_LABEL))
             .on_press(Message::ReturnTo3d)
             .padding([spacing::XS, spacing::SM])
@@ -6307,7 +6362,7 @@ impl App {
             structural_2d::SceneContext::new(EducationalSceneKind::Summary, 0, 1)
                 .with_equation(Some(equation)),
             1.0,
-            final_homes.clone(),
+            product_positions,
             structural_2d::static_layout_camera(final_frame, final_homes),
         )
         .static_view();
@@ -9890,6 +9945,59 @@ mod tests {
         assert!(!app.open_product_details.contains(&0));
         app.update(Message::ReturnTo3d);
         assert_eq!(app.screen, Screen::Structural3d);
+    }
+
+    #[test]
+    fn product_summary_motion_ticks_only_on_its_screen() {
+        let mut app = App::default();
+
+        app.update(Message::ProductSummaryTick);
+        assert_eq!(app.product_summary_motion_tick, 0);
+
+        app.enter_screen(Screen::ProductSummary);
+        app.update(Message::ProductSummaryTick);
+        assert_eq!(app.product_summary_motion_tick, 1);
+
+        app.enter_screen(Screen::Structural3d);
+        app.update(Message::ProductSummaryTick);
+        assert_eq!(app.product_summary_motion_tick, 1);
+    }
+
+    #[test]
+    fn product_summary_motion_preserves_each_product_geometry() {
+        let mut app = App::default();
+        app.open_structural_animation();
+        let animation = app
+            .structural_animation
+            .as_ref()
+            .expect("reference animation compiles");
+        let frame = animation
+            .frames
+            .frames()
+            .last()
+            .expect("final frame exists");
+        let homes = animation.home_timeline.last().expect("final homes exist");
+        let moved = product_summary_positions(frame, homes, 75);
+
+        assert!(
+            homes
+                .iter()
+                .any(|(atom, home)| moved.get(atom) != Some(home))
+        );
+        for atoms in frame.product_membership().values() {
+            let mut atoms = atoms
+                .iter()
+                .filter_map(|atom| Some((homes.get(atom.as_str())?, moved.get(atom.as_str())?)));
+            let Some((first_home, first_moved)) = atoms.next() else {
+                continue;
+            };
+            let offset = *first_moved - *first_home;
+            for (home, moved) in atoms {
+                let sibling_offset = *moved - *home;
+                assert!((sibling_offset.x - offset.x).abs() < f32::EPSILON);
+                assert!((sibling_offset.y - offset.y).abs() < f32::EPSILON);
+            }
+        }
     }
 
     #[test]
