@@ -7,7 +7,7 @@ use std::{
     sync::{
         Arc, Mutex, OnceLock,
         atomic::{AtomicBool, AtomicU64, Ordering},
-        mpsc::Sender,
+        mpsc::{self, Receiver, RecvTimeoutError, Sender},
     },
     time::{Duration, Instant},
 };
@@ -173,9 +173,6 @@ const MECHANISM_RESULT_SCHEMA: &str = include_str!("../schemas/mechanism-respons
 const STRUCTURE_RESULT_SCHEMA: &str = include_str!("../schemas/structure-response.json");
 const OXIDE_APPEARANCE_RESULT_SCHEMA: &str =
     include_str!("../schemas/oxide-appearance-response.json");
-const REACTION_MORE_INFO_RESULT_SCHEMA: &str =
-    include_str!("../schemas/reaction-more-info-response.json");
-
 const CLAIM_PROMPT_TEMPLATE: &str = include_str!("../prompts/dynamic-reaction.md");
 const MECHANISM_PROMPT_TEMPLATE: &str = include_str!("../prompts/dynamic-mechanism.md");
 const STRUCTURE_PROMPT_TEMPLATE: &str = include_str!("../prompts/dynamic-structure.md");
@@ -190,6 +187,9 @@ pub const MECHANISM_TIMEOUT: Duration = Duration::from_mins(3);
 // finishes, delaying the exact product-bound material update.
 pub const OXIDE_APPEARANCE_TIMEOUT: Duration = Duration::from_mins(3);
 pub const REACTION_MORE_INFO_TIMEOUT: Duration = Duration::from_mins(1);
+const REACTION_MORE_INFO_MAX_CHARS: usize = 2_400;
+const DEFAULT_REACTION_MORE_INFO_QUESTION: &str =
+    "What conditions does this reaction need, and why does it matter in real life?";
 const MAX_ARTIFACT_BYTES: u64 = 2 * 1024 * 1024;
 const PREFLIGHT_PROBE_TIMEOUT: Duration = Duration::from_secs(5);
 const PREFLIGHT_TOTAL_TIMEOUT: Duration = Duration::from_secs(20);
@@ -215,6 +215,14 @@ pub struct ReactionMoreInfoTurn {
 #[derive(Debug, Clone)]
 struct CodexCapabilities {
     version: String,
+    app_server: bool,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum ChatItemDisposition {
+    FinalAnswer,
+    Suppressed,
+    Unknown,
 }
 
 /// Runtime configuration for the Codex subscription provider.
@@ -474,18 +482,63 @@ impl CodexProvider {
     ///
     /// # Errors
     ///
-    /// Returns a preflight, invocation, schema, or paragraph-contract error.
+    /// Returns a preflight, invocation, or paragraph-contract error.
     pub fn reaction_more_info(&self, reaction: &str) -> Result<String, AgentError> {
+        self.reaction_more_info_stream(reaction, |_| true)
+    }
+
+    /// Streams a presentation-only reaction note as plain-text deltas and
+    /// returns the authoritative completed answer.
+    ///
+    /// The callback returns `false` when its consumer has gone away. That
+    /// cancels the provider turn instead of letting an unobserved process run
+    /// to its deadline.
+    ///
+    /// # Errors
+    ///
+    /// Returns a preflight, invocation, cancellation, or paragraph-contract
+    /// error.
+    pub fn reaction_more_info_stream(
+        &self,
+        reaction: &str,
+        on_delta: impl FnMut(&str) -> bool,
+    ) -> Result<String, AgentError> {
+        self.reaction_more_info_question_stream(
+            reaction,
+            DEFAULT_REACTION_MORE_INFO_QUESTION,
+            on_delta,
+        )
+    }
+
+    /// Streams a presentation-only answer focused on one learner-selected
+    /// question about an already-validated reaction.
+    ///
+    /// # Errors
+    ///
+    /// Returns an invalid-request, preflight, invocation, cancellation, or
+    /// paragraph-contract error.
+    pub fn reaction_more_info_question_stream(
+        &self,
+        reaction: &str,
+        question: &str,
+        on_delta: impl FnMut(&str) -> bool,
+    ) -> Result<String, AgentError> {
         let reaction = reaction.trim();
-        if reaction.is_empty() || reaction.chars().count() > 1_000 {
+        let question = question.trim();
+        if reaction.is_empty()
+            || reaction.chars().count() > 1_000
+            || question.is_empty()
+            || question.chars().count() > 1_000
+        {
             return Err(AgentError::new(
                 AgentErrorKind::InvalidRequest,
                 "reaction more info",
-                "the validated reaction label is empty or too long",
+                "the validated reaction label or learner question is empty or too long",
             ));
         }
         let deadline = Instant::now() + REACTION_MORE_INFO_TIMEOUT;
         let preflight = self.preflight_until(deadline)?;
+        self.require_app_server(deadline)?;
         if !preflight.authenticated {
             return Err(AgentError::new(
                 AgentErrorKind::ProviderUnavailable,
@@ -494,21 +547,14 @@ impl CodexProvider {
             ));
         }
         let temporary = TemporaryRun::create()?;
-        let schema_path = temporary.path.join("reaction-more-info.schema.json");
-        let result_path = temporary.path.join("reaction-more-info.json");
-        fs::write(&schema_path, REACTION_MORE_INFO_RESULT_SCHEMA).map_err(|error| {
-            AgentError::from_source(AgentErrorKind::ProviderFailure, "Codex run setup", error)
+        let question = serde_json::to_string(question).map_err(|error| {
+            AgentError::from_source(AgentErrorKind::InvalidRequest, "reaction more info", error)
         })?;
-        let prompt = REACTION_MORE_INFO_PROMPT_TEMPLATE.replace("{{REACTION}}", reaction);
-        let bytes = self.invoke(
-            &temporary,
-            &schema_path,
-            &result_path,
-            &prompt,
-            deadline,
-            false,
-        )?;
-        parse_reaction_more_info(&bytes)
+        let prompt = REACTION_MORE_INFO_PROMPT_TEMPLATE
+            .replace("{{REACTION}}", reaction)
+            .replace("{{QUESTION}}", &question);
+        let answer = self.invoke_reaction_chat(&temporary, &prompt, deadline, on_delta)?;
+        validate_reaction_more_info(&answer)
     }
 
     /// Continues the presentation-only reaction conversation using a bounded
@@ -525,6 +571,22 @@ impl CodexProvider {
         reaction: &str,
         conversation: &[ReactionMoreInfoTurn],
         question: &str,
+    ) -> Result<String, AgentError> {
+        self.reaction_more_info_follow_up_stream(reaction, conversation, question, |_| true)
+    }
+
+    /// Streams one bounded follow-up answer as plain text.
+    ///
+    /// # Errors
+    ///
+    /// Returns the same invalid-request, preflight, invocation, cancellation,
+    /// and paragraph-contract errors as [`Self::reaction_more_info_follow_up`].
+    pub fn reaction_more_info_follow_up_stream(
+        &self,
+        reaction: &str,
+        conversation: &[ReactionMoreInfoTurn],
+        question: &str,
+        on_delta: impl FnMut(&str) -> bool,
     ) -> Result<String, AgentError> {
         let reaction = reaction.trim();
         let question = question.trim();
@@ -548,6 +610,7 @@ impl CodexProvider {
         }
         let deadline = Instant::now() + REACTION_MORE_INFO_TIMEOUT;
         let preflight = self.preflight_until(deadline)?;
+        self.require_app_server(deadline)?;
         if !preflight.authenticated {
             return Err(AgentError::new(
                 AgentErrorKind::ProviderUnavailable,
@@ -556,11 +619,6 @@ impl CodexProvider {
             ));
         }
         let temporary = TemporaryRun::create()?;
-        let schema_path = temporary.path.join("reaction-more-info.schema.json");
-        let result_path = temporary.path.join("reaction-more-info.json");
-        fs::write(&schema_path, REACTION_MORE_INFO_RESULT_SCHEMA).map_err(|error| {
-            AgentError::from_source(AgentErrorKind::ProviderFailure, "Codex run setup", error)
-        })?;
         let conversation_json = serde_json::to_string(conversation).map_err(|error| {
             AgentError::from_source(
                 AgentErrorKind::InvalidRequest,
@@ -579,15 +637,383 @@ impl CodexProvider {
             .replace("{{REACTION}}", reaction)
             .replace("{{CONVERSATION_JSON}}", &conversation_json)
             .replace("{{QUESTION_JSON}}", &question_json);
-        let bytes = self.invoke(
-            &temporary,
-            &schema_path,
-            &result_path,
-            &prompt,
-            deadline,
-            false,
-        )?;
-        parse_reaction_more_info_follow_up(&bytes)
+        let answer = self.invoke_reaction_chat(&temporary, &prompt, deadline, on_delta)?;
+        validate_reaction_more_info_follow_up(&answer)
+    }
+
+    fn require_app_server(&self, deadline: Instant) -> Result<(), AgentError> {
+        if cached_capabilities(&self.config.executable, deadline)?.app_server {
+            Ok(())
+        } else {
+            Err(AgentError::new(
+                AgentErrorKind::UnsupportedCapability,
+                "Codex chat preflight",
+                "installed Codex does not expose `codex app-server`",
+            ))
+        }
+    }
+
+    #[allow(clippy::too_many_lines)]
+    fn invoke_reaction_chat(
+        &self,
+        temporary: &TemporaryRun,
+        prompt: &str,
+        deadline: Instant,
+        mut on_delta: impl FnMut(&str) -> bool,
+    ) -> Result<String, AgentError> {
+        let mut command = Command::new(&self.config.executable);
+        command
+            .arg("app-server")
+            .arg("--listen")
+            .arg("stdio://")
+            .arg("--config")
+            .arg("model_reasoning_effort=\"low\"")
+            .arg("--config")
+            .arg("service_tier=\"default\"")
+            .current_dir(&temporary.path);
+        configure_child_process(&mut command);
+        let mut child = command
+            .stdin(Stdio::piped())
+            .stdout(Stdio::piped())
+            .stderr(Stdio::piped())
+            .spawn()
+            .map_err(|error| {
+                AgentError::from_source(
+                    AgentErrorKind::ProviderFailure,
+                    "Codex chat invocation",
+                    error,
+                )
+            })?;
+        let mut stdin = child.stdin.take().ok_or_else(|| {
+            AgentError::new(
+                AgentErrorKind::ProviderFailure,
+                "Codex chat invocation",
+                "failed to capture Codex app-server stdin",
+            )
+        })?;
+        let stdout = child.stdout.take().ok_or_else(|| {
+            terminate_child_tree(&mut child);
+            AgentError::new(
+                AgentErrorKind::ProviderFailure,
+                "Codex chat invocation",
+                "failed to capture Codex app-server stdout",
+            )
+        })?;
+        let stderr = child.stderr.take().ok_or_else(|| {
+            terminate_child_tree(&mut child);
+            AgentError::new(
+                AgentErrorKind::ProviderFailure,
+                "Codex chat invocation",
+                "failed to capture Codex app-server stderr",
+            )
+        })?;
+        let (line_sender, line_receiver) = mpsc::channel();
+        let stdout_reader = std::thread::spawn(move || drain_app_server(stdout, &line_sender));
+        let stderr_reader = std::thread::spawn(move || drain_bounded(stderr, 2_000));
+        let mut active_thread_id = None;
+        let mut active_turn_id = None;
+
+        let result = (|| {
+            write_app_server_message(
+                &mut stdin,
+                &serde_json::json!({
+                    "method": "initialize",
+                    "id": 0,
+                    "params": {
+                        "clientInfo": {
+                            "name": "chemspec",
+                            "title": "ChemSpec",
+                            "version": env!("CARGO_PKG_VERSION")
+                        }
+                    }
+                }),
+            )?;
+            wait_app_server_response(
+                &line_receiver,
+                &mut child,
+                self.config.cancellation.as_ref(),
+                deadline,
+                0,
+            )?;
+            write_app_server_message(
+                &mut stdin,
+                &serde_json::json!({"method": "initialized", "params": {}}),
+            )?;
+
+            let mut thread_params = serde_json::json!({
+                "approvalPolicy": "never",
+                "cwd": temporary.path,
+                "ephemeral": true,
+                "sandbox": "read-only",
+                "serviceTier": "default"
+            });
+            if let Some(model) = &self.config.model {
+                thread_params["model"] = serde_json::Value::String(model.clone());
+            }
+            write_app_server_message(
+                &mut stdin,
+                &serde_json::json!({
+                    "method": "thread/start",
+                    "id": 1,
+                    "params": thread_params
+                }),
+            )?;
+            let thread = wait_app_server_response(
+                &line_receiver,
+                &mut child,
+                self.config.cancellation.as_ref(),
+                deadline,
+                1,
+            )?;
+            let thread_id = thread
+                .get("thread")
+                .and_then(|thread| thread.get("id"))
+                .and_then(serde_json::Value::as_str)
+                .ok_or_else(|| {
+                    AgentError::new(
+                        AgentErrorKind::ProviderFailure,
+                        "Codex chat protocol",
+                        "thread/start returned no thread id",
+                    )
+                })?
+                .to_owned();
+            active_thread_id = Some(thread_id.clone());
+            write_app_server_message(
+                &mut stdin,
+                &serde_json::json!({
+                    "method": "turn/start",
+                    "id": 2,
+                    "params": {
+                        "threadId": thread_id,
+                        "input": [{"type": "text", "text": prompt}],
+                        "effort": "low",
+                        "serviceTier": "default"
+                    }
+                }),
+            )?;
+
+            let mut item_dispositions = BTreeMap::<String, ChatItemDisposition>::new();
+            let mut completed_answer = None;
+            let mut streamed_chars = 0_usize;
+            let mut pending_delta = String::new();
+            let mut last_delta_flush = Instant::now();
+            loop {
+                let message = receive_app_server_message(
+                    &line_receiver,
+                    &mut child,
+                    self.config.cancellation.as_ref(),
+                    deadline,
+                )?;
+                if message.get("id").and_then(serde_json::Value::as_u64) == Some(2) {
+                    let turn = app_server_response_result(&message)?;
+                    active_turn_id = turn
+                        .get("turn")
+                        .and_then(|turn| turn.get("id"))
+                        .and_then(serde_json::Value::as_str)
+                        .map(str::to_owned);
+                    if active_turn_id.is_none() {
+                        return Err(AgentError::new(
+                            AgentErrorKind::ProviderFailure,
+                            "Codex chat protocol",
+                            "turn/start returned no turn id",
+                        ));
+                    }
+                    continue;
+                }
+                let Some(method) = message.get("method").and_then(serde_json::Value::as_str) else {
+                    continue;
+                };
+                let params = message.get("params").unwrap_or(&serde_json::Value::Null);
+                match method {
+                    "item/started" => {
+                        if !app_server_event_matches(params, &thread_id, active_turn_id.as_deref())
+                        {
+                            continue;
+                        }
+                        let Some(item) = params.get("item") else {
+                            continue;
+                        };
+                        if item.get("type").and_then(serde_json::Value::as_str)
+                            != Some("agentMessage")
+                        {
+                            continue;
+                        }
+                        let Some(item_id) = item.get("id").and_then(serde_json::Value::as_str)
+                        else {
+                            continue;
+                        };
+                        let disposition =
+                            match item.get("phase").and_then(serde_json::Value::as_str) {
+                                Some("final_answer") => ChatItemDisposition::FinalAnswer,
+                                Some("commentary") => ChatItemDisposition::Suppressed,
+                                _ => ChatItemDisposition::Unknown,
+                            };
+                        item_dispositions.insert(item_id.to_owned(), disposition);
+                    }
+                    "item/agentMessage/delta" => {
+                        if !app_server_event_matches(params, &thread_id, active_turn_id.as_deref())
+                        {
+                            continue;
+                        }
+                        let Some(item_id) =
+                            params.get("itemId").and_then(serde_json::Value::as_str)
+                        else {
+                            continue;
+                        };
+                        if item_dispositions.get(item_id).copied()
+                            != Some(ChatItemDisposition::FinalAnswer)
+                        {
+                            continue;
+                        }
+                        let Some(delta) = params.get("delta").and_then(serde_json::Value::as_str)
+                        else {
+                            continue;
+                        };
+                        streamed_chars = streamed_chars.saturating_add(delta.chars().count());
+                        if streamed_chars > REACTION_MORE_INFO_MAX_CHARS {
+                            return Err(AgentError::new(
+                                AgentErrorKind::InvalidProviderOutput,
+                                "Codex chat stream",
+                                "Prof. Codex exceeded the chat response limit",
+                            ));
+                        }
+                        pending_delta.push_str(delta);
+                        if pending_delta.chars().count() >= 24
+                            || last_delta_flush.elapsed() >= Duration::from_millis(33)
+                        {
+                            emit_pending_chat_delta(&mut pending_delta, &mut on_delta)?;
+                            last_delta_flush = Instant::now();
+                        }
+                    }
+                    "item/completed" => {
+                        if !app_server_event_matches(params, &thread_id, active_turn_id.as_deref())
+                        {
+                            continue;
+                        }
+                        let Some(item) = params.get("item") else {
+                            continue;
+                        };
+                        if item.get("type").and_then(serde_json::Value::as_str)
+                            != Some("agentMessage")
+                        {
+                            continue;
+                        }
+                        let Some(item_id) = item.get("id").and_then(serde_json::Value::as_str)
+                        else {
+                            continue;
+                        };
+                        let Some(text) = item.get("text").and_then(serde_json::Value::as_str)
+                        else {
+                            continue;
+                        };
+                        match item_dispositions.get(item_id).copied() {
+                            Some(ChatItemDisposition::FinalAnswer) => {
+                                emit_pending_chat_delta(&mut pending_delta, &mut on_delta)?;
+                                completed_answer = Some(text.to_owned());
+                            }
+                            Some(
+                                ChatItemDisposition::Suppressed | ChatItemDisposition::Unknown,
+                            )
+                            | None => {}
+                        }
+                    }
+                    "error" => {
+                        let message = params
+                            .get("error")
+                            .and_then(|error| error.get("message"))
+                            .and_then(serde_json::Value::as_str)
+                            .unwrap_or("Codex app-server reported an unknown error");
+                        return Err(AgentError::new(
+                            AgentErrorKind::ProviderFailure,
+                            "Codex chat turn",
+                            message.to_owned(),
+                        ));
+                    }
+                    "turn/completed" => {
+                        if !app_server_event_matches(params, &thread_id, active_turn_id.as_deref())
+                        {
+                            continue;
+                        }
+                        let status = params
+                            .get("turn")
+                            .and_then(|turn| turn.get("status"))
+                            .and_then(serde_json::Value::as_str)
+                            .unwrap_or("failed");
+                        if status != "completed" {
+                            return Err(AgentError::new(
+                                if status == "interrupted" {
+                                    AgentErrorKind::Cancelled
+                                } else {
+                                    AgentErrorKind::ProviderFailure
+                                },
+                                "Codex chat turn",
+                                format!("Codex chat turn ended with status `{status}`"),
+                            ));
+                        }
+                        emit_pending_chat_delta(&mut pending_delta, &mut on_delta)?;
+                        return completed_answer.ok_or_else(|| {
+                            AgentError::new(
+                                AgentErrorKind::InvalidProviderOutput,
+                                "Codex chat turn",
+                                "Codex completed without a final answer",
+                            )
+                        });
+                    }
+                    _ => {}
+                }
+            }
+        })();
+
+        if result.as_ref().is_err_and(|error| {
+            matches!(
+                error.kind(),
+                AgentErrorKind::Cancelled | AgentErrorKind::TimedOut
+            )
+        }) && let (Some(thread_id), Some(turn_id)) = (&active_thread_id, &active_turn_id)
+        {
+            let _ = write_app_server_message(
+                &mut stdin,
+                &serde_json::json!({
+                    "method": "turn/interrupt",
+                    "id": 3,
+                    "params": {"threadId": thread_id, "turnId": turn_id}
+                }),
+            );
+            std::thread::sleep(Duration::from_millis(25));
+        }
+        drop(stdin);
+        terminate_child_tree(&mut child);
+        let stdout_result = stdout_reader.join().map_err(|_| {
+            AgentError::new(
+                AgentErrorKind::ProviderFailure,
+                "Codex chat invocation",
+                "app-server stdout reader failed",
+            )
+        })?;
+        let stderr_result = stderr_reader.join().map_err(|_| {
+            AgentError::new(
+                AgentErrorKind::ProviderFailure,
+                "Codex chat invocation",
+                "app-server stderr reader failed",
+            )
+        })?;
+        if result.is_ok() {
+            stdout_result.map_err(|error| {
+                AgentError::from_source(
+                    AgentErrorKind::ProviderFailure,
+                    "Codex chat invocation",
+                    error,
+                )
+            })?;
+            stderr_result.map_err(|error| {
+                AgentError::from_source(
+                    AgentErrorKind::ProviderFailure,
+                    "Codex chat invocation",
+                    error,
+                )
+            })?;
+        }
+        result
     }
 
     /// Requests one mapping/operation proposal for an immutable, locally
@@ -847,37 +1273,218 @@ impl CodexProvider {
     }
 }
 
-fn parse_reaction_more_info(bytes: &[u8]) -> Result<String, AgentError> {
-    parse_reaction_more_info_paragraphs(bytes, 2, 3, "reaction more info")
+fn write_app_server_message(
+    stdin: &mut impl Write,
+    message: &serde_json::Value,
+) -> Result<(), AgentError> {
+    serde_json::to_writer(&mut *stdin, message).map_err(|error| {
+        AgentError::from_source(
+            AgentErrorKind::ProviderFailure,
+            "Codex chat protocol",
+            error,
+        )
+    })?;
+    stdin.write_all(b"\n").map_err(|error| {
+        AgentError::from_source(
+            AgentErrorKind::ProviderFailure,
+            "Codex chat protocol",
+            error,
+        )
+    })?;
+    stdin.flush().map_err(|error| {
+        AgentError::from_source(
+            AgentErrorKind::ProviderFailure,
+            "Codex chat protocol",
+            error,
+        )
+    })
 }
 
-fn parse_reaction_more_info_follow_up(bytes: &[u8]) -> Result<String, AgentError> {
-    parse_reaction_more_info_paragraphs(bytes, 1, 3, "reaction more info follow-up")
+fn app_server_event_matches(
+    params: &serde_json::Value,
+    thread_id: &str,
+    turn_id: Option<&str>,
+) -> bool {
+    let Some(turn_id) = turn_id else {
+        return false;
+    };
+    params.get("threadId").and_then(serde_json::Value::as_str) == Some(thread_id)
+        && params
+            .get("turnId")
+            .or_else(|| params.get("turn").and_then(|turn| turn.get("id")))
+            .and_then(serde_json::Value::as_str)
+            == Some(turn_id)
 }
 
-fn parse_reaction_more_info_paragraphs(
-    bytes: &[u8],
+fn emit_pending_chat_delta(
+    pending: &mut String,
+    on_delta: &mut impl FnMut(&str) -> bool,
+) -> Result<(), AgentError> {
+    if pending.is_empty() {
+        return Ok(());
+    }
+    if !on_delta(pending) {
+        return Err(AgentError::new(
+            AgentErrorKind::Cancelled,
+            "Codex chat cancellation",
+            "the chat display stopped receiving response text",
+        ));
+    }
+    pending.clear();
+    Ok(())
+}
+
+fn drain_app_server(reader: impl Read, sender: &Sender<Vec<u8>>) -> std::io::Result<()> {
+    let mut reader = BufReader::new(reader);
+    let mut line = Vec::new();
+    loop {
+        line.clear();
+        let count = reader.read_until(b'\n', &mut line)?;
+        if count == 0 {
+            return Ok(());
+        }
+        if line.len() > 256 * 1024 {
+            return Err(std::io::Error::new(
+                std::io::ErrorKind::InvalidData,
+                "Codex app-server message exceeded 256 KiB",
+            ));
+        }
+        if sender.send(line.clone()).is_err() {
+            return Ok(());
+        }
+    }
+}
+
+fn receive_app_server_message(
+    receiver: &Receiver<Vec<u8>>,
+    child: &mut Child,
+    cancellation: Option<&Arc<AtomicBool>>,
+    deadline: Instant,
+) -> Result<serde_json::Value, AgentError> {
+    loop {
+        if cancellation.is_some_and(|cancellation| cancellation.load(Ordering::Relaxed)) {
+            return Err(AgentError::new(
+                AgentErrorKind::Cancelled,
+                "Codex chat cancellation",
+                "provider invocation was cancelled",
+            ));
+        }
+        if Instant::now() >= deadline {
+            return Err(AgentError::new(
+                AgentErrorKind::TimedOut,
+                "Codex chat timeout",
+                "provider invocation exceeded its bounded deadline",
+            ));
+        }
+        match receiver.recv_timeout(Duration::from_millis(50)) {
+            Ok(line) => {
+                return serde_json::from_slice(&line).map_err(|error| {
+                    AgentError::from_source(
+                        AgentErrorKind::ProviderFailure,
+                        "Codex chat protocol",
+                        error,
+                    )
+                });
+            }
+            Err(RecvTimeoutError::Timeout) => {
+                if let Some(status) = child.try_wait().map_err(|error| {
+                    AgentError::from_source(
+                        AgentErrorKind::ProviderFailure,
+                        "Codex chat invocation",
+                        error,
+                    )
+                })? {
+                    return Err(AgentError::new(
+                        AgentErrorKind::ProviderFailure,
+                        "Codex chat invocation",
+                        format!("Codex app-server exited early with {status}"),
+                    ));
+                }
+            }
+            Err(RecvTimeoutError::Disconnected) => {
+                return Err(AgentError::new(
+                    AgentErrorKind::ProviderFailure,
+                    "Codex chat invocation",
+                    "Codex app-server closed its output before completing",
+                ));
+            }
+        }
+    }
+}
+
+fn wait_app_server_response(
+    receiver: &Receiver<Vec<u8>>,
+    child: &mut Child,
+    cancellation: Option<&Arc<AtomicBool>>,
+    deadline: Instant,
+    expected_id: u64,
+) -> Result<serde_json::Value, AgentError> {
+    loop {
+        let message = receive_app_server_message(receiver, child, cancellation, deadline)?;
+        if message.get("id").and_then(serde_json::Value::as_u64) == Some(expected_id) {
+            return app_server_response_result(&message);
+        }
+        if message.get("method").and_then(serde_json::Value::as_str) == Some("error") {
+            let diagnostic = message
+                .get("params")
+                .and_then(|params| params.get("error"))
+                .and_then(|error| error.get("message"))
+                .and_then(serde_json::Value::as_str)
+                .unwrap_or("Codex app-server reported an unknown error");
+            return Err(AgentError::new(
+                AgentErrorKind::ProviderFailure,
+                "Codex chat protocol",
+                diagnostic.to_owned(),
+            ));
+        }
+    }
+}
+
+fn app_server_response_result(
+    message: &serde_json::Value,
+) -> Result<serde_json::Value, AgentError> {
+    if let Some(error) = message.get("error") {
+        let diagnostic = error
+            .get("message")
+            .and_then(serde_json::Value::as_str)
+            .unwrap_or("Codex app-server request failed");
+        return Err(AgentError::new(
+            AgentErrorKind::ProviderFailure,
+            "Codex chat protocol",
+            diagnostic.to_owned(),
+        ));
+    }
+    message.get("result").cloned().ok_or_else(|| {
+        AgentError::new(
+            AgentErrorKind::ProviderFailure,
+            "Codex chat protocol",
+            "Codex app-server response contained neither result nor error",
+        )
+    })
+}
+
+fn validate_reaction_more_info(answer: &str) -> Result<String, AgentError> {
+    validate_reaction_more_info_paragraphs(answer, 2, 3, "reaction more info")
+}
+
+fn validate_reaction_more_info_follow_up(answer: &str) -> Result<String, AgentError> {
+    validate_reaction_more_info_paragraphs(answer, 1, 3, "reaction more info follow-up")
+}
+
+fn validate_reaction_more_info_paragraphs(
+    answer: &str,
     minimum: usize,
     maximum: usize,
     context: &'static str,
 ) -> Result<String, AgentError> {
-    let value: serde_json::Value = serde_json::from_slice(bytes).map_err(|error| {
-        AgentError::from_source(AgentErrorKind::InvalidProviderOutput, context, error)
-    })?;
-    let answer = value
-        .as_object()
-        .filter(|object| object.len() == 1)
-        .and_then(|object| object.get("answer"))
-        .and_then(serde_json::Value::as_str)
-        .map(str::trim)
-        .filter(|answer| !answer.is_empty())
-        .ok_or_else(|| {
-            AgentError::new(
-                AgentErrorKind::InvalidProviderOutput,
-                context,
-                "Codex returned an invalid answer object",
-            )
-        })?;
+    let answer = answer.trim();
+    if answer.is_empty() || answer.chars().count() > REACTION_MORE_INFO_MAX_CHARS {
+        return Err(AgentError::new(
+            AgentErrorKind::InvalidProviderOutput,
+            context,
+            "Prof. Codex returned an empty or oversized answer",
+        ));
+    }
     let paragraphs = answer
         .split("\n\n")
         .filter(|paragraph| !paragraph.trim().is_empty())
@@ -1237,6 +1844,7 @@ fn cached_capabilities(
     }
     let capabilities = CodexCapabilities {
         version: version.trim().to_owned(),
+        app_server: top_help.contains("app-server"),
     };
     cache
         .lock()
@@ -1411,9 +2019,6 @@ mod tests {
             appearance["properties"]["schema_version"]["const"],
             json!(1)
         );
-        let more_info: serde_json::Value = serde_json::from_str(REACTION_MORE_INFO_RESULT_SCHEMA)
-            .expect("reaction more-info schema");
-        assert_eq!(more_info["properties"]["answer"]["maxLength"], json!(2400));
         assert_eq!(appearance["properties"]["sources"]["maxItems"], json!(3));
     }
 
@@ -1528,7 +2133,6 @@ mod tests {
             MECHANISM_RESULT_SCHEMA,
             STRUCTURE_RESULT_SCHEMA,
             OXIDE_APPEARANCE_RESULT_SCHEMA,
-            REACTION_MORE_INFO_RESULT_SCHEMA,
         ] {
             assert!(!schema.contains("oneOf"), "strict mode rejects oneOf");
             assert!(
@@ -1546,30 +2150,34 @@ mod tests {
 
     #[test]
     fn reaction_more_info_prompt_is_brief_and_safety_bounded() {
-        let prompt =
-            REACTION_MORE_INFO_PROMPT_TEMPLATE.replace("{{REACTION}}", "2 H₂ + O₂ → 2 H₂O");
+        let prompt = REACTION_MORE_INFO_PROMPT_TEMPLATE
+            .replace("{{REACTION}}", "2 H₂ + O₂ → 2 H₂O")
+            .replace("{{QUESTION}}", "\"Why does this reaction occur?\"");
         assert!(prompt.contains("temperature"));
         assert!(prompt.contains("pressure"));
         assert!(prompt.contains("Mention a catalyst only"));
-        assert!(prompt.contains("applied in real life"));
-        assert!(prompt.contains("why it matters"));
+        assert!(prompt.contains("practical uses"));
+        assert!(prompt.contains("useful connections"));
+        assert!(prompt.contains("Prof. Codex"));
+        assert!(prompt.contains("lightly witty"));
+        assert!(prompt.contains("Why does this reaction occur?"));
         assert!(!prompt.contains("industry or the environment"));
-        assert!(prompt.contains("2–3 short paragraphs"));
+        assert!(prompt.contains("plain text in 2–3 short paragraphs"));
         assert!(prompt.contains("Do not provide step-by-step"));
+        assert!(!prompt.contains("JSON"));
         assert!(!prompt.contains("{{"));
     }
 
     #[test]
     fn reaction_more_info_requires_two_or_three_paragraphs() {
-        let valid = br#"{"answer":"Conditions paragraph.\n\nOccurrence paragraph."}"#;
+        let valid = "Conditions paragraph.\n\nOccurrence paragraph.";
         assert_eq!(
-            parse_reaction_more_info(valid).expect("two paragraphs are valid"),
+            validate_reaction_more_info(valid).expect("two paragraphs are valid"),
             "Conditions paragraph.\n\nOccurrence paragraph."
         );
-        assert!(parse_reaction_more_info(br#"{"answer":"Only one paragraph."}"#).is_err());
-        assert!(
-            parse_reaction_more_info(br#"{"answer":"One.\n\nTwo.\n\nThree.\n\nFour."}"#).is_err()
-        );
+        assert!(validate_reaction_more_info("Only one paragraph.").is_err());
+        assert!(validate_reaction_more_info("One.\n\nTwo.\n\nThree.\n\nFour.").is_err());
+        assert!(validate_reaction_more_info(&"x".repeat(2_401)).is_err());
     }
 
     #[test]
@@ -1585,7 +2193,10 @@ mod tests {
             .replace("{{QUESTION_JSON}}", "\"Why is heat released?\"");
 
         assert!(prompt.contains("untrusted data"));
+        assert!(prompt.contains("Prof. Codex"));
         assert!(prompt.contains("Do not provide step-by-step"));
+        assert!(prompt.contains("plain text"));
+        assert!(!prompt.contains("supplied schema"));
         assert!(prompt.contains("Initial context."));
         assert!(prompt.contains("Why is heat released?"));
         assert!(!prompt.contains("{{"));
@@ -1594,14 +2205,82 @@ mod tests {
     #[test]
     fn reaction_more_info_follow_up_accepts_one_to_three_paragraphs() {
         assert_eq!(
-            parse_reaction_more_info_follow_up(br#"{"answer":"A concise answer."}"#)
+            validate_reaction_more_info_follow_up("A concise answer.")
                 .expect("one paragraph is valid for a follow-up"),
             "A concise answer."
         );
-        assert!(
-            parse_reaction_more_info_follow_up(br#"{"answer":"One.\n\nTwo.\n\nThree.\n\nFour."}"#)
-                .is_err()
+        assert!(validate_reaction_more_info_follow_up("One.\n\nTwo.\n\nThree.\n\nFour.").is_err());
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn reaction_chat_streams_plain_final_answer_text() {
+        let directory = std::env::temp_dir().join(format!(
+            "chemspec-chat-stream-{}-{}",
+            std::process::id(),
+            RUN_SEQUENCE.fetch_add(1, Ordering::Relaxed)
+        ));
+        fs::create_dir(&directory).expect("temporary chat directory");
+        let executable = directory.join("codex");
+        fs::write(
+            &executable,
+            r#"#!/bin/sh
+case "$*" in
+  "--version") echo "codex-test 1.0" ;;
+  "--help") echo "--search app-server" ;;
+  "exec --help") echo "--config --output-schema --sandbox --ephemeral --ignore-user-config --ignore-rules --skip-git-repo-check --output-last-message" ;;
+  "login status") exit 0 ;;
+  "app-server "*)
+    while IFS= read -r line; do
+      case "$line" in
+        *'"method":"initialize"'*)
+          printf '%s\n' '{"id":0,"result":{}}'
+          ;;
+        *'"method":"thread/start"'*)
+          printf '%s\n' '{"id":1,"result":{"thread":{"id":"thr_test"}}}'
+          ;;
+        *'"method":"turn/start"'*)
+          printf '%s\n' '{"id":2,"result":{"turn":{"id":"turn_test","status":"inProgress"}}}'
+          printf '%s\n' '{"method":"item/started","params":{"threadId":"thr_test","turnId":"turn_test","item":{"id":"commentary","type":"agentMessage","text":"","phase":"commentary"}}}'
+          printf '%s\n' '{"method":"item/agentMessage/delta","params":{"itemId":"commentary","threadId":"thr_test","turnId":"turn_test","delta":"Working..."}}'
+          printf '%s\n' '{"method":"item/started","params":{"threadId":"thr_test","turnId":"turn_test","item":{"id":"unclassified","type":"agentMessage","text":""}}}'
+          printf '%s\n' '{"method":"item/agentMessage/delta","params":{"itemId":"unclassified","threadId":"thr_test","turnId":"turn_test","delta":"Do not display this."}}'
+          printf '%s\n' '{"method":"item/completed","params":{"threadId":"thr_test","turnId":"turn_test","item":{"id":"unclassified","type":"agentMessage","text":"Fallback only."}}}'
+          printf '%s\n' '{"method":"item/started","params":{"threadId":"thr_test","turnId":"turn_test","item":{"id":"answer","type":"agentMessage","text":"","phase":"final_answer"}}}'
+          printf '%s\n' '{"method":"item/agentMessage/delta","params":{"itemId":"answer","threadId":"thr_test","turnId":"turn_test","delta":"Conditions are mild.\n\n"}}'
+          printf '%s\n' '{"method":"item/agentMessage/delta","params":{"itemId":"answer","threadId":"thr_test","turnId":"turn_test","delta":"The reaction matters."}}'
+          printf '%s\n' '{"method":"item/completed","params":{"threadId":"thr_test","turnId":"turn_test","item":{"id":"answer","type":"agentMessage","text":"Conditions are mild.\n\nThe reaction matters.","phase":"final_answer"}}}'
+          printf '%s\n' '{"method":"turn/completed","params":{"threadId":"thr_test","turn":{"id":"turn_test","status":"completed"}}}'
+          ;;
+      esac
+    done
+    ;;
+  *) exit 1 ;;
+esac
+"#,
+        )
+        .expect("fake Codex executable");
+        let mut permissions = fs::metadata(&executable).expect("metadata").permissions();
+        permissions.set_mode(0o755);
+        fs::set_permissions(&executable, permissions).expect("executable permissions");
+
+        let mut config = CodexProviderConfig::from_environment();
+        config.executable = executable;
+        let provider = CodexProvider::new(config);
+        let mut deltas = Vec::new();
+        let answer = provider
+            .reaction_more_info_stream("2 H₂ + O₂ → 2 H₂O", |delta| {
+                deltas.push(delta.to_owned());
+                true
+            })
+            .expect("streamed chat answer");
+
+        assert_eq!(
+            deltas,
+            vec!["Conditions are mild.\n\nThe reaction matters."]
         );
+        assert_eq!(answer, "Conditions are mild.\n\nThe reaction matters.");
+        fs::remove_dir_all(directory).expect("remove temporary chat directory");
     }
 
     #[test]

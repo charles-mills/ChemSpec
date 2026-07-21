@@ -42,10 +42,8 @@ use std::sync::{
 // and performance.now() on the web.
 use web_time::Instant;
 
-#[cfg(test)]
-use agent::ReactionClaim;
 use agent::{
-    ClaimDisposition, ClaimMode, CodexProgressEvent, CodexProgressStage, CodexProvider,
+    AgentError, ClaimDisposition, ClaimMode, CodexProgressEvent, CodexProgressStage, CodexProvider,
     CodexProviderConfig, DynamicCachePresentation, DynamicPresentationOutcome, LatencyMilestones,
     MacroscopicProcess as AgentMacroscopicProcess, OutcomeProvenance, OutcomeSpecies,
     OxideAppearanceRequest, ReactantInput, ReactionBuildRequest, ReactionMoreInfoSpeaker,
@@ -54,6 +52,8 @@ use agent::{
     load_oxide_appearance_cache, resolve_request_identities_with_catalogue,
     reviewed_species_registry, store_dynamic_cache, store_oxide_appearance_cache,
 };
+#[cfg(test)]
+use agent::{AgentErrorKind, ReactionClaim};
 use agent::{CompiledClaimOutcome, ProviderClaim, compile_claim_outcome};
 use chem_domain::{ContentDigest, RepresentationKind};
 use chem_presentation::{
@@ -63,6 +63,7 @@ use chem_presentation::{
     TimelinePosition, VisualColour, compile_educational_plan, compile_phase_driven_profile,
     compile_real_world_plan, complete_generic_visual_profile,
 };
+use iced::futures::SinkExt;
 use iced::widget::{
     button, canvas, column, container, mouse_area, pane_grid, responsive, row, rule, scrollable,
     slider, space, stack, text, text_input, tooltip,
@@ -81,6 +82,18 @@ use theme::{breakpoint, color, space as spacing, type_scale};
 
 fn elapsed_millis(started: Instant) -> u64 {
     u64::try_from(started.elapsed().as_millis()).unwrap_or(u64::MAX)
+}
+
+fn send_reaction_more_info_delta(
+    output: &mut iced::futures::channel::mpsc::Sender<Message>,
+    request_id: u64,
+    delta: &str,
+) -> bool {
+    iced::futures::executor::block_on(output.send(Message::ReactionMoreInfoDelta {
+        request_id,
+        delta: delta.to_owned(),
+    }))
+    .is_ok()
 }
 
 fn reviewed_outcome_choice(
@@ -239,6 +252,7 @@ struct MoreInfoView<'a> {
     state: &'a MoreInfoState,
     messages: &'a [ReactionMoreInfoTurn],
     draft: &'a str,
+    thinking_step: u8,
 }
 
 /// The two resizable regions of the product summary screen: the structural
@@ -400,14 +414,17 @@ fn product_list_view(
 /// something once it's actually possible to.
 fn reaction_context_empty_state(state: &MoreInfoState) -> Element<'static, Message> {
     match state {
-        MoreInfoState::Loading { .. } => container(
-            text("Codex is preparing a brief explanation…")
+        MoreInfoState::Loading { .. } => space().into(),
+        MoreInfoState::Unavailable(message) => container(
+            text(message.clone())
                 .size(type_scale::CAPTION)
-                .color(color::ACCENT),
+                .color(color::TEXT_SOFT)
+                .align_x(Center)
+                .width(Length::Fixed(300.0)),
         )
         .into(),
-        MoreInfoState::Unavailable(message) | MoreInfoState::Failed(message) => container(
-            text(message.clone())
+        MoreInfoState::Failed(failure) => container(
+            text(failure.to_string())
                 .size(type_scale::CAPTION)
                 .color(color::TEXT_SOFT)
                 .align_x(Center)
@@ -417,7 +434,7 @@ fn reaction_context_empty_state(state: &MoreInfoState) -> Element<'static, Messa
         MoreInfoState::Idle | MoreInfoState::Ready => {
             let chip = |label: &'static str| {
                 button(text(label).size(type_scale::CAPTION))
-                    .on_press(Message::ReactionMoreInfoRequested)
+                    .on_press(Message::ReactionMoreInfoSuggested(label))
                     .style(theme::chat_suggestion_chip)
                     .padding([spacing::XS, spacing::SM])
             };
@@ -447,6 +464,25 @@ fn reaction_context_empty_state(state: &MoreInfoState) -> Element<'static, Messa
     }
 }
 
+fn reaction_more_info_placeholder(
+    state: &MoreInfoState,
+    can_follow_up: bool,
+    thinking_step: u8,
+) -> String {
+    if matches!(state, MoreInfoState::Loading { .. }) {
+        format!(
+            "Prof. Codex is thinking{}",
+            ".".repeat(usize::from(thinking_step % 3 + 1))
+        )
+    } else if can_follow_up {
+        "Ask a follow-up…".to_owned()
+    } else if matches!(state, MoreInfoState::Unavailable(_)) {
+        "Switch to Codex mode to chat".to_owned()
+    } else {
+        "Ask a follow-up…".to_owned()
+    }
+}
+
 #[allow(clippy::too_many_lines)]
 fn reaction_context_view(
     compact: bool,
@@ -456,17 +492,22 @@ fn reaction_context_view(
     let panel_spacing = if dense { spacing::XS } else { spacing::SM };
     let row_padding = [spacing::XS, spacing::SM];
     let has_messages = !more_info.messages.is_empty();
+    let streaming_draft = match more_info.state {
+        MoreInfoState::Loading { draft, .. } if !draft.is_empty() => Some(draft.as_str()),
+        _ => None,
+    };
+    let has_transcript = has_messages || streaming_draft.is_some();
     let can_follow_up = has_messages
         && matches!(
             more_info.state,
             MoreInfoState::Ready | MoreInfoState::Failed(_)
         );
 
-    let transcript: Element<'static, Message> = if has_messages {
+    let transcript: Element<'static, Message> = if has_transcript {
         let mut conversation = column![].spacing(panel_spacing).width(Fill);
         for turn in more_info.messages {
             let is_user = turn.speaker == ReactionMoreInfoSpeaker::Learner;
-            let author = text(if is_user { "You" } else { "Codex" })
+            let author = text(if is_user { "You" } else { "Prof. Codex" })
                 .size(type_scale::MICRO)
                 .font(fonts::SEMIBOLD)
                 .color(if is_user {
@@ -492,22 +533,38 @@ fn reaction_context_view(
                 row![message, space().width(Fill)]
             });
         }
+        if let Some(draft) = streaming_draft {
+            let message = column![
+                text("Prof. Codex")
+                    .size(type_scale::MICRO)
+                    .font(fonts::SEMIBOLD)
+                    .color(color::ACCENT),
+                container(
+                    text(format!("{draft}▍"))
+                        .size(type_scale::BODY)
+                        .color(color::TEXT),
+                )
+                .style(|_| theme::summary_chat_message(false))
+                .padding(row_padding)
+                .max_width(440.0),
+            ]
+            .spacing(spacing::XXS)
+            .align_x(iced::Left)
+            .width(Length::Shrink);
+            conversation = conversation.push(row![message, space().width(Fill)]);
+        }
         match more_info.state {
-            MoreInfoState::Loading { .. } => {
+            MoreInfoState::Failed(failure) => {
                 conversation = conversation.push(
-                    text("Codex is thinking…")
-                        .size(type_scale::CAPTION)
-                        .color(color::ACCENT),
-                );
-            }
-            MoreInfoState::Failed(message) => {
-                conversation = conversation.push(
-                    text(message.clone())
+                    text(failure.to_string())
                         .size(type_scale::CAPTION)
                         .color(color::WARNING),
                 );
             }
-            MoreInfoState::Idle | MoreInfoState::Ready | MoreInfoState::Unavailable(_) => {}
+            MoreInfoState::Loading { .. }
+            | MoreInfoState::Idle
+            | MoreInfoState::Ready
+            | MoreInfoState::Unavailable(_) => {}
         }
         if compact {
             conversation.into()
@@ -529,27 +586,32 @@ fn reaction_context_view(
         }
     };
 
-    let placeholder = if can_follow_up {
-        "Ask a follow-up…"
-    } else if matches!(more_info.state, MoreInfoState::Loading { .. }) {
-        "Asking Codex…"
-    } else if matches!(more_info.state, MoreInfoState::Unavailable(_)) {
-        "Switch to Codex mode to chat"
-    } else {
-        "Ask a follow-up…"
-    };
+    let placeholder =
+        reaction_more_info_placeholder(more_info.state, can_follow_up, more_info.thinking_step);
     let can_submit = can_follow_up && !more_info.draft.trim().is_empty();
     let input_row = row![
-        text_input(placeholder, more_info.draft)
+        text_input(&placeholder, more_info.draft)
             .on_input_maybe(can_follow_up.then_some(Message::ReactionMoreInfoDraftChanged))
             .on_submit_maybe(can_follow_up.then_some(Message::ReactionMoreInfoFollowUpSubmitted))
             .style(theme::request_input)
             .padding(row_padding)
             .width(Fill),
-        button(text("Send"))
-            .on_press_maybe(can_submit.then_some(Message::ReactionMoreInfoFollowUpSubmitted))
-            .style(theme::primary_button)
-            .padding(row_padding),
+        button(text(
+            if matches!(more_info.state, MoreInfoState::Loading { .. }) {
+                "Stop"
+            } else {
+                "Send"
+            }
+        ))
+        .on_press_maybe(
+            if matches!(more_info.state, MoreInfoState::Loading { .. }) {
+                Some(Message::ReactionMoreInfoCancelled)
+            } else {
+                can_submit.then_some(Message::ReactionMoreInfoFollowUpSubmitted)
+            }
+        )
+        .style(theme::primary_button)
+        .padding(row_padding),
     ]
     .spacing(spacing::XS)
     .align_y(Center)
@@ -1447,12 +1509,22 @@ enum Message {
     RetryOxideAppearance,
     ProductDetailsToggled(usize),
     ProductSummaryPaneResized(pane_grid::ResizeEvent),
-    ReactionMoreInfoRequested,
+    ReactionMoreInfoSuggested(&'static str),
+    ReactionMoreInfoThinkingTick,
     ReactionMoreInfoDraftChanged(String),
     ReactionMoreInfoFollowUpSubmitted,
+    ReactionMoreInfoDelta {
+        request_id: u64,
+        delta: String,
+    },
+    ReactionMoreInfoCancelled,
     ReactionMoreInfoFinished {
         request_id: u64,
-        result: Result<String, String>,
+        result: Result<String, AgentError>,
+    },
+    ReactionMoreInfoWorkerFailed {
+        request_id: u64,
+        failure: blocking::BlockingFailure,
     },
     OutcomeSelected(chemistry::ReactionRequest),
     StructuralPlaybackShortcut,
@@ -1754,9 +1826,52 @@ enum MoreInfoState {
     Unavailable(String),
     Loading {
         request_id: u64,
+        draft: String,
     },
     Ready,
-    Failed(String),
+    Failed(MoreInfoFailure),
+}
+
+#[derive(Debug, Clone)]
+enum MoreInfoFailure {
+    Agent(AgentError),
+    Worker(blocking::BlockingFailure),
+    Cancelled,
+    MissingValidatedReaction,
+}
+
+impl std::fmt::Display for MoreInfoFailure {
+    fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            Self::Agent(error) => {
+                write!(
+                    formatter,
+                    "Prof. Codex could not finish this response: {error}"
+                )
+            }
+            Self::Worker(failure) => write!(
+                formatter,
+                "Prof. Codex could not finish this response: {failure}"
+            ),
+            Self::Cancelled => formatter.write_str("Prof. Codex stopped this response."),
+            Self::MissingValidatedReaction => {
+                formatter.write_str("The validated reaction is unavailable for this request.")
+            }
+        }
+    }
+}
+
+#[derive(Debug, Clone)]
+enum ReactionMoreInfoJob {
+    Initial {
+        reaction: String,
+        question: Option<String>,
+    },
+    FollowUp {
+        reaction: String,
+        conversation: Vec<ReactionMoreInfoTurn>,
+        question: String,
+    },
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -1833,7 +1948,9 @@ struct App {
     reaction_more_info: MoreInfoState,
     reaction_more_info_messages: Vec<ReactionMoreInfoTurn>,
     reaction_more_info_draft: String,
+    reaction_more_info_cancellation: Option<Arc<AtomicBool>>,
     next_more_info_request_id: u64,
+    reaction_more_info_thinking_step: u8,
     structural_animation: Option<StructuralAnimation>,
     structural_error: Option<String>,
     structural_info_open: bool,
@@ -1891,7 +2008,9 @@ impl Default for App {
             reaction_more_info: MoreInfoState::Idle,
             reaction_more_info_messages: Vec::new(),
             reaction_more_info_draft: String::new(),
+            reaction_more_info_cancellation: None,
             next_more_info_request_id: 1,
+            reaction_more_info_thinking_step: 0,
             structural_animation: None,
             structural_error: None,
             structural_info_open: false,
@@ -2055,7 +2174,68 @@ impl App {
         self.provider == Some(AppMode::Local)
     }
 
-    fn request_reaction_more_info(&mut self) -> Task<Message> {
+    fn reaction_more_info_task(
+        request_id: u64,
+        config: CodexProviderConfig,
+        job: ReactionMoreInfoJob,
+    ) -> Task<Message> {
+        let stream = iced::stream::channel(
+            32,
+            move |mut output: iced::futures::channel::mpsc::Sender<Message>| async move {
+                let mut fallback = output.clone();
+                let worker: Result<(), blocking::BlockingFailure> = blocking::run(move || {
+                    let provider = CodexProvider::new(config);
+                    let result = match job {
+                        ReactionMoreInfoJob::Initial { reaction, question } => {
+                            if let Some(question) = question {
+                                provider.reaction_more_info_question_stream(
+                                    &reaction,
+                                    &question,
+                                    |delta| {
+                                        send_reaction_more_info_delta(
+                                            &mut output,
+                                            request_id,
+                                            delta,
+                                        )
+                                    },
+                                )
+                            } else {
+                                provider.reaction_more_info_stream(&reaction, |delta| {
+                                    send_reaction_more_info_delta(&mut output, request_id, delta)
+                                })
+                            }
+                        }
+                        ReactionMoreInfoJob::FollowUp {
+                            reaction,
+                            conversation,
+                            question,
+                        } => provider.reaction_more_info_follow_up_stream(
+                            &reaction,
+                            &conversation,
+                            &question,
+                            |delta| send_reaction_more_info_delta(&mut output, request_id, delta),
+                        ),
+                    };
+                    iced::futures::executor::block_on(
+                        output.send(Message::ReactionMoreInfoFinished { request_id, result }),
+                    )
+                    .map_err(|_| blocking::BlockingFailure::Cancelled)
+                })
+                .await;
+                if let Err(failure) = worker {
+                    let _ = fallback
+                        .send(Message::ReactionMoreInfoWorkerFailed {
+                            request_id,
+                            failure,
+                        })
+                        .await;
+                }
+            },
+        );
+        Task::run(stream, |message| message)
+    }
+
+    fn request_reaction_more_info(&mut self, question: Option<&str>) -> Task<Message> {
         if self.local_mode() {
             self.reaction_more_info = MoreInfoState::Unavailable(
                 "More info isn’t available in Local mode. Switch to Codex mode in Settings to use this feature."
@@ -2071,9 +2251,8 @@ impl App {
             return Task::none();
         }
         let Some(animation) = &self.structural_animation else {
-            self.reaction_more_info = MoreInfoState::Failed(
-                "The validated reaction is unavailable for this request.".to_owned(),
-            );
+            self.reaction_more_info =
+                MoreInfoState::Failed(MoreInfoFailure::MissingValidatedReaction);
             return Task::none();
         };
         let reaction = nomenclature::display_declaration(
@@ -2083,16 +2262,29 @@ impl App {
         let request_id = self.next_more_info_request_id;
         self.next_more_info_request_id = self.next_more_info_request_id.saturating_add(1);
         self.reaction_more_info_messages.clear();
+        if let Some(question) = question {
+            self.reaction_more_info_messages.push(ReactionMoreInfoTurn {
+                speaker: ReactionMoreInfoSpeaker::Learner,
+                text: question.to_owned(),
+            });
+        }
         self.reaction_more_info_draft.clear();
-        self.reaction_more_info = MoreInfoState::Loading { request_id };
-        let config = CodexProviderConfig::from_environment();
-        Task::perform(
-            blocking::run(move || {
-                CodexProvider::new(config)
-                    .reaction_more_info(&reaction)
-                    .map_err(|error| error.to_string())
-            }),
-            move |result| Message::ReactionMoreInfoFinished { request_id, result },
+        self.reaction_more_info_thinking_step = 0;
+        self.reaction_more_info = MoreInfoState::Loading {
+            request_id,
+            draft: String::new(),
+        };
+        let cancellation = Arc::new(AtomicBool::new(false));
+        self.reaction_more_info_cancellation = Some(cancellation.clone());
+        let mut config = CodexProviderConfig::from_environment();
+        config.cancellation = Some(cancellation);
+        Self::reaction_more_info_task(
+            request_id,
+            config,
+            ReactionMoreInfoJob::Initial {
+                reaction,
+                question: question.map(str::to_owned),
+            },
         )
     }
 
@@ -2123,9 +2315,8 @@ impl App {
             return Task::none();
         }
         let Some(animation) = &self.structural_animation else {
-            self.reaction_more_info = MoreInfoState::Failed(
-                "The validated reaction is unavailable for this request.".to_owned(),
-            );
+            self.reaction_more_info =
+                MoreInfoState::Failed(MoreInfoFailure::MissingValidatedReaction);
             return Task::none();
         };
         let reaction = nomenclature::display_declaration(
@@ -2145,24 +2336,36 @@ impl App {
             text: question.clone(),
         });
         self.reaction_more_info_draft.clear();
+        self.reaction_more_info_thinking_step = 0;
         let request_id = self.next_more_info_request_id;
         self.next_more_info_request_id = self.next_more_info_request_id.saturating_add(1);
-        self.reaction_more_info = MoreInfoState::Loading { request_id };
-        let config = CodexProviderConfig::from_environment();
-        Task::perform(
-            blocking::run(move || {
-                CodexProvider::new(config)
-                    .reaction_more_info_follow_up(&reaction, &conversation, &question)
-                    .map_err(|error| error.to_string())
-            }),
-            move |result| Message::ReactionMoreInfoFinished { request_id, result },
+        self.reaction_more_info = MoreInfoState::Loading {
+            request_id,
+            draft: String::new(),
+        };
+        let cancellation = Arc::new(AtomicBool::new(false));
+        self.reaction_more_info_cancellation = Some(cancellation.clone());
+        let mut config = CodexProviderConfig::from_environment();
+        config.cancellation = Some(cancellation);
+        Self::reaction_more_info_task(
+            request_id,
+            config,
+            ReactionMoreInfoJob::FollowUp {
+                reaction,
+                conversation,
+                question,
+            },
         )
     }
 
     fn reset_reaction_more_info(&mut self) {
+        if let Some(cancellation) = self.reaction_more_info_cancellation.take() {
+            cancellation.store(true, Ordering::Relaxed);
+        }
         self.reaction_more_info = MoreInfoState::Idle;
         self.reaction_more_info_messages.clear();
         self.reaction_more_info_draft.clear();
+        self.reaction_more_info_thinking_step = 0;
     }
 
     /// Resets the diagram/right-column split back to its default share on a
@@ -2178,6 +2381,15 @@ impl App {
     /// observe the destination.
     fn enter_screen(&mut self, screen: Screen) {
         let resuming_builder = self.screen != Screen::Builder && screen == Screen::Builder;
+        if self.screen == Screen::ProductSummary
+            && screen != Screen::ProductSummary
+            && matches!(self.reaction_more_info, MoreInfoState::Loading { .. })
+        {
+            if let Some(cancellation) = self.reaction_more_info_cancellation.take() {
+                cancellation.store(true, Ordering::Relaxed);
+            }
+            self.reaction_more_info = MoreInfoState::Failed(MoreInfoFailure::Cancelled);
+        }
         // Leaving the 3D view pauses playback rather than resetting it, so a
         // later return (via Return, the nav menu, or the forward button)
         // resumes exactly where the viewer left off.
@@ -2410,10 +2622,14 @@ impl App {
             }
             message @ (Message::ProductDetailsToggled(_)
             | Message::ProductSummaryPaneResized(_)
-            | Message::ReactionMoreInfoRequested
+            | Message::ReactionMoreInfoSuggested(_)
+            | Message::ReactionMoreInfoThinkingTick
             | Message::ReactionMoreInfoDraftChanged(_)
             | Message::ReactionMoreInfoFollowUpSubmitted
-            | Message::ReactionMoreInfoFinished { .. }) => {
+            | Message::ReactionMoreInfoDelta { .. }
+            | Message::ReactionMoreInfoCancelled
+            | Message::ReactionMoreInfoFinished { .. }
+            | Message::ReactionMoreInfoWorkerFailed { .. }) => {
                 return self.update_product_summary_message(message);
             }
             message @ (Message::WindowResized(_)
@@ -2491,22 +2707,54 @@ impl App {
             Message::ProductSummaryPaneResized(event) => {
                 self.product_summary_panes.resize(event.split, event.ratio);
             }
-            Message::ReactionMoreInfoRequested => return self.request_reaction_more_info(),
+            Message::ReactionMoreInfoSuggested(question) => {
+                return self.request_reaction_more_info(Some(question));
+            }
+            Message::ReactionMoreInfoThinkingTick => {
+                if matches!(self.reaction_more_info, MoreInfoState::Loading { .. }) {
+                    self.reaction_more_info_thinking_step =
+                        (self.reaction_more_info_thinking_step + 1) % 3;
+                }
+            }
             Message::ReactionMoreInfoDraftChanged(value) => {
                 self.reaction_more_info_draft = value.chars().take(1_000).collect();
             }
             Message::ReactionMoreInfoFollowUpSubmitted => {
                 return self.request_reaction_more_info_follow_up();
             }
+            Message::ReactionMoreInfoDelta { request_id, delta } => {
+                let MoreInfoState::Loading {
+                    request_id: active,
+                    draft,
+                } = &mut self.reaction_more_info
+                else {
+                    return Task::none();
+                };
+                if *active != request_id {
+                    return Task::none();
+                }
+                let remaining = 2_400_usize.saturating_sub(draft.chars().count());
+                draft.extend(delta.chars().take(remaining));
+            }
+            Message::ReactionMoreInfoCancelled => {
+                if let Some(cancellation) = self.reaction_more_info_cancellation.take() {
+                    cancellation.store(true, Ordering::Relaxed);
+                }
+                if matches!(self.reaction_more_info, MoreInfoState::Loading { .. }) {
+                    self.reaction_more_info = MoreInfoState::Failed(MoreInfoFailure::Cancelled);
+                }
+            }
             Message::ReactionMoreInfoFinished { request_id, result } => {
                 if !matches!(
                     self.reaction_more_info,
                     MoreInfoState::Loading {
-                        request_id: active
+                        request_id: active,
+                        ..
                     } if active == request_id
                 ) {
                     return Task::none();
                 }
+                self.reaction_more_info_cancellation = None;
                 self.reaction_more_info = match result {
                     Ok(answer) => {
                         self.reaction_more_info_messages.push(ReactionMoreInfoTurn {
@@ -2515,10 +2763,24 @@ impl App {
                         });
                         MoreInfoState::Ready
                     }
-                    Err(error) => MoreInfoState::Failed(format!(
-                        "More info could not be loaded from Codex: {error}"
-                    )),
+                    Err(error) => MoreInfoState::Failed(MoreInfoFailure::Agent(error)),
                 };
+            }
+            Message::ReactionMoreInfoWorkerFailed {
+                request_id,
+                failure,
+            } => {
+                if !matches!(
+                    self.reaction_more_info,
+                    MoreInfoState::Loading {
+                        request_id: active,
+                        ..
+                    } if active == request_id
+                ) {
+                    return Task::none();
+                }
+                self.reaction_more_info_cancellation = None;
+                self.reaction_more_info = MoreInfoState::Failed(MoreInfoFailure::Worker(failure));
             }
             _ => unreachable!("product summary messages are routed by update_with_task"),
         }
@@ -3794,6 +4056,15 @@ impl App {
             Subscription::none()
         };
 
+        let reaction_more_info_thinking = if self.screen == Screen::ProductSummary
+            && matches!(self.reaction_more_info, MoreInfoState::Loading { .. })
+        {
+            iced::time::every(std::time::Duration::from_millis(450))
+                .map(|_| Message::ReactionMoreInfoThinkingTick)
+        } else {
+            Subscription::none()
+        };
+
         Subscription::batch([
             resize,
             frame_dump,
@@ -3801,6 +4072,7 @@ impl App {
             screen,
             dynamic_build,
             dynamic_theatre,
+            reaction_more_info_thinking,
             input,
         ])
     }
@@ -6060,6 +6332,7 @@ impl App {
             state: &self.reaction_more_info,
             messages: &self.reaction_more_info_messages,
             draft: &self.reaction_more_info_draft,
+            thinking_step: self.reaction_more_info_thinking_step,
         };
         let context = reaction_context_view(compact, dense, more_info);
         let body: Element<'_, Message> = if compact {
@@ -9748,7 +10021,9 @@ mod tests {
         app.open_structural_animation();
         app.screen = Screen::ProductSummary;
 
-        app.update(Message::ReactionMoreInfoRequested);
+        app.update(Message::ReactionMoreInfoSuggested(
+            "Why does this reaction occur?",
+        ));
 
         assert!(matches!(
             app.reaction_more_info,
@@ -9757,9 +10032,63 @@ mod tests {
     }
 
     #[test]
+    fn one_suggestion_activation_immediately_sends_the_selected_question() {
+        let question = "Why does this reaction occur?";
+        let mut app = App {
+            provider: Some(AppMode::CodexBinary),
+            codex_available: true,
+            ..App::default()
+        };
+        app.open_structural_animation();
+        app.screen = Screen::ProductSummary;
+
+        app.update(Message::ReactionMoreInfoSuggested(question));
+
+        assert!(matches!(
+            app.reaction_more_info,
+            MoreInfoState::Loading { .. }
+        ));
+        assert_eq!(
+            app.reaction_more_info_messages,
+            vec![ReactionMoreInfoTurn {
+                speaker: ReactionMoreInfoSpeaker::Learner,
+                text: question.to_owned(),
+            }]
+        );
+    }
+
+    #[test]
+    fn product_more_info_thinking_placeholder_cycles_one_to_three_dots() {
+        let state = MoreInfoState::Loading {
+            request_id: 1,
+            draft: String::new(),
+        };
+
+        assert_eq!(
+            reaction_more_info_placeholder(&state, false, 0),
+            "Prof. Codex is thinking."
+        );
+        assert_eq!(
+            reaction_more_info_placeholder(&state, false, 1),
+            "Prof. Codex is thinking.."
+        );
+        assert_eq!(
+            reaction_more_info_placeholder(&state, false, 2),
+            "Prof. Codex is thinking..."
+        );
+        assert_eq!(
+            reaction_more_info_placeholder(&state, false, 3),
+            "Prof. Codex is thinking."
+        );
+    }
+
+    #[test]
     fn product_more_info_ignores_stale_codex_completions() {
         let mut app = App {
-            reaction_more_info: MoreInfoState::Loading { request_id: 8 },
+            reaction_more_info: MoreInfoState::Loading {
+                request_id: 8,
+                draft: String::new(),
+            },
             ..App::default()
         };
 
@@ -9769,7 +10098,10 @@ mod tests {
         });
         assert!(matches!(
             app.reaction_more_info,
-            MoreInfoState::Loading { request_id: 8 }
+            MoreInfoState::Loading {
+                request_id: 8,
+                draft: ref text,
+            } if text.is_empty()
         ));
 
         app.update(Message::ReactionMoreInfoFinished {
@@ -9787,6 +10119,112 @@ mod tests {
     }
 
     #[test]
+    fn product_more_info_appends_only_current_stream_deltas() {
+        let mut app = App {
+            reaction_more_info: MoreInfoState::Loading {
+                request_id: 12,
+                draft: String::new(),
+            },
+            ..App::default()
+        };
+
+        app.update(Message::ReactionMoreInfoDelta {
+            request_id: 11,
+            delta: "stale".to_owned(),
+        });
+        app.update(Message::ReactionMoreInfoDelta {
+            request_id: 12,
+            delta: "Hello, ".to_owned(),
+        });
+        app.update(Message::ReactionMoreInfoDelta {
+            request_id: 12,
+            delta: "chemist!".to_owned(),
+        });
+
+        assert!(matches!(
+            app.reaction_more_info,
+            MoreInfoState::Loading { draft, .. } if draft == "Hello, chemist!"
+        ));
+    }
+
+    #[test]
+    fn cancelling_product_more_info_signals_the_provider() {
+        let cancellation = Arc::new(AtomicBool::new(false));
+        let mut app = App {
+            reaction_more_info: MoreInfoState::Loading {
+                request_id: 14,
+                draft: "Partial answer".to_owned(),
+            },
+            reaction_more_info_cancellation: Some(cancellation.clone()),
+            ..App::default()
+        };
+
+        app.update(Message::ReactionMoreInfoCancelled);
+
+        assert!(cancellation.load(Ordering::Relaxed));
+        assert!(matches!(
+            app.reaction_more_info,
+            MoreInfoState::Failed(ref failure) if failure.to_string().contains("stopped")
+        ));
+    }
+
+    #[test]
+    fn leaving_product_summary_signals_an_active_provider() {
+        let cancellation = Arc::new(AtomicBool::new(false));
+        let mut app = App {
+            screen: Screen::ProductSummary,
+            reaction_more_info: MoreInfoState::Loading {
+                request_id: 15,
+                draft: "Partial answer".to_owned(),
+            },
+            reaction_more_info_cancellation: Some(cancellation.clone()),
+            ..App::default()
+        };
+
+        app.enter_screen(Screen::Structural3d);
+
+        assert!(cancellation.load(Ordering::Relaxed));
+        app.update(Message::ReactionMoreInfoDelta {
+            request_id: 15,
+            delta: "late".to_owned(),
+        });
+        app.update(Message::ReactionMoreInfoFinished {
+            request_id: 15,
+            result: Ok("Late answer".to_owned()),
+        });
+        assert!(matches!(
+            app.reaction_more_info,
+            MoreInfoState::Failed(MoreInfoFailure::Cancelled)
+        ));
+        assert!(app.reaction_more_info_messages.is_empty());
+    }
+
+    #[test]
+    fn product_more_info_failed_state_retains_the_agent_error_kind() {
+        let error = CodexProvider::new(CodexProviderConfig::from_environment())
+            .reaction_more_info_question_stream("", "Why?", |_| true)
+            .expect_err("empty reaction is rejected before provider work");
+        let mut app = App {
+            reaction_more_info: MoreInfoState::Loading {
+                request_id: 16,
+                draft: String::new(),
+            },
+            ..App::default()
+        };
+
+        app.update(Message::ReactionMoreInfoFinished {
+            request_id: 16,
+            result: Err(error),
+        });
+
+        assert!(matches!(
+            app.reaction_more_info,
+            MoreInfoState::Failed(MoreInfoFailure::Agent(ref error))
+                if error.kind() == AgentErrorKind::InvalidRequest
+        ));
+    }
+
+    #[test]
     fn product_more_info_draft_is_bounded_and_matching_replies_append() {
         let mut app = App {
             reaction_more_info: MoreInfoState::Ready,
@@ -9800,7 +10238,10 @@ mod tests {
         app.update(Message::ReactionMoreInfoDraftChanged("x".repeat(1_005)));
         assert_eq!(app.reaction_more_info_draft.chars().count(), 1_000);
 
-        app.reaction_more_info = MoreInfoState::Loading { request_id: 11 };
+        app.reaction_more_info = MoreInfoState::Loading {
+            request_id: 11,
+            draft: String::new(),
+        };
         app.update(Message::ReactionMoreInfoFinished {
             request_id: 11,
             result: Ok("Follow-up answer".to_owned()),

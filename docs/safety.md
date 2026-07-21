@@ -84,8 +84,12 @@ An allowed model response still cannot execute unless:
 
 ### 5. Display boundary
 
-Raw model prose is not streamed directly to learners. The UI streams curated
-workflow events and displays a structured result after policy and shape checks.
+Raw model prose from chemistry-bearing claims, research, repair, and mechanism
+work is not streamed directly to learners. The UI streams curated workflow
+events and displays those structured results only after policy and shape
+checks. The explicitly presentation-only **Prof. Codex** reaction chat is the
+exception: it may stream bounded final-answer prose because it cannot modify or
+authorize chemistry, validation, frames, catalogue content, or simulation.
 
 ## Safe redirection
 

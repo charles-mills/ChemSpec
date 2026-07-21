@@ -222,9 +222,11 @@ run only while the trusted frame sequence is playing. Native hover, press,
 focus, selected, and disabled feedback requires no unconditional
 subscription.
 
-The product record is static and owns no continuous tick subscription. Product
-disclosures change only in response to user intent, and each finite More info or
-follow-up request returns through a generation-scoped completion message.
+The product record owns no continuous decorative or playback tick. Its only
+timer is the 450 ms Prof. Codex ellipsis while a More info or follow-up request
+is actively loading; omitting that loading state cancels the subscription.
+Product disclosures otherwise change only in response to user intent, and each
+finite chat request returns through a generation-scoped completion message.
 
 ## Responsive composition
 
