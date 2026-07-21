@@ -441,31 +441,62 @@ pub fn summary_property_row(started: bool, active: bool) -> container::Style {
         .border(border_style(border, 1.0, radius::CONTROL))
 }
 
-pub fn summary_more_info_panel(_: &Theme) -> container::Style {
-    container::Style::default()
-        .background(color::ACCENT_FAINT.scale_alpha(0.52))
-        .border(border_style(
-            color::ACCENT.scale_alpha(0.34),
-            1.0,
-            radius::CONTROL,
-        ))
-}
-
+/// A chat bubble, colour-coded by speaker: Codex in the app's accent green,
+/// the learner in the selection blue used nowhere else in this panel, so the
+/// two voices separate at a glance without a repeated name label. The corner
+/// nearest the author's own side stays sharp, echoing which way the message
+/// points, the way most chat bubbles do.
 #[must_use]
 pub fn summary_chat_message(is_user: bool) -> container::Style {
-    let background = if is_user {
-        color::ACCENT_FAINT.scale_alpha(0.58)
+    const TAIL_CORNER: f32 = 4.0;
+    let (background, border) = if is_user {
+        (
+            color::SELECTION.scale_alpha(0.14),
+            color::SELECTION.scale_alpha(0.32),
+        )
     } else {
-        color::SURFACE.scale_alpha(0.82)
+        (color::SURFACE, color::LINE)
     };
-    let border = if is_user {
-        color::ACCENT.scale_alpha(0.30)
+    let radius = if is_user {
+        border::Radius {
+            top_left: radius::CONTROL,
+            top_right: TAIL_CORNER,
+            bottom_right: radius::CONTROL,
+            bottom_left: radius::CONTROL,
+        }
     } else {
-        color::LINE.scale_alpha(0.82)
+        border::Radius {
+            top_left: TAIL_CORNER,
+            top_right: radius::CONTROL,
+            bottom_right: radius::CONTROL,
+            bottom_left: radius::CONTROL,
+        }
     };
     container::Style::default()
         .background(background)
-        .border(border_style(border, 1.0, radius::CONTROL))
+        .border(Border {
+            color: border,
+            width: 1.0,
+            radius,
+        })
+}
+
+/// A suggested-question chip in the reaction chat's empty state: quiet until
+/// hovered, when it picks up the accent to invite the click.
+pub fn chat_suggestion_chip(_: &Theme, status: button::Status) -> button::Style {
+    let (background, border_color, text_color) = match status {
+        button::Status::Active => (color::SURFACE, color::LINE_STRONG, color::TEXT_SOFT),
+        button::Status::Hovered => (color::SURFACE_HOVER, color::ACCENT, color::TEXT),
+        button::Status::Pressed => (color::SURFACE_ACTIVE, color::ACCENT_HOVER, color::TEXT),
+        button::Status::Disabled => (color::PANEL, color::LINE, color::FAINT),
+    };
+
+    button::Style {
+        background: Some(Background::Color(background)),
+        text_color,
+        border: border_style(border_color, 1.0, radius::PILL),
+        ..button::Style::default()
+    }
 }
 
 pub fn timeline_slider(_: &Theme, status: slider::Status) -> slider::Style {

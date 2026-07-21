@@ -567,8 +567,32 @@ pub fn chapter_camera(
     )
 }
 
+/// Camera for a layout that is never mid-animation, so nothing needs the
+/// chapter minimum that keeps travelling scenes from zoom-jumping between
+/// stops. Fits the products' actual bounds, letting a small product fill the
+/// pane instead of floating in reserved chapter-sized space.
+#[must_use]
+pub fn static_layout_camera(frame: &SimulationFrame, homes: &BTreeMap<String, Point>) -> Rectangle {
+    let render_frame = RenderFrame::from(frame);
+    let elements = render_frame
+        .atoms
+        .iter()
+        .map(|atom| (atom.id.clone(), atom.element.clone()))
+        .collect();
+    padded_camera(homes, &elements, 0.0, 0.0)
+}
+
 /// Padded fit of one home layout, clamped into the virtual world.
 fn homes_camera(homes: &BTreeMap<String, Point>, elements: &BTreeMap<String, String>) -> Rectangle {
+    padded_camera(homes, elements, 680.0, 420.0)
+}
+
+fn padded_camera(
+    homes: &BTreeMap<String, Point>,
+    elements: &BTreeMap<String, String>,
+    min_width: f32,
+    min_height: f32,
+) -> Rectangle {
     let bounds = virtual_rectangle();
     let mut min_x = f32::INFINITY;
     let mut min_y = f32::INFINITY;
@@ -587,9 +611,11 @@ fn homes_camera(homes: &BTreeMap<String, Point>, elements: &BTreeMap<String, Str
         return bounds;
     }
     let padding = 130.0;
-    let width = (max_x - min_x + padding * 2.0).max(680.0).min(bounds.width);
+    let width = (max_x - min_x + padding * 2.0)
+        .max(min_width)
+        .min(bounds.width);
     let height = (max_y - min_y + padding * 2.0)
-        .max(420.0)
+        .max(min_height)
         .min(bounds.height);
     let center_x = f32::midpoint(min_x, max_x);
     let center_y = f32::midpoint(min_y, max_y);
@@ -2748,12 +2774,6 @@ fn draw_atom_transition(
         .iter()
         .map(|atom| (atom.id.as_str(), atom))
         .collect::<BTreeMap<_, _>>();
-    let covalently_bonded = |frame: &StructuralFrame, id: &str| {
-        frame
-            .covalent_bonds
-            .iter()
-            .any(|bond| bond.left == id || bond.right == id)
-    };
     for id in before_atoms
         .keys()
         .chain(after_atoms.keys())
@@ -2825,14 +2845,7 @@ fn draw_atom_transition(
         };
         let before_is_metallic = is_metallic_site(before, id);
         let after_is_metallic = is_metallic_site(after, id);
-        // An atom inside a molecule or polyatomic ion keeps its formal
-        // charge private — the ion wears one net badge instead (below).
-        // The per-atom badge still appears for the beat that changes it.
-        let static_member_charge = covalently_bonded(before, id)
-            && covalently_bonded(after, id)
-            && displayed_charge(before_atom, before_is_metallic)
-                == displayed_charge(after_atom, after_is_metallic);
-        if !static_member_charge {
+        if presents_atom_charge(before, after, id) {
             draw_charge_transition(
                 frame,
                 before_atom,
@@ -2848,158 +2861,13 @@ fn draw_atom_transition(
             );
         }
     }
-    draw_polyatomic_net_charges(
-        frame,
-        before,
-        after,
-        positions,
-        active,
-        progress,
-        opacity,
-        focus_active,
-        scale,
-    );
 }
 
-/// One net-charge badge per covalently-connected component (union of both
-/// frames' bonds), seated off the component's outermost atom in its largest
-/// bond-free gap. Per-atom formal charges inside these components stay
-/// hidden while static, so NO₃⁻ reads as one −1 ion, not three badges.
-#[allow(clippy::too_many_arguments)]
-fn draw_polyatomic_net_charges(
-    frame: &mut canvas::Frame,
-    before: &StructuralFrame,
-    after: &StructuralFrame,
-    positions: &BTreeMap<String, Point>,
-    active: &BTreeSet<&str>,
-    progress: f32,
-    opacity: f32,
-    focus_active: bool,
-    scale: f32,
-) {
-    let mut adjacency: BTreeMap<&str, BTreeSet<&str>> = BTreeMap::new();
-    for bond in before.covalent_bonds.iter().chain(&after.covalent_bonds) {
-        adjacency
-            .entry(bond.left.as_str())
-            .or_default()
-            .insert(bond.right.as_str());
-        adjacency
-            .entry(bond.right.as_str())
-            .or_default()
-            .insert(bond.left.as_str());
-    }
-    let mut seen: BTreeSet<&str> = BTreeSet::new();
-    for start in adjacency.keys().copied().collect::<Vec<_>>() {
-        if seen.contains(start) {
-            continue;
-        }
-        let mut queue = VecDeque::from([start]);
-        let mut members = Vec::new();
-        seen.insert(start);
-        while let Some(id) = queue.pop_front() {
-            members.push(id);
-            for neighbour in adjacency.get(id).into_iter().flatten() {
-                if seen.insert(neighbour) {
-                    queue.push_back(neighbour);
-                }
-            }
-        }
-        let net = |frame: &StructuralFrame| {
-            members
-                .iter()
-                .map(|id| {
-                    i32::from(displayed_charge(
-                        atom(frame, id),
-                        is_metallic_site(frame, id),
-                    ))
-                })
-                .sum::<i32>()
-        };
-        let before_net = i16::try_from(net(before)).unwrap_or(0);
-        let after_net = i16::try_from(net(after)).unwrap_or(0);
-        if before_net == 0 && after_net == 0 {
-            continue;
-        }
-        // Members mid-animation (charge changing, or only just bonding into
-        // the component) still wear their own badge; a net badge would
-        // double-report the same charge.
-        let settled = members.iter().all(|id| {
-            displayed_charge(atom(before, id), is_metallic_site(before, id))
-                == displayed_charge(atom(after, id), is_metallic_site(after, id))
-                && [before, after].into_iter().all(|frame| {
-                    frame
-                        .covalent_bonds
-                        .iter()
-                        .any(|bond| bond.left == *id || bond.right == *id)
-                })
-        });
-        if !settled {
-            continue;
-        }
-        // Keep the badge on one stable, sign-correct atom. Geometry cannot
-        // break ties here: equivalent charged sites in nitrate, carbonate,
-        // and similar polyatomic ions move as partners associate, which used
-        // to make the badge jump between atoms despite unchanged chemistry.
-        let net_charge = if after_net != 0 {
-            after_net
-        } else {
-            before_net
-        };
-        let Some(anchor) = polyatomic_charge_anchor(&members, before, after, net_charge) else {
-            continue;
-        };
-        let Some(anchor_position) = positions.get(anchor).copied() else {
-            continue;
-        };
-        let focus_opacity = if focus_active
-            && !active.is_empty()
-            && members.iter().all(|id| !active.contains(id))
-        {
-            0.75
-        } else {
-            1.0
-        };
-        let radius = atom(after, anchor)
-            .or_else(|| atom(before, anchor))
-            .map_or(24.0, |state| atom_visual_radius(&state.element));
-        let bond_angles = atom_bond_angles(anchor, before, after, positions, anchor_position);
-        let gaps = angular_gaps(&bond_angles);
-        let angle = gaps
-            .first()
-            .map_or(-std::f32::consts::FRAC_PI_4, |(start, span)| {
-                start + span * 0.5
-            });
-        let offset = (radius * 1.12 + 16.0) * scale;
-        let badge = anchor_position + Vector::new(angle.cos() * offset, angle.sin() * offset);
-        let alpha = opacity * focus_opacity;
-        if before_net == after_net {
-            draw_charge(frame, badge, after_net, alpha, scale);
-        } else {
-            draw_charge(frame, badge, before_net, alpha * (1.0 - progress), scale);
-            draw_charge(frame, badge, after_net, alpha * progress, scale);
-        }
-    }
-}
-
-/// Chooses one deterministic atom on which to seat a polyatomic ion's net
-/// charge badge. Atoms whose formal-charge sign matches the component's net
-/// charge take precedence, then greater magnitude, then stable atom ID.
-fn polyatomic_charge_anchor<'a>(
-    members: &[&'a str],
-    before: &StructuralFrame,
-    after: &StructuralFrame,
-    net_charge: i16,
-) -> Option<&'a str> {
-    members.iter().copied().min_by_key(|id| {
-        let charge = atom(after, id)
-            .or_else(|| atom(before, id))
-            .map_or(0, |state| state.formal_charge);
-        (
-            charge.signum() != net_charge.signum(),
-            std::cmp::Reverse(charge.unsigned_abs()),
-            *id,
-        )
-    })
+fn presents_atom_charge(before: &StructuralFrame, after: &StructuralFrame, atom_id: &str) -> bool {
+    let before_atom = atom(before, atom_id);
+    let after_atom = atom(after, atom_id);
+    displayed_charge(before_atom, is_metallic_site(before, atom_id)) != 0
+        || displayed_charge(after_atom, is_metallic_site(after, atom_id)) != 0
 }
 
 fn is_metallic_site(frame: &StructuralFrame, atom_id: &str) -> bool {
@@ -4606,7 +4474,7 @@ mod tests {
     }
 
     #[test]
-    fn polyatomic_charge_anchor_is_stable_and_sign_correct_for_equivalent_oxygens() {
+    fn nitrate_presents_every_atom_formal_charge() {
         let frame = RenderFrame {
             atoms: vec![
                 ion_atom("n", "N", 1),
@@ -4614,42 +4482,39 @@ mod tests {
                 ion_atom("o2", "O", -1),
                 ion_atom("o3", "O", -1),
             ],
-            covalent_bonds: Vec::new(),
-            ionic_associations: Vec::new(),
-            metallic_domains: Vec::new(),
-        };
-
-        assert_eq!(
-            polyatomic_charge_anchor(&["n", "o1", "o2", "o3"], &frame, &frame, -1),
-            Some("o2")
-        );
-        assert_eq!(
-            polyatomic_charge_anchor(&["o3", "o2", "o1", "n"], &frame, &frame, -1),
-            Some("o2"),
-            "member ordering must not move the badge between equivalent oxygens"
-        );
-        assert_eq!(
-            polyatomic_charge_anchor(&["n", "o1", "o2", "o3"], &frame, &frame, 1),
-            Some("n"),
-            "the anchor must carry the same charge sign as the ion"
-        );
-
-        let carbonate = RenderFrame {
-            atoms: vec![
-                ion_atom("c", "C", 0),
-                ion_atom("o1", "O", 0),
-                ion_atom("o2", "O", -1),
-                ion_atom("o3", "O", -1),
+            covalent_bonds: vec![
+                RenderBond {
+                    left: "n".to_owned(),
+                    right: "o1".to_owned(),
+                    order: 2,
+                    effective_order: None,
+                },
+                RenderBond {
+                    left: "n".to_owned(),
+                    right: "o2".to_owned(),
+                    order: 1,
+                    effective_order: None,
+                },
+                RenderBond {
+                    left: "n".to_owned(),
+                    right: "o3".to_owned(),
+                    order: 1,
+                    effective_order: None,
+                },
             ],
-            covalent_bonds: Vec::new(),
             ionic_associations: Vec::new(),
             metallic_domains: Vec::new(),
         };
-        assert_eq!(
-            polyatomic_charge_anchor(&["c", "o1", "o2", "o3"], &carbonate, &carbonate, -2,),
-            Some("o2"),
-            "carbonate must keep its net badge on one stable negative oxygen"
-        );
+
+        let presented = frame
+            .atoms
+            .iter()
+            .filter(|atom| atom.formal_charge != 0)
+            .filter(|atom| presents_atom_charge(&frame, &frame, &atom.id))
+            .map(|atom| (atom.id.as_str(), atom.formal_charge))
+            .collect::<Vec<_>>();
+
+        assert_eq!(presented, vec![("n", 1), ("o2", -1), ("o3", -1)]);
     }
 
     #[test]

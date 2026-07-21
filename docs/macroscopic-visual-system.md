@@ -240,17 +240,22 @@ vessel. The water first leaves as a coherent stretching sheet, then tears into
 the crown and ballistic droplets, while the final contained level reflects the
 authored ejected fraction.
 
-The explosive beaker is built from fixed wall and rim panels. Selected panels
-follow deterministic ballistic paths after contact, leaving real holes without
-changing topology. Their absolute-playhead trajectory includes gravity, solved
-bench impact, damped bounce, frictional skid, and a stable resting orientation;
-rim fragments and smaller glass chips use the same collision model rather than
-clamping mid-flight. Local bench fissures, lifted surface fragments, a radial
-dust front, wet spread, settled glass, steam, and the drained vessel persist
-after the flame has gone. The environment response remains a bounded
-catastrophic tabletop presentation; it does not claim untyped room or building
-failure. These are renderer-owned presentation differences only and do not
-alter process classification or validated chemistry.
+The explosive beaker is built from fixed wall and rim panels. A bounded set of
+contiguous wall regions follows deterministic ballistic paths after contact,
+so each detached section retains several connected cylindrical panels and
+reads as a curved piece of the original vessel rather than independent
+triangles. The remaining glass population uses a heavy-tailed distribution:
+many tiny irregular plate-like chips, a few medium fragments, and only sparse
+high-velocity outliers. Large sections launch more slowly, and most glass mass
+settles close to the vessel. Every absolute-playhead trajectory includes
+gravity, solved bench impact, damped bounce, frictional skid, and a stable
+resting orientation rather than clamping mid-flight. Local bench fissures,
+lifted surface fragments, a radial dust front, wet spread, settled glass,
+steam, and the drained vessel persist after the flame has gone. The environment
+response remains a bounded catastrophic tabletop presentation; it does not
+claim untyped room or building failure. These are renderer-owned presentation
+differences only and do not alter process classification or validated
+chemistry.
 
 Combustion is a closed chemistry-process classification. It is established
 before presentation only when the validated equation contains one molecular
