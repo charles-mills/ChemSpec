@@ -64,8 +64,8 @@ use chem_presentation::{
     compile_real_world_plan, complete_generic_visual_profile,
 };
 use iced::widget::{
-    button, canvas, column, container, mouse_area, responsive, row, rule, scrollable, slider,
-    space, stack, text, text_input, tooltip,
+    button, canvas, column, container, mouse_area, pane_grid, responsive, row, rule, scrollable,
+    slider, space, stack, text, text_input, tooltip,
 };
 use iced::{Center, Element, Fill, FillPortion, Length, Padding, Size, Subscription, Task, Theme};
 
@@ -237,14 +237,38 @@ struct MoreInfoView<'a> {
     draft: &'a str,
 }
 
+/// The three resizable regions of the product summary screen: the structural
+/// diagram, the molecular property list, and the reaction-context panel.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum ProductSummaryPane {
+    Diagram,
+    Properties,
+    Context,
+}
+
+fn product_summary_pane_configuration() -> pane_grid::Configuration<ProductSummaryPane> {
+    pane_grid::Configuration::Split {
+        axis: pane_grid::Axis::Vertical,
+        ratio: 0.5,
+        a: Box::new(pane_grid::Configuration::Pane(ProductSummaryPane::Diagram)),
+        b: Box::new(pane_grid::Configuration::Split {
+            axis: pane_grid::Axis::Horizontal,
+            ratio: 0.4,
+            a: Box::new(pane_grid::Configuration::Pane(
+                ProductSummaryPane::Properties,
+            )),
+            b: Box::new(pane_grid::Configuration::Pane(ProductSummaryPane::Context)),
+        }),
+    }
+}
+
 #[allow(clippy::too_many_lines)]
-fn product_properties_view(
+fn product_list_view(
     summary: &product_summary::SummaryData,
     labels: ChemicalLabels,
     compact: bool,
     dense: bool,
     open_products: &std::collections::BTreeSet<usize>,
-    more_info: MoreInfoView<'_>,
 ) -> Element<'static, Message> {
     let panel_spacing = if dense { spacing::XS } else { spacing::SM };
     let row_padding = if dense {
@@ -335,6 +359,38 @@ fn product_properties_view(
             content = content.push(row);
         }
     }
+    let content: Element<'static, Message> = if compact {
+        content.into()
+    } else {
+        let scroll_content = container(content)
+            .padding(iced::Padding {
+                right: spacing::MD,
+                ..iced::Padding::ZERO
+            })
+            .width(Fill);
+        scrollable(scroll_content).height(Fill).into()
+    };
+    container(content)
+        .style(theme::summary_properties_panel)
+        .padding(if dense {
+            spacing::XS
+        } else if compact {
+            spacing::SM
+        } else {
+            spacing::MD
+        })
+        .width(Fill)
+        .height(if compact { Length::Shrink } else { Fill })
+        .into()
+}
+
+#[allow(clippy::too_many_lines)]
+fn reaction_context_view(
+    compact: bool,
+    dense: bool,
+    more_info: MoreInfoView<'_>,
+) -> Element<'static, Message> {
+    let panel_spacing = if dense { spacing::XS } else { spacing::SM };
     let more_info_button = button(text(
         if matches!(more_info.state, MoreInfoState::Loading { .. }) {
             "Asking Codex…"
@@ -415,13 +471,14 @@ fn product_properties_view(
     .spacing(spacing::XS)
     .align_y(Center)
     .width(Fill);
-    let mut more_info_content = column![
+    let mut content = column![
         column![
-            text("CODEX · REACTION CONTEXT")
-                .size(type_scale::MICRO)
-                .color(color::ACCENT),
             text("Find out more about this reaction")
-                .size(type_scale::BODY_LARGE)
+                .size(if dense {
+                    type_scale::BODY_LARGE
+                } else {
+                    type_scale::TITLE
+                })
                 .font(fonts::SEMIBOLD)
                 .color(color::TEXT),
             text("Explore the conditions under which this reaction usually occurs, along with its applications in industry and nature.")
@@ -431,28 +488,21 @@ fn product_properties_view(
         .spacing(spacing::XXS)
         .width(Fill),
     ]
-    .spacing(spacing::SM);
+    .spacing(panel_spacing);
     if !more_info.messages.is_empty() {
-        more_info_content = more_info_content.push(conversation);
+        content = content.push(conversation);
     }
     if let Some(status) = more_info_status {
-        more_info_content = more_info_content.push(status);
+        content = content.push(status);
     }
     if more_info.messages.is_empty() {
-        more_info_content =
-            more_info_content.push(container(more_info_button).width(Fill).align_x(Center));
+        content = content.push(container(more_info_button).width(Fill).align_x(Center));
     } else if matches!(
         more_info.state,
         MoreInfoState::Ready | MoreInfoState::Failed(_)
     ) {
-        more_info_content = more_info_content.push(follow_up_input);
+        content = content.push(follow_up_input);
     }
-    content = content.push(rule::horizontal(1).style(theme::soft_rule));
-    content = content.push(
-        container(more_info_content)
-            .style(theme::summary_more_info_panel)
-            .padding(row_padding),
-    );
     let content: Element<'static, Message> = if compact {
         content.into()
     } else {
@@ -465,7 +515,7 @@ fn product_properties_view(
         scrollable(scroll_content).height(Fill).into()
     };
     container(content)
-        .style(theme::summary_properties_panel)
+        .style(theme::summary_more_info_panel)
         .padding(if dense {
             spacing::XS
         } else if compact {
@@ -1343,6 +1393,7 @@ enum Message {
     },
     RetryOxideAppearance,
     ProductDetailsToggled(usize),
+    ProductSummaryPaneResized(pane_grid::ResizeEvent),
     ReactionMoreInfoRequested,
     ReactionMoreInfoDraftChanged(String),
     ReactionMoreInfoFollowUpSubmitted,
@@ -1720,6 +1771,7 @@ struct App {
     active_oxide_appearance_run: Option<u64>,
     next_oxide_appearance_run_id: u64,
     open_product_details: std::collections::BTreeSet<usize>,
+    product_summary_panes: pane_grid::State<ProductSummaryPane>,
     reaction_more_info: MoreInfoState,
     reaction_more_info_messages: Vec<ReactionMoreInfoTurn>,
     reaction_more_info_draft: String,
@@ -1774,6 +1826,9 @@ impl Default for App {
             active_oxide_appearance_run: None,
             next_oxide_appearance_run_id: 1,
             open_product_details: std::collections::BTreeSet::new(),
+            product_summary_panes: pane_grid::State::with_configuration(
+                product_summary_pane_configuration(),
+            ),
             reaction_more_info: MoreInfoState::Idle,
             reaction_more_info_messages: Vec::new(),
             reaction_more_info_draft: String::new(),
@@ -2266,6 +2321,7 @@ impl App {
                 return enrichment;
             }
             message @ (Message::ProductDetailsToggled(_)
+            | Message::ProductSummaryPaneResized(_)
             | Message::ReactionMoreInfoRequested
             | Message::ReactionMoreInfoDraftChanged(_)
             | Message::ReactionMoreInfoFollowUpSubmitted
@@ -2342,6 +2398,9 @@ impl App {
                 if !self.open_product_details.remove(&index) {
                     self.open_product_details.insert(index);
                 }
+            }
+            Message::ProductSummaryPaneResized(event) => {
+                self.product_summary_panes.resize(event.split, event.ratio);
             }
             Message::ReactionMoreInfoRequested => return self.request_reaction_more_info(),
             Message::ReactionMoreInfoDraftChanged(value) => {
@@ -5741,7 +5800,7 @@ impl App {
                 .with_equation(Some(equation)),
             1.0,
             final_homes.clone(),
-            structural_2d::chapter_camera(final_frame, final_frame, final_homes, final_homes, 1.0),
+            structural_2d::static_layout_camera(final_frame, final_homes),
         )
         .static_view();
         let product_canvas: Element<'_, structural_2d::DragEvent> = canvas(product_diagram)
@@ -5753,50 +5812,52 @@ impl App {
             })
             .into();
         let product_canvas = product_canvas.map(|_| Message::Noop);
-        let two_dimensional = container(
-            column![
-                row![
-                    text("Products in structural 2D")
-                        .size(type_scale::BODY_LARGE)
-                        .font(fonts::SEMIBOLD)
-                        .color(color::TEXT),
-                    space().width(Fill),
-                ]
-                .align_y(Center),
-                product_canvas,
-            ]
-            .spacing(spacing::XS),
-        )
-        .style(theme::summary_visual_panel)
-        .padding(spacing::SM)
-        .width(Fill)
-        .height(if compact { Length::Shrink } else { Fill });
+        let two_dimensional = container(product_canvas)
+            .style(theme::summary_visual_panel)
+            .padding(spacing::SM)
+            .width(Fill)
+            .height(if compact { Length::Shrink } else { Fill });
 
-        let properties = product_properties_view(
+        let properties = product_list_view(
             &summary,
             self.settings.chemical_labels,
             compact,
             dense,
             &self.open_product_details,
-            MoreInfoView {
-                state: &self.reaction_more_info,
-                messages: &self.reaction_more_info_messages,
-                draft: &self.reaction_more_info_draft,
-            },
         );
+        let more_info = MoreInfoView {
+            state: &self.reaction_more_info,
+            messages: &self.reaction_more_info_messages,
+            draft: &self.reaction_more_info_draft,
+        };
+        let context = reaction_context_view(compact, dense, more_info);
         let body: Element<'_, Message> = if compact {
-            scrollable(column![two_dimensional, properties].spacing(spacing::SM))
+            scrollable(column![two_dimensional, properties, context].spacing(spacing::SM))
                 .width(Fill)
                 .height(Fill)
                 .into()
         } else {
-            row![
-                container(two_dimensional)
-                    .width(FillPortion(1))
-                    .height(Fill),
-                container(properties).width(FillPortion(1)).height(Fill),
-            ]
+            let two_dimensional = std::cell::RefCell::new(Some(Element::from(two_dimensional)));
+            let properties = std::cell::RefCell::new(Some(properties));
+            let context = std::cell::RefCell::new(Some(context));
+            pane_grid::PaneGrid::new(
+                &self.product_summary_panes,
+                move |_pane, kind, _maximized| {
+                    let cell = match kind {
+                        ProductSummaryPane::Diagram => &two_dimensional,
+                        ProductSummaryPane::Properties => &properties,
+                        ProductSummaryPane::Context => &context,
+                    };
+                    pane_grid::Content::new(
+                        cell.borrow_mut()
+                            .take()
+                            .expect("each product summary pane is rendered exactly once"),
+                    )
+                },
+            )
             .spacing(spacing::SM)
+            .on_resize(8, Message::ProductSummaryPaneResized)
+            .width(Fill)
             .height(Fill)
             .into()
         };

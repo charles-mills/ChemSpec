@@ -567,8 +567,32 @@ pub fn chapter_camera(
     )
 }
 
+/// Camera for a layout that is never mid-animation, so nothing needs the
+/// chapter minimum that keeps travelling scenes from zoom-jumping between
+/// stops. Fits the products' actual bounds, letting a small product fill the
+/// pane instead of floating in reserved chapter-sized space.
+#[must_use]
+pub fn static_layout_camera(frame: &SimulationFrame, homes: &BTreeMap<String, Point>) -> Rectangle {
+    let render_frame = RenderFrame::from(frame);
+    let elements = render_frame
+        .atoms
+        .iter()
+        .map(|atom| (atom.id.clone(), atom.element.clone()))
+        .collect();
+    padded_camera(homes, &elements, 0.0, 0.0)
+}
+
 /// Padded fit of one home layout, clamped into the virtual world.
 fn homes_camera(homes: &BTreeMap<String, Point>, elements: &BTreeMap<String, String>) -> Rectangle {
+    padded_camera(homes, elements, 680.0, 420.0)
+}
+
+fn padded_camera(
+    homes: &BTreeMap<String, Point>,
+    elements: &BTreeMap<String, String>,
+    min_width: f32,
+    min_height: f32,
+) -> Rectangle {
     let bounds = virtual_rectangle();
     let mut min_x = f32::INFINITY;
     let mut min_y = f32::INFINITY;
@@ -587,9 +611,11 @@ fn homes_camera(homes: &BTreeMap<String, Point>, elements: &BTreeMap<String, Str
         return bounds;
     }
     let padding = 130.0;
-    let width = (max_x - min_x + padding * 2.0).max(680.0).min(bounds.width);
+    let width = (max_x - min_x + padding * 2.0)
+        .max(min_width)
+        .min(bounds.width);
     let height = (max_y - min_y + padding * 2.0)
-        .max(420.0)
+        .max(min_height)
         .min(bounds.height);
     let center_x = f32::midpoint(min_x, max_x);
     let center_y = f32::midpoint(min_y, max_y);

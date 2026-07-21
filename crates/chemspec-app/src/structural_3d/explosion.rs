@@ -171,6 +171,118 @@ struct DebrisMotion {
     settled: f32,
 }
 
+#[derive(Debug, Clone, Copy)]
+struct GlassWallChunk {
+    angle: f32,
+    half_span: f32,
+    first_row: u16,
+    last_row: u16,
+    min_damage: f32,
+    launch_scale: f32,
+    lift_scale: f32,
+}
+
+impl GlassWallChunk {
+    fn is_active(self, damage: f32) -> bool {
+        damage >= self.min_damage
+    }
+
+    fn contains(self, angle: f32, row: u16, damage: f32) -> bool {
+        if !self.is_active(damage) || row < self.first_row || row > self.last_row {
+            return false;
+        }
+        let row_center = (f32::from(self.first_row) + f32::from(self.last_row)) * 0.5;
+        let half_height = f32::from(self.last_row - self.first_row + 1) * 0.5;
+        let edge_distance = ((f32::from(row) - row_center).abs() / half_height).min(1.0);
+        let tapered_span = self.half_span * (1.0 - edge_distance * 0.38);
+        let row_offset = match (row - self.first_row) % 3 {
+            0 => -self.half_span * 0.30,
+            1 => self.half_span * 0.12,
+            _ => self.half_span * 0.27,
+        };
+        angular_distance(angle, self.angle + row_offset) <= tapered_span
+    }
+}
+
+fn angular_distance(left: f32, right: f32) -> f32 {
+    let distance = (left - right).rem_euclid(std::f32::consts::TAU);
+    distance.min(std::f32::consts::TAU - distance)
+}
+
+/// A few contiguous portions of the cylindrical wall detach as recognisable
+/// shell pieces. Smaller variants activate fewer sections; the strongest
+/// variant opens both rupture sites without atomising the whole vessel.
+fn glass_wall_chunks(first_gap: f32, second_gap: f32, damage: f32) -> [GlassWallChunk; 5] {
+    let span = 0.13 + damage * 0.055;
+    [
+        GlassWallChunk {
+            angle: first_gap,
+            half_span: span * 1.18,
+            first_row: 5,
+            last_row: 7,
+            min_damage: 0.70,
+            launch_scale: 0.24,
+            lift_scale: 0.54,
+        },
+        GlassWallChunk {
+            angle: first_gap - span * 1.55,
+            half_span: span * 0.82,
+            first_row: 3,
+            last_row: 5,
+            min_damage: 1.02,
+            launch_scale: 0.29,
+            lift_scale: 0.47,
+        },
+        GlassWallChunk {
+            angle: second_gap,
+            half_span: span,
+            first_row: 4,
+            last_row: 7,
+            min_damage: 1.18,
+            launch_scale: 0.27,
+            lift_scale: 0.51,
+        },
+        GlassWallChunk {
+            angle: second_gap + span * 1.45,
+            half_span: span * 0.72,
+            first_row: 2,
+            last_row: 4,
+            min_damage: 1.48,
+            launch_scale: 0.22,
+            lift_scale: 0.42,
+        },
+        GlassWallChunk {
+            angle: first_gap + span * 1.62,
+            half_span: span * 0.66,
+            first_row: 1,
+            last_row: 3,
+            min_damage: 1.68,
+            launch_scale: 0.20,
+            lift_scale: 0.38,
+        },
+    ]
+}
+
+fn fractured_wall_vertex(
+    point: Vec3,
+    angle: f32,
+    grid_row: u16,
+    grid_segment: u16,
+    wall_segments: u16,
+    fracture: f32,
+    seed: u64,
+) -> Vec3 {
+    let wrapped_segment = grid_segment % wall_segments;
+    let index = u32::from(grid_row) * u32::from(wall_segments) + u32::from(wrapped_segment);
+    let tangent = Vec3::new(-angle.sin(), 0.0, angle.cos());
+    point
+        + tangent * seeded_variation(seed, usize::try_from(index).unwrap_or(0)) * 0.095 * fracture
+        + Vec3::Y
+            * seeded_variation(seed.rotate_left(11), usize::try_from(index).unwrap_or(0))
+            * 0.082
+            * fracture
+}
+
 fn debris_motion(
     origin: Vec3,
     velocity: Vec3,
@@ -246,10 +358,7 @@ fn add_explosion_beaker(
     let first_gap = seed_phase(seed, 601);
     let second_gap = (first_gap + std::f32::consts::PI * 0.82) % std::f32::consts::TAU;
     let gap_width = 0.22 + damage * 0.22;
-    let angular_distance = |left: f32, right: f32| {
-        let distance = (left - right).abs();
-        distance.min(std::f32::consts::TAU - distance)
-    };
+    let chunks = glass_wall_chunks(first_gap, second_gap, damage);
 
     for row in 0..WALL_ROWS {
         let low_y = bottom.y + (top.y - bottom.y) * f32::from(row) / f32::from(WALL_ROWS);
@@ -259,95 +368,106 @@ fn add_explosion_beaker(
             let end_angle =
                 std::f32::consts::TAU * f32::from(segment + 1) / f32::from(WALL_SEGMENTS);
             let middle = (start_angle + end_angle) * 0.5;
-            let first_wedge = angular_distance(middle, first_gap) < gap_width;
-            let second_wedge = angular_distance(middle, second_gap) < gap_width * 0.82;
-            let row_floor = if damage > 1.6 {
-                1
-            } else if damage > 1.1 {
-                2
-            } else {
-                4
-            };
-            let detached = row >= row_floor && (first_wedge || second_wedge);
-            let radial = Vec3::new(middle.cos(), 0.0, middle.sin());
-            let index = u32::from(row) * u32::from(WALL_SEGMENTS) + u32::from(segment);
-            let stagger = seeded_unit(seed, index, 600);
-            let launch = (0.42 + stagger * 0.34) * profile.debris_velocity;
-            let center_y = (low_y + high_y) * 0.5;
-            let center = radial * RADIUS + Vec3::Y * center_y;
-            let first_velocity = radial * launch + Vec3::Y * ((0.58 + stagger * 0.62) * damage);
-            let first_motion = if detached {
-                debris_motion(
-                    center,
-                    first_velocity,
-                    progress,
-                    bench_top + 0.035,
-                    4.6,
-                    0.075,
-                )
-            } else {
-                DebrisMotion::default()
-            };
-            let flying_rotation = Quat::from_axis_angle(
-                (radial.cross(Vec3::Y) + Vec3::Y * 0.35).normalize_or_zero(),
-                first_motion.rotation_time * (2.2 + stagger * 3.4),
-            );
-            let resting_rotation = Quat::from_rotation_y(stagger * std::f32::consts::TAU)
-                * Quat::from_rotation_arc(radial, Vec3::Y);
-            let first_rotation = flying_rotation.slerp(resting_rotation, first_motion.settled);
-            let local_a = Vec3::new(
+            let mut local_a = Vec3::new(
                 start_angle.cos() * RADIUS,
                 low_y,
                 start_angle.sin() * RADIUS,
             );
-            let local_b = Vec3::new(
+            let mut local_b = Vec3::new(
                 start_angle.cos() * RADIUS,
                 high_y,
                 start_angle.sin() * RADIUS,
             );
-            let local_c = Vec3::new(end_angle.cos() * RADIUS, high_y, end_angle.sin() * RADIUS);
-            let local_d = Vec3::new(end_angle.cos() * RADIUS, low_y, end_angle.sin() * RADIUS);
-            let transform_first =
-                |point: Vec3| center + first_motion.offset + first_rotation * (point - center);
-            let tangent = radial.cross(Vec3::Y);
-            let second_stagger = seeded_unit(seed, index, 603);
-            let second_velocity =
-                first_velocity + tangent * (second_stagger - 0.5) * 0.72 + radial * 0.14;
-            let second_motion = if detached {
-                debris_motion(
-                    center,
-                    second_velocity,
-                    progress,
-                    bench_top + 0.038,
-                    4.9,
-                    0.065,
-                )
-            } else {
-                DebrisMotion::default()
-            };
-            let second_flying_rotation = Quat::from_axis_angle(
-                (tangent + Vec3::Y * (second_stagger - 0.5)).normalize_or_zero(),
-                second_motion.rotation_time * (2.8 + second_stagger * 3.8),
+            let mut local_c = Vec3::new(end_angle.cos() * RADIUS, high_y, end_angle.sin() * RADIUS);
+            let mut local_d = Vec3::new(end_angle.cos() * RADIUS, low_y, end_angle.sin() * RADIUS);
+            let chunk_index = chunks
+                .iter()
+                .position(|chunk| chunk.contains(middle, row, damage));
+            if chunk_index.is_some() {
+                let fracture = fracture_age(progress);
+                local_a = fractured_wall_vertex(
+                    local_a,
+                    start_angle,
+                    row,
+                    segment,
+                    WALL_SEGMENTS,
+                    fracture,
+                    seed,
+                );
+                local_b = fractured_wall_vertex(
+                    local_b,
+                    start_angle,
+                    row + 1,
+                    segment,
+                    WALL_SEGMENTS,
+                    fracture,
+                    seed,
+                );
+                local_c = fractured_wall_vertex(
+                    local_c,
+                    end_angle,
+                    row + 1,
+                    segment + 1,
+                    WALL_SEGMENTS,
+                    fracture,
+                    seed,
+                );
+                local_d = fractured_wall_vertex(
+                    local_d,
+                    end_angle,
+                    row,
+                    segment + 1,
+                    WALL_SEGMENTS,
+                    fracture,
+                    seed,
+                );
+            }
+            let (motion, rotation, center) = chunk_index.map_or_else(
+                || (DebrisMotion::default(), Quat::IDENTITY, Vec3::ZERO),
+                |chunk_index| {
+                    let chunk = chunks[chunk_index];
+                    let radial = Vec3::new(chunk.angle.cos(), 0.0, chunk.angle.sin());
+                    let tangent = radial.cross(Vec3::Y);
+                    let center_y = bottom.y
+                        + (top.y - bottom.y)
+                            * (f32::from(chunk.first_row + chunk.last_row + 1) * 0.5)
+                            / f32::from(WALL_ROWS);
+                    let center = radial * RADIUS + Vec3::Y * center_y;
+                    let stagger = seeded_unit(seed, u32::try_from(chunk_index).unwrap_or(0), 600);
+                    let velocity = radial
+                        * profile.debris_velocity
+                        * chunk.launch_scale
+                        * (0.82 + stagger * 0.24)
+                        + tangent * (stagger - 0.5) * 0.24
+                        + Vec3::Y * damage * chunk.lift_scale;
+                    let motion =
+                        debris_motion(center, velocity, progress, bench_top + 0.045, 5.4, 0.055);
+                    let flying_rotation = Quat::from_axis_angle(
+                        (tangent + Vec3::Y * (0.18 + stagger * 0.20)).normalize_or_zero(),
+                        motion.rotation_time * (1.25 + stagger * 1.35),
+                    );
+                    let resting_rotation = Quat::from_rotation_y(stagger * std::f32::consts::TAU)
+                        * Quat::from_rotation_arc(radial, Vec3::Y);
+                    (
+                        motion,
+                        flying_rotation.slerp(resting_rotation, motion.settled),
+                        center,
+                    )
+                },
             );
-            let second_resting_rotation =
-                Quat::from_rotation_y(second_stagger * std::f32::consts::TAU)
-                    * Quat::from_rotation_arc(radial, Vec3::Y);
-            let second_rotation =
-                second_flying_rotation.slerp(second_resting_rotation, second_motion.settled);
-            let transform_second =
-                |point: Vec3| center + second_motion.offset + second_rotation * (point - center);
+            let transform = |point: Vec3| center + motion.offset + rotation * (point - center);
             add_flat_triangle(
                 mesh,
-                transform_first(local_a),
-                transform_first(local_b),
-                transform_first(local_c),
+                transform(local_a),
+                transform(local_b),
+                transform(local_c),
                 GLASS,
             );
             add_flat_triangle(
                 mesh,
-                transform_second(local_a),
-                transform_second(local_c),
-                transform_second(local_d),
+                transform(local_a),
+                transform(local_c),
+                transform(local_d),
                 GLASS,
             );
         }
@@ -774,7 +894,73 @@ fn add_blast_steam_column(
     }
 }
 
-/// Glass chips blasted off the rim, flying on ballistic arcs.
+/// A thin, irregular plate used only for broken glass. Unlike the pointed
+/// crystal primitive, this preserves a broad fractured face, a varied outline,
+/// and a narrow edge that remains visible while the chip tumbles.
+fn add_glass_chip(
+    mesh: &mut Mesh,
+    center: Vec3,
+    radius: f32,
+    thickness: f32,
+    rotation: Quat,
+    colour: [f32; 4],
+    seed: u64,
+) {
+    const SIDES: usize = 6;
+    let mut upper = [Vec3::ZERO; SIDES];
+    let mut lower = [Vec3::ZERO; SIDES];
+    for index in 0..SIDES {
+        let angle = std::f32::consts::TAU * index as f32 / SIDES as f32
+            + seeded_variation(seed, index) * 0.24;
+        let radial =
+            radius * (0.56 + seeded_unit(seed, u32::try_from(index).unwrap_or(0), 733) * 0.68);
+        let stretch = 0.72 + seeded_unit(seed, u32::try_from(index).unwrap_or(0), 734) * 0.62;
+        let local = Vec3::new(
+            angle.cos() * radial * stretch,
+            thickness,
+            angle.sin() * radial,
+        );
+        upper[index] = center + rotation * local;
+        lower[index] = center + rotation * Vec3::new(local.x, -thickness, local.z);
+    }
+    for index in 1..SIDES - 1 {
+        add_flat_triangle(mesh, upper[0], upper[index], upper[index + 1], colour);
+        add_flat_triangle(mesh, lower[0], lower[index + 1], lower[index], colour);
+    }
+    for index in 0..SIDES {
+        let next = (index + 1) % SIDES;
+        add_flat_triangle(mesh, upper[index], lower[index], lower[next], colour);
+        add_flat_triangle(mesh, upper[index], lower[next], upper[next], colour);
+    }
+}
+
+#[derive(Debug, Clone, Copy)]
+struct GlassChipProfile {
+    radius: f32,
+    speed: f32,
+    lift: f32,
+    drag: f32,
+}
+
+fn glass_chip_profile(seed: u64, chip: u32, debris_velocity: f32) -> GlassChipProfile {
+    let size_class = seeded_unit(seed, chip, 735);
+    let radius = if size_class < 0.14 {
+        0.045 + seeded_unit(seed, chip, 736) * 0.040
+    } else {
+        0.009 + seeded_unit(seed, chip, 736).powf(2.2) * 0.028
+    };
+    let travel = seeded_unit(seed, chip, 737).powf(2.7);
+    GlassChipProfile {
+        radius,
+        speed: debris_velocity * (0.15 + travel * 0.54),
+        lift: (0.42 + seeded_unit(seed, chip, 738) * 0.72) * (0.76 + debris_velocity * 0.16),
+        drag: if size_class < 0.14 { 5.6 } else { 7.4 },
+    }
+}
+
+/// Numerous small chips accompany a handful of much heavier wall sections.
+/// Their heavy-tailed size and speed distributions keep most of the glass
+/// close to the vessel while allowing a sparse set of energetic outliers.
 fn add_glass_chips(
     mesh: &mut Mesh,
     bench_top: f32,
@@ -782,30 +968,43 @@ fn add_glass_chips(
     profile: BlastProfile,
     seed: u64,
 ) {
-    const CHIPS: u32 = 20;
+    const CHIPS: u32 = 56;
     let damage_age = fracture_age(progress);
     for chip in 0..CHIPS {
         let angle = seeded_unit(seed, chip, 491) * std::f32::consts::TAU;
+        let chip_profile = glass_chip_profile(seed, chip, profile.debris_velocity);
+        let tangent = Vec3::new(-angle.sin(), 0.0, angle.cos());
         let launch = Vec3::new(
-            angle.cos() * (0.5 + seeded_unit(seed, chip, 492) * 0.7),
-            1.1 + seeded_unit(seed, chip, 493) * 0.9,
-            angle.sin() * (0.5 + seeded_unit(seed, chip, 494) * 0.7),
-        ) * profile.debris_velocity;
-        let start = Vec3::new(angle.cos() * 0.9, bench_top + 1.70, angle.sin() * 0.9);
-        let motion = debris_motion(start, launch, progress, bench_top + 0.026, 5.8, 0.045);
+            angle.cos() * chip_profile.speed,
+            chip_profile.lift,
+            angle.sin() * chip_profile.speed,
+        ) + tangent * (seeded_unit(seed, chip, 739) - 0.5) * chip_profile.speed * 0.36;
+        let start_height = 0.56 + seeded_unit(seed, chip, 740) * 1.12;
+        let start = Vec3::new(
+            angle.cos() * 0.92,
+            bench_top + start_height,
+            angle.sin() * 0.92,
+        );
+        let motion = debris_motion(
+            start,
+            launch,
+            progress,
+            bench_top + 0.022,
+            chip_profile.drag,
+            0.035,
+        );
         let flying_spin =
-            Quat::from_rotation_y(motion.rotation_time * 9.0 + seed_phase(seed, 495 + chip))
-                * Quat::from_rotation_z(motion.rotation_time * 7.0);
+            Quat::from_rotation_y(motion.rotation_time * 7.0 + seed_phase(seed, 495 + chip))
+                * Quat::from_rotation_z(motion.rotation_time * 5.4);
         let resting_spin = Quat::from_rotation_y(angle + seed_phase(seed, 496 + chip))
-            * Quat::from_rotation_x(std::f32::consts::FRAC_PI_2);
+            * Quat::from_rotation_z((seeded_unit(seed, chip, 741) - 0.5) * 0.16);
         let spin = flying_spin.slerp(resting_spin, motion.settled);
-        let size = (0.020 + seeded_unit(seed, chip, 496) * 0.024)
-            * damage_age
-            * (0.82 + profile.vessel_damage * 0.18);
-        add_shard(
+        let radius = chip_profile.radius * damage_age * (0.84 + profile.vessel_damage * 0.16);
+        add_glass_chip(
             mesh,
             start + motion.offset,
-            Vec3::new(size, size * 0.5, size * 0.8).max(Vec3::splat(0.000_5)),
+            radius.max(0.000_5),
+            (radius * 0.075).max(0.000_4),
             spin,
             [0.62, 0.84, 0.94, 0.55 * damage_age],
             seed.wrapping_add(u64::from(chip)),
@@ -1202,5 +1401,57 @@ mod tests {
         assert!((origin.y + settled.offset.y - floor_y).abs() < 0.001);
         assert!(settled.settled > 0.99);
         assert!((later.offset - settled.offset).length() < 0.001);
+    }
+
+    #[test]
+    fn stronger_variants_detach_a_few_more_contiguous_wall_sections() {
+        let first_gap = std::f32::consts::TAU - 0.08;
+        let second_gap = 2.1;
+        let active = |damage| {
+            glass_wall_chunks(first_gap, second_gap, damage)
+                .into_iter()
+                .filter(|chunk| chunk.is_active(damage))
+                .count()
+        };
+
+        assert_eq!(
+            active(blast_profile(ExplosiveMetalWaterVariant::Rubidium).vessel_damage),
+            1
+        );
+        assert_eq!(
+            active(blast_profile(ExplosiveMetalWaterVariant::Caesium).vessel_damage),
+            3
+        );
+        assert_eq!(
+            active(blast_profile(ExplosiveMetalWaterVariant::Francium).vessel_damage),
+            5
+        );
+        assert!(angular_distance(0.03, std::f32::consts::TAU - 0.03) < 0.07);
+    }
+
+    #[test]
+    fn glass_chips_are_mostly_tiny_and_low_velocity() {
+        const COUNT: u32 = 56;
+        let debris_velocity = blast_profile(ExplosiveMetalWaterVariant::Francium).debris_velocity;
+        let profiles = (0..COUNT)
+            .map(|chip| glass_chip_profile(0x51a7_d00d, chip, debris_velocity))
+            .collect::<Vec<_>>();
+        let tiny = profiles
+            .iter()
+            .filter(|profile| profile.radius < 0.04)
+            .count();
+        let near = profiles
+            .iter()
+            .filter(|profile| profile.speed < debris_velocity * 0.42)
+            .count();
+
+        assert!(tiny >= 42);
+        assert!(near >= 38);
+        assert!(profiles.iter().any(|profile| profile.radius > 0.06));
+        assert!(
+            profiles
+                .iter()
+                .any(|profile| profile.speed > debris_velocity * 0.58)
+        );
     }
 }
