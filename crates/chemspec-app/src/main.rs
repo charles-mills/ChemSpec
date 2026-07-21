@@ -237,28 +237,27 @@ struct MoreInfoView<'a> {
     draft: &'a str,
 }
 
-/// The three resizable regions of the product summary screen: the structural
-/// diagram, the molecular property list, and the reaction-context panel.
+/// The two resizable regions of the product summary screen: the structural
+/// diagram and the right-hand column (molecular properties over reaction
+/// context). The properties/context boundary within that column is not a
+/// pane split: it sizes to its own content instead (see `product_list_view`),
+/// so there is nothing useful to drag there.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 enum ProductSummaryPane {
     Diagram,
-    Properties,
-    Context,
+    Right,
 }
+
+/// The properties panel never grows past this share of the window height,
+/// even for a product list long enough to need its own scrolling.
+const PRODUCT_SUMMARY_PROPERTIES_MAX_SHARE: f32 = 0.4;
 
 fn product_summary_pane_configuration() -> pane_grid::Configuration<ProductSummaryPane> {
     pane_grid::Configuration::Split {
         axis: pane_grid::Axis::Vertical,
         ratio: 0.5,
         a: Box::new(pane_grid::Configuration::Pane(ProductSummaryPane::Diagram)),
-        b: Box::new(pane_grid::Configuration::Split {
-            axis: pane_grid::Axis::Horizontal,
-            ratio: 0.4,
-            a: Box::new(pane_grid::Configuration::Pane(
-                ProductSummaryPane::Properties,
-            )),
-            b: Box::new(pane_grid::Configuration::Pane(ProductSummaryPane::Context)),
-        }),
+        b: Box::new(pane_grid::Configuration::Pane(ProductSummaryPane::Right)),
     }
 }
 
@@ -269,6 +268,7 @@ fn product_list_view(
     compact: bool,
     dense: bool,
     open_products: &std::collections::BTreeSet<usize>,
+    max_height: f32,
 ) -> Element<'static, Message> {
     let panel_spacing = if dense { spacing::XS } else { spacing::SM };
     let row_padding = if dense {
@@ -368,9 +368,12 @@ fn product_list_view(
                 ..iced::Padding::ZERO
             })
             .width(Fill);
-        scrollable(scroll_content).height(Fill).into()
+        // Shrink (not Fill): the scrollable sizes itself to its content's
+        // natural height, clamped by the panel's max_height below — so it
+        // only scrolls once the product list actually overflows that cap.
+        scrollable(scroll_content).height(Length::Shrink).into()
     };
-    container(content)
+    let panel = container(content)
         .style(theme::summary_properties_panel)
         .padding(if dense {
             spacing::XS
@@ -380,8 +383,64 @@ fn product_list_view(
             spacing::MD
         })
         .width(Fill)
-        .height(if compact { Length::Shrink } else { Fill })
-        .into()
+        .height(Length::Shrink);
+    if compact {
+        panel.into()
+    } else {
+        panel.max_height(max_height).into()
+    }
+}
+
+/// The reaction chat's resting state before any message exists: a quiet
+/// status line while loading or unavailable, or an invitation to ask
+/// something once it's actually possible to.
+fn reaction_context_empty_state(state: &MoreInfoState) -> Element<'static, Message> {
+    match state {
+        MoreInfoState::Loading { .. } => container(
+            text("Codex is preparing a brief explanation…")
+                .size(type_scale::CAPTION)
+                .color(color::ACCENT),
+        )
+        .into(),
+        MoreInfoState::Unavailable(message) | MoreInfoState::Failed(message) => container(
+            text(message.clone())
+                .size(type_scale::CAPTION)
+                .color(color::TEXT_SOFT)
+                .align_x(Center)
+                .width(Length::Fixed(300.0)),
+        )
+        .into(),
+        MoreInfoState::Idle | MoreInfoState::Ready => {
+            let chip = |label: &'static str| {
+                button(text(label).size(type_scale::CAPTION))
+                    .on_press(Message::ReactionMoreInfoRequested)
+                    .style(theme::chat_suggestion_chip)
+                    .padding([spacing::XS, spacing::SM])
+            };
+            column![
+                text("What do you want to know?")
+                    .size(type_scale::BODY_LARGE)
+                    .font(fonts::SEMIBOLD)
+                    .color(color::TEXT),
+                text("Ask where this reaction happens, why it works, or what it's used for.")
+                    .size(type_scale::CAPTION)
+                    .color(color::MUTED)
+                    .align_x(Center)
+                    .width(Length::Fixed(300.0)),
+                row![
+                    chip("Where does this happen in nature?"),
+                    chip("Why does this reaction occur?"),
+                    chip("What's it used for?"),
+                ]
+                .spacing(spacing::XS)
+                .wrap()
+                .align_x(Center),
+            ]
+            .spacing(spacing::SM)
+            .align_x(Center)
+            .into()
+        }
+    }
 }
 
 #[allow(clippy::too_many_lines)]
@@ -391,131 +450,114 @@ fn reaction_context_view(
     more_info: MoreInfoView<'_>,
 ) -> Element<'static, Message> {
     let panel_spacing = if dense { spacing::XS } else { spacing::SM };
-    let more_info_button = button(text(
-        if matches!(more_info.state, MoreInfoState::Loading { .. }) {
-            "Asking Codex…"
-        } else {
-            "More info"
-        },
-    ))
-    .on_press_maybe(
-        (!matches!(more_info.state, MoreInfoState::Loading { .. }))
-            .then_some(Message::ReactionMoreInfoRequested),
-    )
-    .padding([spacing::XS, spacing::SM])
-    .style(theme::primary_button);
-    let more_info_status: Option<Element<'static, Message>> = match more_info.state {
-        MoreInfoState::Idle => Some(
-            text("Click More info to ask Codex.")
-                .size(type_scale::CAPTION)
-                .color(color::TEXT_SOFT)
-                .width(Fill)
-                .into(),
-        ),
-        MoreInfoState::Loading { .. } => Some(
-            text("Codex is preparing a brief explanation…")
-                .size(type_scale::CAPTION)
-                .color(color::ACCENT)
-                .width(Fill)
-                .align_x(Center)
-                .into(),
-        ),
-        MoreInfoState::Ready => None,
-        MoreInfoState::Unavailable(message) | MoreInfoState::Failed(message) => Some(
-            text(message.clone())
-                .size(type_scale::CAPTION)
-                .color(color::WARNING)
-                .width(Fill)
-                .into(),
-        ),
-    };
-    let mut conversation = column![].spacing(spacing::XS).width(Fill);
-    for turn in more_info.messages {
-        let is_user = turn.speaker == ReactionMoreInfoSpeaker::Learner;
-        conversation = conversation.push(
-            container(
-                column![
-                    text(if is_user { "YOU" } else { "CODEX" })
-                        .size(type_scale::MICRO)
-                        .color(if is_user {
-                            color::TEXT_SOFT
-                        } else {
-                            color::ACCENT
-                        }),
-                    text(turn.text.clone())
-                        .size(type_scale::BODY)
-                        .color(color::TEXT)
-                        .width(Fill),
-                ]
-                .spacing(spacing::XXS),
+    let row_padding = [spacing::XS, spacing::SM];
+    let has_messages = !more_info.messages.is_empty();
+    let can_follow_up = has_messages
+        && matches!(
+            more_info.state,
+            MoreInfoState::Ready | MoreInfoState::Failed(_)
+        );
+
+    let transcript: Element<'static, Message> = if has_messages {
+        let mut conversation = column![].spacing(panel_spacing).width(Fill);
+        for turn in more_info.messages {
+            let is_user = turn.speaker == ReactionMoreInfoSpeaker::Learner;
+            let author = text(if is_user { "You" } else { "Codex" })
+                .size(type_scale::MICRO)
+                .font(fonts::SEMIBOLD)
+                .color(if is_user { color::SELECTION } else { color::ACCENT });
+            let bubble = container(
+                text(turn.text.clone())
+                    .size(type_scale::BODY)
+                    .color(color::TEXT),
             )
             .style(move |_| theme::summary_chat_message(is_user))
-            .padding([spacing::XS, spacing::SM])
-            .width(Fill),
-        );
-    }
-    let can_submit = !more_info.draft.trim().is_empty()
-        && !matches!(more_info.state, MoreInfoState::Loading { .. });
-    let follow_up_input = row![
-        text_input("Ask a follow-up question…", more_info.draft)
-            .on_input(Message::ReactionMoreInfoDraftChanged)
-            .on_submit(Message::ReactionMoreInfoFollowUpSubmitted)
+            .padding(row_padding)
+            .max_width(440.0);
+            let message = column![author, bubble]
+                .spacing(spacing::XXS)
+                .align_x(if is_user { iced::Right } else { iced::Left })
+                .width(Length::Shrink);
+            conversation = conversation.push(if is_user {
+                row![space().width(Fill), message]
+            } else {
+                row![message, space().width(Fill)]
+            });
+        }
+        match more_info.state {
+            MoreInfoState::Loading { .. } => {
+                conversation = conversation.push(
+                    text("Codex is thinking…")
+                        .size(type_scale::CAPTION)
+                        .color(color::ACCENT),
+                );
+            }
+            MoreInfoState::Failed(message) => {
+                conversation = conversation.push(
+                    text(message.clone())
+                        .size(type_scale::CAPTION)
+                        .color(color::WARNING),
+                );
+            }
+            MoreInfoState::Idle | MoreInfoState::Ready | MoreInfoState::Unavailable(_) => {}
+        }
+        if compact {
+            conversation.into()
+        } else {
+            let scroll_content = container(conversation)
+                .padding(iced::Padding {
+                    right: spacing::MD,
+                    ..iced::Padding::ZERO
+                })
+                .width(Fill);
+            scrollable(scroll_content).height(Fill).into()
+        }
+    } else {
+        let empty = reaction_context_empty_state(more_info.state);
+        if compact {
+            empty
+        } else {
+            container(empty).center(Fill).into()
+        }
+    };
+
+    let placeholder = if can_follow_up {
+        "Ask a follow-up…"
+    } else if matches!(more_info.state, MoreInfoState::Loading { .. }) {
+        "Asking Codex…"
+    } else if matches!(more_info.state, MoreInfoState::Unavailable(_)) {
+        "Switch to Codex mode to chat"
+    } else {
+        "Ask a follow-up…"
+    };
+    let can_submit = can_follow_up && !more_info.draft.trim().is_empty();
+    let input_row = row![
+        text_input(placeholder, more_info.draft)
+            .on_input_maybe(can_follow_up.then_some(Message::ReactionMoreInfoDraftChanged))
+            .on_submit_maybe(can_follow_up.then_some(Message::ReactionMoreInfoFollowUpSubmitted))
             .style(theme::request_input)
-            .padding([spacing::XS, spacing::SM])
+            .padding(row_padding)
             .width(Fill),
         button(text("Send"))
             .on_press_maybe(can_submit.then_some(Message::ReactionMoreInfoFollowUpSubmitted))
             .style(theme::primary_button)
-            .padding([spacing::XS, spacing::SM]),
+            .padding(row_padding),
     ]
     .spacing(spacing::XS)
     .align_y(Center)
     .width(Fill);
-    let mut content = column![
-        column![
-            text("Find out more about this reaction")
-                .size(if dense {
-                    type_scale::BODY_LARGE
-                } else {
-                    type_scale::TITLE
-                })
-                .font(fonts::SEMIBOLD)
-                .color(color::TEXT),
-            text("Explore the conditions under which this reaction usually occurs, along with its applications in industry and nature.")
-                .size(type_scale::CAPTION)
-                .color(color::TEXT_SOFT),
-        ]
-        .spacing(spacing::XXS)
-        .width(Fill),
+
+    let content = column![
+        transcript,
+        rule::horizontal(1).style(theme::soft_rule),
+        input_row,
     ]
-    .spacing(panel_spacing);
-    if !more_info.messages.is_empty() {
-        content = content.push(conversation);
-    }
-    if let Some(status) = more_info_status {
-        content = content.push(status);
-    }
-    if more_info.messages.is_empty() {
-        content = content.push(container(more_info_button).width(Fill).align_x(Center));
-    } else if matches!(
-        more_info.state,
-        MoreInfoState::Ready | MoreInfoState::Failed(_)
-    ) {
-        content = content.push(follow_up_input);
-    }
-    let content: Element<'static, Message> = if compact {
-        content.into()
-    } else {
-        let scroll_content = container(content)
-            .padding(iced::Padding {
-                right: spacing::MD,
-                ..iced::Padding::ZERO
-            })
-            .width(Fill);
-        scrollable(scroll_content).height(Fill).into()
-    };
+    .spacing(panel_spacing)
+    .width(Fill)
+    .height(Fill);
+
     container(content)
-        .style(theme::summary_more_info_panel)
+        .style(theme::summary_properties_panel)
         .padding(if dense {
             spacing::XS
         } else if compact {
@@ -1082,6 +1124,9 @@ fn launch_state() -> App {
         }
         if three_dimensional {
             arm_hero_export(&mut app);
+        }
+        if smoke_mode == SmokeMode::ProductSummary {
+            app.reset_product_summary_panes();
         }
         app.enter_screen(match smoke_mode {
             SmokeMode::Builder => Screen::Builder,
@@ -2105,6 +2150,14 @@ impl App {
         self.reaction_more_info_draft.clear();
     }
 
+    /// Resets the diagram/right-column split back to its default share on a
+    /// fresh arrival at the product summary screen, discarding any drag from
+    /// a previous visit.
+    fn reset_product_summary_panes(&mut self) {
+        self.product_summary_panes =
+            pane_grid::State::with_configuration(product_summary_pane_configuration());
+    }
+
     /// The only runtime boundary for changing product screens. It reconciles
     /// screen-owned transient state before the next view or subscription can
     /// observe the destination.
@@ -2929,12 +2982,15 @@ impl App {
                 self.enter_screen(Screen::Structural3d);
             }
             Message::ContinueToSummary => {
-                let Some(animation) = &mut self.structural_animation else {
+                if self.structural_animation.is_none() {
                     return Task::none();
-                };
-                animation.playing = false;
+                }
+                self.reset_product_summary_panes();
                 self.open_product_details.clear();
                 self.reset_reaction_more_info();
+                if let Some(animation) = &mut self.structural_animation {
+                    animation.playing = false;
+                }
                 self.enter_screen(Screen::ProductSummary);
             }
             Message::ReturnTo2d => self.enter_screen(Screen::Structural2d),
@@ -5824,6 +5880,7 @@ impl App {
             compact,
             dense,
             &self.open_product_details,
+            size.height * PRODUCT_SUMMARY_PROPERTIES_MAX_SHARE,
         );
         let more_info = MoreInfoView {
             state: &self.reaction_more_info,
@@ -5837,16 +5894,18 @@ impl App {
                 .height(Fill)
                 .into()
         } else {
+            let right_column = column![properties, context]
+                .spacing(spacing::SM)
+                .width(Fill)
+                .height(Fill);
             let two_dimensional = std::cell::RefCell::new(Some(Element::from(two_dimensional)));
-            let properties = std::cell::RefCell::new(Some(properties));
-            let context = std::cell::RefCell::new(Some(context));
+            let right_column = std::cell::RefCell::new(Some(Element::from(right_column)));
             pane_grid::PaneGrid::new(
                 &self.product_summary_panes,
                 move |_pane, kind, _maximized| {
                     let cell = match kind {
                         ProductSummaryPane::Diagram => &two_dimensional,
-                        ProductSummaryPane::Properties => &properties,
-                        ProductSummaryPane::Context => &context,
+                        ProductSummaryPane::Right => &right_column,
                     };
                     pane_grid::Content::new(
                         cell.borrow_mut()
