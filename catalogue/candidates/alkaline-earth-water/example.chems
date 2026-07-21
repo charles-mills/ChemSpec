@@ -1,0 +1,24 @@
+chems 1
+use catalog ChemSpec.Theoretical@1
+reaction CalciumAndWater where
+  reactants
+    calcium := 1 of CalciumWaterMetal
+    water := 2 of Water
+  products
+    calciumHydroxide := 1 of CalciumWaterHydroxide
+    hydrogen := 1 of Hydrogen
+  equation
+    Ca[metallic] + 2 H2O[molecular]
+    -> Ca(OH)2[ionic] + H2[molecular]
+  model
+    event := representative
+    sequence := explanatory
+  observe from Evidence.AlkalineEarthWater@1
+    gas hydrogen evolves claim R1
+    reactant calcium disappears claim R2
+  by
+    apply Rules.AlkalineEarthMetalWithWater
+      metal := calcium
+      water := water
+      hydroxide := calciumHydroxide
+      gasProduct := hydrogen

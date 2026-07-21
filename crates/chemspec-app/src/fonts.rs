@@ -16,3 +16,7 @@ pub const SEMIBOLD: Font = Font {
     weight: font::Weight::Semibold,
     ..REGULAR
 };
+pub const BOLD: Font = Font {
+    weight: font::Weight::Bold,
+    ..REGULAR
+};

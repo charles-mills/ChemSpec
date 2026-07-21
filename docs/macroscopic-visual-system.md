@@ -884,9 +884,12 @@ fallback instead of hiding chemically important material.
 
 Phase-aware synthesis extends that route with two sealed-chamber layouts.
 Exactly one typed solid plus one typed gas producing one typed gas selects the
-solid-gas assembly; exactly two typed gases producing one typed gas selects the
-gas-gas assembly. Solid-gas binding is independent of equation order, while the
-two gas reactants retain their deterministic validated order. Combustion, surface
+solid-gas assembly. The same assembly also accepts exactly one additional typed
+solid coproduct, allowing the floor heap to resolve into a validated solid
+residue while the gas product forms; magnesium plus steam is the reviewed
+example. Exactly two typed gases producing one typed gas selects the gas-gas
+assembly. Solid-gas binding is independent of equation order, while the two gas
+reactants retain their deterministic validated order. Combustion, surface
 oxidation, aqueous/solid-liquid gas evolution, precipitation, metal
 displacement, and neutralisation remain higher-priority classifications.
 

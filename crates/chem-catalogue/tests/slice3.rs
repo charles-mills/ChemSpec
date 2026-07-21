@@ -141,7 +141,7 @@ fn built_in_reference_data_verifies_its_packaged_review_identity() {
         ReferenceCatalogue::from_canonical_json(&catalogue_bytes, &review_bytes, policy)
             .expect("the packaged catalogue and review should load");
     assert_eq!(reference.document().elements.len(), 118);
-    assert_eq!(reference.document().generalized_rules.len(), 75);
+    assert_eq!(reference.document().generalized_rules.len(), 77);
 
     let wrong_catalogue_policy = ReferenceIntegrityPolicy::new(
         ContentDigest::sha256(b"different catalogue"),

@@ -82,7 +82,12 @@ its context-specific explanation.
 
 `CleaveCovalent` explains that bond breaking requires energy and that energy
 available under the reaction conditions permits the shared electron pair to
-redistribute as the atoms form new bonds.
+redistribute as the atoms form new bonds. The same tip names the validated
+electron allocation as homolytic or heterolytic fission and defines it with
+plain text on its own line: `This is homolytic fission, meaning the bonding
+electrons divide equally between the two atoms.` or `This is heterolytic
+fission, meaning the bonding electrons both go to one atom.` Neither sentence
+is emphasized in bold.
 When the validated local structure instead proves cleavage of a protonated
 carbonate C–O group, the narration identifies the coupled reorganization: the
 remaining C–O bond strengthens, proton transfer makes water, and stable carbon

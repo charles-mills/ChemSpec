@@ -48,8 +48,8 @@ pub enum MacroscopicProcess {
     /// Exactly two validated solid reactants combine into one validated solid
     /// product after more-specific macroscopic processes have been excluded.
     SolidSolidSynthesis,
-    /// Exactly one typed solid and one typed gaseous reactant combine into one
-    /// gaseous product.
+    /// Exactly one typed solid and one typed gaseous reactant produce one
+    /// gaseous product, optionally alongside one typed solid residue.
     SolidGasSynthesis,
     /// Exactly two typed gaseous reactants combine into one gaseous product.
     GasGasSynthesis,
@@ -939,22 +939,36 @@ fn classifies_phase_synthesis(
     let [first, second] = reactants else {
         return None;
     };
-    let [product] = products else {
+    if products.len() != claim.products.len() || !(1..=2).contains(&products.len()) {
         return None;
-    };
-    let [claim_product] = claim.products.as_slice() else {
-        return None;
-    };
+    }
     let reactant_phase = |species: &OutcomeSpecies| {
         reactant_macroscopic_phases
             .get(species.id())
             .copied()
             .unwrap_or_else(|| species.phase())
     };
-    let product_phase = product_macroscopic_phases
-        .get(product.id())
-        .copied()
-        .unwrap_or_else(|| product.phase());
+    let effective_product_phase = |product: &OutcomeSpecies, claim_product: &ClaimProduct| {
+        let claimed = claim_phase(claim_product.phase);
+        if claimed == Phase::Unknown {
+            product_macroscopic_phases
+                .get(product.id())
+                .copied()
+                .unwrap_or_else(|| product.phase())
+        } else {
+            claimed
+        }
+    };
+    let product_entries = products.iter().zip(&claim.products).collect::<Vec<_>>();
+    let gas_products = product_entries
+        .iter()
+        .filter(|(product, claim_product)| {
+            effective_product_phase(product, claim_product) == Phase::Gas
+        })
+        .collect::<Vec<_>>();
+    let [gas_product] = gas_products.as_slice() else {
+        return None;
+    };
     let first_formula: Vec<(&str, u64)> = first_term
         .formula()
         .elements()
@@ -970,15 +984,18 @@ fn classifies_phase_synthesis(
     let route = chem_domain::classify_phase_synthesis(
         (&first_formula, reactant_phase(first)),
         (&second_formula, reactant_phase(second)),
-        {
-            let claimed = claim_phase(claim_product.phase);
-            if claimed == Phase::Unknown {
-                product_phase
-            } else {
-                claimed
-            }
-        },
+        effective_product_phase(gas_product.0, gas_product.1),
     )?;
+    if products.len() == 2
+        && (route != chem_domain::PhaseSynthesisRoute::SolidGas
+            || product_entries
+                .iter()
+                .filter(|entry| effective_product_phase(entry.0, entry.1) == Phase::Solid)
+                .count()
+                != 1)
+    {
+        return None;
+    }
     Some(match route {
         chem_domain::PhaseSynthesisRoute::SolidGas => MacroscopicProcess::SolidGasSynthesis,
         chem_domain::PhaseSynthesisRoute::GasGas => MacroscopicProcess::GasGasSynthesis,

@@ -36,6 +36,9 @@ pub enum ExplanationLabelKind {
 pub struct ExplanationLabel {
     pub kind: ExplanationLabelKind,
     pub text: String,
+    /// Exact learner-facing phrases that renderers should emphasize without
+    /// parsing presentation text as markup.
+    pub emphasis: Vec<String>,
     pub target_atoms: Vec<String>,
     pub connector: bool,
 }
@@ -510,6 +513,7 @@ fn spectator_ion_narration(frame: &SimulationFrame) -> Option<OperationNarration
             text: format!(
                 "In aqueous solution, {positive} and {negative} are spectator ions and tend to remain separate. It is only when water is evaporated and crystallisation occurs that the ions form a salt."
             ),
+            emphasis: Vec::new(),
             target_atoms,
             connector: true,
         },
@@ -774,6 +778,7 @@ fn proton_transfer_narration(
             kind,
             text: "The accepting atom uses a lone pair—two electrons—to form a bond with H. The original H–donor bonding pair remains with the donor. This is a proton transfer."
                 .to_owned(),
+            emphasis: Vec::new(),
             target_atoms,
             connector: true,
         },
@@ -829,6 +834,7 @@ fn observation_scene(
         label: ExplanationLabel {
             kind: ExplanationLabelKind::ObservationExplanation,
             text,
+            emphasis: Vec::new(),
             target_atoms: representative_atoms.to_vec(),
             connector: true,
         },
@@ -1095,21 +1101,31 @@ fn operation_narration(
             left,
             right,
             expected_order,
+            allocation,
             ..
-        } => (
-            format!(
-                "{}–{} {} bond breaks",
-                atom_symbol(before, after, left),
-                atom_symbol(before, after, right),
-                bond_order_name(expected_order.order())
-            ),
-            covalent_cleavage_explanation(
-                required_context,
-                is_protonated_carbonate_cleavage(before, left, right),
+        } => {
+            let recipient = match allocation {
+                chem_domain::ElectronAllocation::Homolytic => None,
+                chem_domain::ElectronAllocation::HeterolyticTo(recipient) => {
+                    Some(atom_symbol(before, after, recipient))
+                }
+            };
+            (
+                format!(
+                    "{}–{} {} bond breaks",
+                    atom_symbol(before, after, left),
+                    atom_symbol(before, after, right),
+                    bond_order_name(expected_order.order())
+                ),
+                covalent_cleavage_explanation(
+                    required_context,
+                    is_protonated_carbonate_cleavage(before, left, right),
+                    allocation,
+                    recipient.as_deref(),
+                ),
+                atom_targets([left, right]),
             )
-            .to_owned(),
-            atom_targets([left, right]),
-        ),
+        }
         StructuralOperationView::FormCovalent {
             left, right, order, ..
         } => (
@@ -1272,6 +1288,7 @@ fn operation_narration(
         explanation: ExplanationLabel {
             kind,
             text: explanation,
+            emphasis: Vec::new(),
             target_atoms,
             connector,
         },
@@ -1281,14 +1298,25 @@ fn operation_narration(
 fn covalent_cleavage_explanation(
     required_context: &str,
     protonated_carbonate: bool,
-) -> &'static str {
-    if required_context.eq_ignore_ascii_case("electricity") {
+    allocation: &chem_domain::ElectronAllocation,
+    _heterolytic_recipient: Option<&str>,
+) -> String {
+    let context = if required_context.eq_ignore_ascii_case("electricity") {
         "The applied potential supplies electrical energy and drives electron transfer at the electrodes. This allows the bond's electrons to rearrange so the atoms can form the product bonds."
     } else if protonated_carbonate {
         "Acid has protonated the carbonate oxygens. This C–O bond breaks as the remaining C–O bond strengthens to a second C=O bond and proton transfer turns the departing oxygen group into water, producing stable CO₂ and H₂O."
     } else {
         "Breaking a covalent bond requires energy. Energy available under the reaction conditions allows the shared electron pair to redistribute as the atoms form new bonds."
-    }
+    };
+    let fission = match allocation {
+        chem_domain::ElectronAllocation::Homolytic => {
+            "This is homolytic fission, meaning the bonding electrons divide equally between the two atoms."
+        }
+        chem_domain::ElectronAllocation::HeterolyticTo(_) => {
+            "This is heterolytic fission, meaning the bonding electrons both go to one atom."
+        }
+    };
+    format!("{context}\n{fission}")
 }
 
 /// Identifies the local, validated structural motif behind acid–carbonate gas
@@ -3904,12 +3932,9 @@ fn authorize_phase_synthesis_assembly(
         .iter()
         .filter(|material| material.role == MacroscopicMaterialRole::Product)
         .collect::<Vec<_>>();
-    let [product] = products.as_slice() else {
+    let Some(product) = phase_synthesis_gas_product(&products, variant) else {
         return;
     };
-    if product.phase != Phase::Gas {
-        return;
-    }
     let formation_observation = active
         .get(&(product.binding.clone(), ObservationPredicate::Forms))
         .map(|(ordinal, _)| *ordinal);
@@ -3968,6 +3993,23 @@ fn authorize_phase_synthesis_assembly(
                 && effect.authorization == EffectAuthorization::Process(process)
         }),
     });
+}
+
+fn phase_synthesis_gas_product<'a>(
+    products: &[&'a MacroscopicMaterial],
+    variant: PhaseSynthesisVariant,
+) -> Option<&'a MacroscopicMaterial> {
+    match products {
+        [product] if product.phase == Phase::Gas => Some(*product),
+        [first, second] if variant == PhaseSynthesisVariant::SolidGas => {
+            match (first.phase, second.phase) {
+                (Phase::Gas, Phase::Solid) => Some(*first),
+                (Phase::Solid, Phase::Gas) => Some(*second),
+                _ => None,
+            }
+        }
+        _ => None,
+    }
 }
 
 type ActiveObservationKey = (String, ObservationPredicate);
@@ -5564,7 +5606,7 @@ mod tests {
     use std::collections::BTreeMap;
 
     use chem_catalogue::ObservationPredicate;
-    use chem_domain::{Phase, RepresentationKind};
+    use chem_domain::{AtomId, ElectronAllocation, Phase, RepresentationKind};
 
     use super::{
         AppearanceProfile, AssetProfile, EducationalPlan, EducationalScene, EducationalSceneKind,
@@ -6214,6 +6256,28 @@ mod tests {
                     .any(|object| { object.asset == AssetProfile::SolidGasSynthesisAssembly })
             );
         }
+
+        let mut with_solid_residue = gas_reaction(
+            Phase::Solid,
+            Phase::Gas,
+            Some(MacroscopicProcess::SolidGasSynthesis),
+            [Some(solid), Some(gas), Some(product)],
+        );
+        with_solid_residue.materials.push(precipitation_material(
+            "solid-residue",
+            MacroscopicMaterialRole::Product,
+            Phase::Solid,
+            Some(super::OFF_WHITE_PRECIPITATE),
+        ));
+        let mut profile = phase_synthesis_profile(MacroscopicProcess::SolidGasSynthesis);
+        authorize_phase_synthesis_assembly(&mut profile, &with_solid_residue, &BTreeMap::new());
+        assert!(profile.phase_synthesis.is_some());
+        assert!(
+            profile
+                .objects
+                .iter()
+                .any(|object| object.asset == AssetProfile::SolidGasSynthesisAssembly)
+        );
     }
 
     #[test]
@@ -6661,22 +6725,33 @@ mod tests {
     }
 
     #[test]
-    fn covalent_cleavage_copy_explains_the_energy_source_and_electron_rearrangement() {
-        let ordinary = covalent_cleavage_explanation("heat", false);
+    fn covalent_cleavage_copy_explains_the_energy_source_and_fission_type() {
+        let homolytic = ElectronAllocation::Homolytic;
+        let recipient = AtomId::new("water[1].o").expect("valid atom id");
+        let heterolytic = ElectronAllocation::HeterolyticTo(recipient);
+
+        let ordinary = covalent_cleavage_explanation("heat", false, &homolytic, None);
         assert!(ordinary.starts_with("Breaking a covalent bond requires energy."));
         assert!(ordinary.contains("shared electron pair to redistribute"));
-        assert!(ordinary.ends_with("as the atoms form new bonds."));
+        assert!(ordinary.contains(
+            "This is homolytic fission, meaning the bonding electrons divide equally between the two atoms."
+        ));
 
-        let electrolysis = covalent_cleavage_explanation("electricity", false);
+        let electrolysis =
+            covalent_cleavage_explanation("electricity", false, &heterolytic, Some("O"));
         assert!(electrolysis.starts_with("The applied potential"));
         assert!(electrolysis.contains("electrical energy"));
         assert!(electrolysis.contains("electron transfer at the electrodes"));
         assert!(electrolysis.contains("form the product bonds"));
+        assert!(electrolysis.contains(
+            "This is heterolytic fission, meaning the bonding electrons both go to one atom."
+        ));
         assert!(!electrolysis.contains("more favourable"));
 
-        let carbonate = covalent_cleavage_explanation("mixing", true);
+        let carbonate = covalent_cleavage_explanation("mixing", true, &heterolytic, Some("O"));
         assert!(carbonate.contains("protonated the carbonate oxygens"));
         assert!(carbonate.contains("stable CO₂ and H₂O"));
+        assert!(carbonate.contains("heterolytic fission"));
     }
 
     #[test]
