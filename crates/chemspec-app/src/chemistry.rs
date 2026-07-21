@@ -2592,7 +2592,7 @@ mod tests {
     #[test]
     fn every_roll_candidate_resolves_to_runnable_chemistry() {
         let pool = roll_candidates();
-        assert_eq!(pool.len(), 9, "every reaction family is rollable");
+        assert_eq!(pool.len(), 10, "every reaction family is rollable");
         for (family, members) in pool {
             assert!(!members.is_empty(), "family {family:?} has no candidates");
             for [first, second] in members {
@@ -3475,14 +3475,14 @@ mod tests {
         };
         assert_eq!(hydrogen_oxygen.family(), ReactionFamily::Oxygen);
         assert_eq!(
-            resolve_drafts(&[20], &[1, 1, 8]),
+            resolve_drafts(&[4], &[1, 1, 8]),
             DraftResolution::Uncatalogued
         );
         assert_eq!(
             resolve_drafts(&[6, 6], &[8, 8]),
             DraftResolution::Unrecognized
         );
-        assert_eq!(request_for_drafts(&[20], &[1, 1, 8]), None);
+        assert_eq!(request_for_drafts(&[4], &[1, 1, 8]), None);
         assert_eq!(request_for_drafts(&[1, 1], &[8, 8]), Some(hydrogen_oxygen));
     }
 
@@ -3732,6 +3732,9 @@ mod tests {
                 ReactionFamily::Oxygen
                     | ReactionFamily::FixedChargeIonPair
                     | ReactionFamily::CovalentCombination
+            ) && !matches!(
+                request.kind,
+                ReactionKind::AlkalineEarthWater { metal } if metal.reacts_with_steam()
             ) {
                 assert!(
                     profile

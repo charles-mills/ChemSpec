@@ -6567,13 +6567,17 @@ mod tests {
     // Independently authored UI fixtures. These deliberately do not use
     // ReactionRequest::participants(), so a wrong production mapping cannot
     // make the routing test prove itself.
-    const SUPPORTED_DRAFT_CASES: [DraftCase; 39] = [
+    const SUPPORTED_DRAFT_CASES: [DraftCase; 43] = [
         ("alkali-water-lithium", &[3], &[1, 1, 8]),
         ("alkali-water-sodium", &[11], &[1, 1, 8]),
         ("alkali-water-potassium", &[19], &[1, 1, 8]),
         ("alkali-water-rubidium", &[37], &[1, 1, 8]),
         ("alkali-water-caesium", &[55], &[1, 1, 8]),
         ("alkali-water-francium", &[87], &[1, 1, 8]),
+        ("alkaline-earth-water-magnesium", &[12], &[1, 1, 8]),
+        ("alkaline-earth-water-calcium", &[20], &[1, 1, 8]),
+        ("alkaline-earth-water-strontium", &[38], &[1, 1, 8]),
+        ("alkaline-earth-water-barium", &[56], &[1, 1, 8]),
         (
             "silver-halide-precipitation-chloride",
             &[47, 7, 8, 8, 8],
@@ -7373,7 +7377,7 @@ mod tests {
             screen: Screen::Builder,
             ..App::default()
         };
-        reactant_composer::replace_reactants(&mut app.reactant_composer, [vec![12], vec![1, 1, 8]]);
+        reactant_composer::replace_reactants(&mut app.reactant_composer, [vec![26], vec![1, 1, 8]]);
 
         app.sync_builder_submit_prompt();
 
@@ -7389,7 +7393,7 @@ mod tests {
             screen: Screen::Builder,
             ..App::default()
         };
-        reactant_composer::replace_reactants(&mut app.reactant_composer, [vec![20], vec![1, 1, 8]]);
+        reactant_composer::replace_reactants(&mut app.reactant_composer, [vec![88], vec![1, 1, 8]]);
 
         app.sync_builder_submit_prompt();
 
@@ -7687,7 +7691,7 @@ mod tests {
             provider: Some(AppMode::CodexBinary),
             ..App::default()
         };
-        reactant_composer::replace_reactants(&mut app.reactant_composer, [vec![20], vec![1, 1, 8]]);
+        reactant_composer::replace_reactants(&mut app.reactant_composer, [vec![26], vec![1, 1, 8]]);
 
         app.update(Message::ReactantComposer(
             reactant_composer::Message::StartReactionRequested,
@@ -9400,7 +9404,7 @@ mod tests {
             }
         }
         assert_eq!(applicable, 27);
-        assert_eq!(inapplicable, 12);
+        assert_eq!(inapplicable, 16);
     }
 
     #[test]
@@ -10440,7 +10444,7 @@ mod tests {
             families.insert(request.family());
             assert!(requests.insert(request.id()));
         }
-        assert_eq!(families.len(), 6);
+        assert_eq!(families.len(), 7);
         assert_eq!(requests.len(), chemistry::ReactionRequest::ALL.len());
     }
 
@@ -10756,7 +10760,7 @@ mod tests {
     fn screen_entry_reconciles_builder_owned_transient_state() {
         let mut app = App::default();
         app.enter_screen(Screen::Builder);
-        reactant_composer::replace_reactants(&mut app.reactant_composer, [vec![12], vec![1, 1, 8]]);
+        reactant_composer::replace_reactants(&mut app.reactant_composer, [vec![26], vec![1, 1, 8]]);
         app.sync_builder_submit_prompt();
         app.builder_panel = Some(BuilderPanel::Help);
         assert!(reactant_composer::try_codex_notice_visible(

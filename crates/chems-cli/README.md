@@ -17,7 +17,10 @@ cargo run -p chems-cli -- catalogue promote --out trusted-output \
   catalogue/candidates/precipitation-silver-halide \
   catalogue/candidates/acid-base-neutralization \
   catalogue/candidates/acid-carbonate-gas-evolution \
-  catalogue/candidates/single-displacement-halogen
+  catalogue/candidates/single-displacement-halogen \
+  catalogue/candidates/alkaline-earth-water \
+  catalogue/candidates/oxygen-reactions \
+  catalogue/candidates/covalent-combinations
 ```
 
 Expanded inspection defaults to the human-readable unexecuted certificate.

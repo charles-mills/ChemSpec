@@ -4,6 +4,10 @@ alkali-water-potassium | legacy-authored
 alkali-water-rubidium | phase-driven | ExplosiveMetalWater(Rubidium) | ExplosiveMetalWaterAssembly
 alkali-water-caesium | phase-driven | ExplosiveMetalWater(Caesium) | ExplosiveMetalWaterAssembly
 alkali-water-francium | phase-driven | ExplosiveMetalWater(Francium) | ExplosiveMetalWaterAssembly
+alkaline-earth-water-magnesium | phase-driven | SolidGasSynthesis | SolidGasSynthesisAssembly
+alkaline-earth-water-calcium | phase-driven | generic | ReactiveMetalWaterAssembly
+alkaline-earth-water-strontium | phase-driven | generic | ReactiveMetalWaterAssembly
+alkaline-earth-water-barium | phase-driven | generic | ReactiveMetalWaterAssembly
 silver-halide-precipitation-chloride | legacy-authored
 silver-halide-precipitation-bromide | legacy-authored
 silver-halide-precipitation-iodide | legacy-authored

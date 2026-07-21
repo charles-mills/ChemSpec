@@ -16,6 +16,7 @@ The promoted review currently covers these source surfaces:
 | `acid-base-neutralization` | `Rules.MonoproticAcidHydroxideNeutralization` (HX + MOH -> MX + H2O) | `host-selected-ai-reviewed` and pinned in aggregate |
 | `acid-carbonate-gas-evolution` | Carbonate and bicarbonate rules: 2 HX + M2CO3 or HX + MHCO3 -> MX + H2O + CO2 | `host-selected-ai-reviewed` and pinned in aggregate |
 | `single-displacement-halogen` | `Rules.HalogenDisplacement` for the bounded aqueous order Cl > Br > I | `host-selected-ai-reviewed` and pinned in aggregate |
+| `alkaline-earth-water` | `Rules.AlkalineEarthMetalWithWater` for Ca, Sr, and Ba plus the condition-distinct `Rules.MagnesiumWithSteam` | `externally reviewed on user attestation` and pinned in aggregate |
 | `oxygen-reactions` | 68 representative elemental-oxygen outcomes and 81 fixed-charge main-group ion-pair experiences | `host-selected-ai-reviewed` and pinned in aggregate |
 | `covalent-combinations` | 20 explicit hydrogen-compound and interhalogen outcomes | `host-selected-ai-reviewed` and pinned in aggregate |
 
@@ -38,13 +39,16 @@ cargo run -p chems-cli -- catalogue check --out /tmp/chems-review-$(date +%s) \
   catalogue/candidates/precipitation-silver-halide \
   catalogue/candidates/acid-base-neutralization \
   catalogue/candidates/acid-carbonate-gas-evolution \
-  catalogue/candidates/single-displacement-halogen
+  catalogue/candidates/single-displacement-halogen \
+  catalogue/candidates/alkaline-earth-water \
+  catalogue/candidates/oxygen-reactions \
+  catalogue/candidates/covalent-combinations
 ```
 
-The command above reproduces the original generalized-family review bundle;
-the larger oxygen, ion-pair, and covalent surfaces have repository-owned
-generators documented in the coverage summary. The compiler rejects extra
-package files and unknown candidate fields. It does
+The command above reproduces the complete current review bundle. The larger
+oxygen, ion-pair, and covalent surfaces have repository-owned generators
+documented in the coverage summary. The compiler rejects extra package files
+and unknown candidate fields. It does
 not read generated artifacts back as input. Candidate premises must be
 `provisional` with no reviewers; only a separate host-selected AI review may supply review
 metadata through the separate attestation boundary.

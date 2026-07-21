@@ -423,6 +423,7 @@ fn promote_requires_and_packages_an_exact_external_review() {
     fs::create_dir(&temporary).unwrap();
     let output = temporary.join("trusted");
     let packages = displacement_packages();
+    let alkaline_earth = root().join("catalogue/candidates/alkaline-earth-water");
     let oxygen = root().join("catalogue/candidates/oxygen-reactions");
     let covalent = root().join("catalogue/candidates/covalent-combinations");
     let missing_review = run(&[
@@ -453,6 +454,7 @@ fn promote_requires_and_packages_an_exact_external_review() {
         packages[2].to_str().unwrap(),
         packages[3].to_str().unwrap(),
         packages[4].to_str().unwrap(),
+        alkaline_earth.to_str().unwrap(),
         oxygen.to_str().unwrap(),
         covalent.to_str().unwrap(),
     ]);
