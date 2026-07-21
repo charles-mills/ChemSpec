@@ -227,11 +227,12 @@ attestation and both exact digests committed to the trust root.
 - The complete language, catalogue, generalized-rule, kernel, and frame crates
   are integrated with the Iced workspace.
 - The promoted catalogue crosses the pinned AI trust attestation and contains
-  208 finite experiences across the established generalized families,
+  212 finite experiences across the established generalized families,
   elemental oxygen, fixed-charge main-group ion pairs, and finite covalent
   combinations. The established families include bounded reviewed Rb/Cs and
-  project-authorised Fr water-contact variants, while the other alkali-salt
-  families retain their original Li/Na/K domains. The 118-element registry still provides identity metadata,
+  project-authorised Fr water-contact variants, plus the reviewed Ca/Sr/Ba
+  liquid-water and Mg/steam outcomes. The other alkali-salt families retain
+  their original Li/Na/K domains. The 118-element registry still provides identity metadata,
   not universal reaction coverage.
 - `chem-presentation` compiles deterministic guided scenes and a macroscopic
   scene plan from the same trusted `SimulationFrames` generation.

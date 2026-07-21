@@ -1,15 +1,15 @@
 # Chemistry coverage
 
-## What the 208 count means
+## What the 212 count means
 
-The promoted reference catalogue contains **208 reviewed, finite
+The promoted reference catalogue contains **212 reviewed, finite
 experiences**. This is the size of the current host-pinned fast path, not the
 number of reactions ChemSpec can answer and not a global allow-list of valid
 reactant pairs.
 
 | Promoted catalogue surface | Experiences | Reviewed boundary |
 | --- | ---: | --- |
-| Established generalized families | 39 | Alkali-metal/water (including bounded heavy-alkali water-contact variants), silver-halide precipitation, strong-acid neutralization, carbonate and bicarbonate gas evolution, and aqueous halogen displacement |
+| Established generalized families | 43 | Alkali-metal/water (including bounded heavy-alkali water-contact variants), Ca/Sr/Ba with liquid water, Mg with steam, silver-halide precipitation, strong-acid neutralization, carbonate and bicarbonate gas evolution, and aqueous halogen displacement |
 | Elemental oxygen | 68 | Explicit representative products; missing or ambiguous cases do not inherit a group-valence guess |
 | Fixed-charge main-group ion pairs | 81 | Group 1, Group 2, and aluminium cations with the reviewed monatomic anion families |
 | Finite covalent combinations | 20 | Explicit hydrogen-compound and interhalogen outcomes; multiple reviewed products require learner selection |
@@ -76,9 +76,9 @@ bounded model-proposed mechanism. Raw provider output never reaches playback.
 ## Why there is no single total reaction count
 
 The complete program surface does not have a useful fixed cardinality like
-208. It is the union of:
+212. It is the union of:
 
-1. the 208 currently promoted catalogue experiences;
+1. the 212 currently promoted catalogue experiences;
 2. reactions derived by structural algorithms over the current reviewed and
    cached identity registry; and
 3. previously uncatalogued claims and mechanisms that can be constructed at
@@ -114,9 +114,16 @@ The larger finite catalogue surfaces are generated reproducibly:
 
 - `tools/generate-oxygen-catalogue.py` owns the oxygen and fixed-charge
   main-group expansion, including reviewed macroscopic standard-phase records;
-  and
 - `tools/generate-covalent-catalogue.py` owns the finite covalent package and
-  fixtures.
+  fixtures; and
+- `tools/author_group2_water.py` owns the reviewed alkaline-earth/water
+  package. Ca, Sr, and Ba use `M + 2 H2O(l) -> M(OH)2 + H2`; magnesium is a
+  condition-distinct steam rule, `Mg + H2O(g) -> MgO + H2`. Beryllium is not
+  represented as reacting with ordinary water.
+
+The Group 2 package was promoted on the user's attestation that a chemist had
+reviewed and validated these additions. The attestation deliberately does not
+invent an identity or credential for that reviewer.
 
 A separate host-selected review must bind generated content before deliberate
 promotion and pinning. Runtime-derived or model-proposed chemistry never

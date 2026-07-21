@@ -553,10 +553,10 @@ maintaining a second product-only geometry implementation.
 Stage 1 composer tests cover progressive formula construction (`C` → `CO` →
 `CO₂`), independent reactant slots, undo/clear/swap behavior, unrecognised
 drafts, slow orbit progression, and exhaustive order-independent reachability
-for all 208 trusted experiences. Recognised unsupported, recognised
+for all 212 trusted experiences. Recognised unsupported, recognised
 uncatalogued, and unrecognised pairs have separate regression coverage. The
 handoff tests prove every trusted family can open both the 2D sequence and its
-macroscopic profile. Profile tests compile all 208 experiences against
+macroscopic profile. Profile tests compile all 212 experiences against
 their active trusted observations, reject premature effects and mismatched
 values, and separately preserve the validated white, cream, and yellow
 silver-halide appearances through scene geometry. The alkali-water comparison

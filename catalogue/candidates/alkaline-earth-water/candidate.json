@@ -1,0 +1,1838 @@
+{
+  "schema_version": 1,
+  "id": "alkaline-earth-water",
+  "evidence": [
+    {
+      "id": "evidence.openstax.group2-water",
+      "title": "Chemistry 2e \u2014 18.1 Periodicity",
+      "publisher": "OpenStax",
+      "locator": "Group 2: The Alkaline Earth Metals",
+      "reference": "https://openstax.org/books/chemistry-2e/pages/18-1-periodicity",
+      "publication_date": "2019-02-14",
+      "retrieved_on": "2026-07-21",
+      "usage": "Representative Ca, Sr, and Ba reactions with water, hydrogen and hydroxide products, and the reactivity trend down Group 2"
+    },
+    {
+      "id": "evidence.rsc.magnesium-steam",
+      "title": "The reaction of magnesium with steam",
+      "publisher": "Royal Society of Chemistry",
+      "locator": "Demonstration and reaction equation",
+      "reference": "https://edu.rsc.org/exhibition-chemistry/the-reaction-of-magnesium-with-steam/4012602.article",
+      "retrieved_on": "2026-07-21",
+      "usage": "Magnesium and steam form solid magnesium oxide and hydrogen gas"
+    }
+  ],
+  "premises": [
+    {
+      "id": "premise.rule.alkaline-earth-water.standard-outcome",
+      "statement": "Ordinary water contact with the registered Ca, Sr, or Ba metallic structure has the representative outcome M + 2 H2O -> M(OH)2 + H2. Magnesium requires a hot-water or steam context and beryllium is outside this supported family.",
+      "evidence": [
+        "evidence.openstax.group2-water"
+      ],
+      "review": {
+        "status": "provisional",
+        "reviewers": []
+      },
+      "rule_version": "1"
+    },
+    {
+      "id": "premise.structure.alkaline-earth-metal",
+      "statement": "ChemSpec represents each supported alkaline-earth metal fragment as an M2+ site core with two domain-owned delocalized valence electrons for explanatory execution.",
+      "evidence": [
+        "evidence.chemspec.explanatory-structural-model"
+      ],
+      "review": {
+        "status": "provisional",
+        "reviewers": []
+      },
+      "rule_version": "1"
+    },
+    {
+      "id": "premise.structure.alkaline-earth-metal-hydroxide",
+      "statement": "ChemSpec represents each supported alkaline-earth hydroxide formula unit as an ionic association of M2+ and two covalently bonded OH- components.",
+      "evidence": [
+        "evidence.chemspec.explanatory-structural-model"
+      ],
+      "review": {
+        "status": "provisional",
+        "reviewers": []
+      },
+      "rule_version": "1"
+    },
+    {
+      "id": "premise.observation.group2-hydrogen-evolves",
+      "statement": "Hydrogen gas evolution is compatible with the supported alkaline-earth metal/water outcome.",
+      "evidence": [
+        "evidence.openstax.group2-water"
+      ],
+      "review": {
+        "status": "provisional",
+        "reviewers": []
+      },
+      "rule_version": "1"
+    },
+    {
+      "id": "premise.observation.alkaline-earth-metal-disappears",
+      "statement": "Consumption of the selected Ca, Sr, or Ba metal is compatible with the supported water-contact outcome.",
+      "evidence": [
+        "evidence.openstax.group2-water"
+      ],
+      "review": {
+        "status": "provisional",
+        "reviewers": []
+      },
+      "rule_version": "1"
+    },
+    {
+      "id": "premise.valence.alkaline-earth-h-o.initial-domain",
+      "statement": "The listed Mg, Ca, Sr, Ba, H, and O tuples are ChemSpec's closed explanatory execution domain for these families; they are not a claim of physical mechanism.",
+      "evidence": [
+        "evidence.chemspec.explanatory-structural-model"
+      ],
+      "review": {
+        "status": "provisional",
+        "reviewers": []
+      },
+      "rule_version": "1"
+    },
+    {
+      "id": "premise.rule.magnesium-steam.standard-outcome",
+      "statement": "Steam contact with heated magnesium has the representative outcome Mg + H2O(g) -> MgO(s) + H2(g).",
+      "evidence": [
+        "evidence.rsc.magnesium-steam"
+      ],
+      "review": {
+        "status": "provisional",
+        "reviewers": []
+      },
+      "rule_version": "1"
+    },
+    {
+      "id": "premise.structure.magnesium-oxide",
+      "statement": "Magnesium oxide is represented as an ionic association of Mg2+ and O2- for explanatory execution.",
+      "evidence": [
+        "evidence.chemspec.explanatory-structural-model"
+      ],
+      "review": {
+        "status": "provisional",
+        "reviewers": []
+      },
+      "rule_version": "1"
+    },
+    {
+      "id": "premise.observation.magnesium-steam-products-form",
+      "statement": "Formation of solid magnesium oxide and hydrogen gas is compatible with the magnesium-steam outcome.",
+      "evidence": [
+        "evidence.rsc.magnesium-steam"
+      ],
+      "review": {
+        "status": "provisional",
+        "reviewers": []
+      },
+      "rule_version": "1"
+    },
+    {
+      "id": "premise.material.alkaline-earth-water.presentation",
+      "statement": "Ca, Sr, and Ba are solid metals contacting liquid water and forming aqueous hydroxide plus hydrogen gas; magnesium is solid, steam is gas, magnesium oxide is solid, and hydrogen is gas.",
+      "evidence": [
+        "evidence.openstax.group2-water",
+        "evidence.rsc.magnesium-steam"
+      ],
+      "review": {
+        "status": "provisional",
+        "reviewers": []
+      },
+      "rule_version": "1"
+    }
+  ],
+  "valence_premises": [
+    {
+      "premise_id": "premise.valence.alkaline-earth-h-o.initial-domain",
+      "neutral_valence": [
+        {
+          "element": "Mg",
+          "neutral_valence_electrons": 2
+        },
+        {
+          "element": "Ca",
+          "neutral_valence_electrons": 2
+        },
+        {
+          "element": "Sr",
+          "neutral_valence_electrons": 2
+        },
+        {
+          "element": "Ba",
+          "neutral_valence_electrons": 2
+        },
+        {
+          "element": "H",
+          "neutral_valence_electrons": 1
+        },
+        {
+          "element": "O",
+          "neutral_valence_electrons": 6
+        }
+      ],
+      "supported_states": [
+        {
+          "element": "Mg",
+          "formal_charge": 2,
+          "non_bonding_electrons": 0,
+          "unpaired_electrons": 0,
+          "covalent_bond_order_sum": 0
+        },
+        {
+          "element": "Mg",
+          "formal_charge": 1,
+          "non_bonding_electrons": 1,
+          "unpaired_electrons": 1,
+          "covalent_bond_order_sum": 0
+        },
+        {
+          "element": "Mg",
+          "formal_charge": 0,
+          "non_bonding_electrons": 2,
+          "unpaired_electrons": 2,
+          "covalent_bond_order_sum": 0
+        },
+        {
+          "element": "Ca",
+          "formal_charge": 2,
+          "non_bonding_electrons": 0,
+          "unpaired_electrons": 0,
+          "covalent_bond_order_sum": 0
+        },
+        {
+          "element": "Ca",
+          "formal_charge": 1,
+          "non_bonding_electrons": 1,
+          "unpaired_electrons": 1,
+          "covalent_bond_order_sum": 0
+        },
+        {
+          "element": "Ca",
+          "formal_charge": 0,
+          "non_bonding_electrons": 2,
+          "unpaired_electrons": 2,
+          "covalent_bond_order_sum": 0
+        },
+        {
+          "element": "Sr",
+          "formal_charge": 2,
+          "non_bonding_electrons": 0,
+          "unpaired_electrons": 0,
+          "covalent_bond_order_sum": 0
+        },
+        {
+          "element": "Sr",
+          "formal_charge": 1,
+          "non_bonding_electrons": 1,
+          "unpaired_electrons": 1,
+          "covalent_bond_order_sum": 0
+        },
+        {
+          "element": "Sr",
+          "formal_charge": 0,
+          "non_bonding_electrons": 2,
+          "unpaired_electrons": 2,
+          "covalent_bond_order_sum": 0
+        },
+        {
+          "element": "Ba",
+          "formal_charge": 2,
+          "non_bonding_electrons": 0,
+          "unpaired_electrons": 0,
+          "covalent_bond_order_sum": 0
+        },
+        {
+          "element": "Ba",
+          "formal_charge": 1,
+          "non_bonding_electrons": 1,
+          "unpaired_electrons": 1,
+          "covalent_bond_order_sum": 0
+        },
+        {
+          "element": "Ba",
+          "formal_charge": 0,
+          "non_bonding_electrons": 2,
+          "unpaired_electrons": 2,
+          "covalent_bond_order_sum": 0
+        },
+        {
+          "element": "O",
+          "formal_charge": 0,
+          "non_bonding_electrons": 4,
+          "unpaired_electrons": 0,
+          "covalent_bond_order_sum": 2
+        },
+        {
+          "element": "O",
+          "formal_charge": -1,
+          "non_bonding_electrons": 6,
+          "unpaired_electrons": 0,
+          "covalent_bond_order_sum": 1
+        },
+        {
+          "element": "O",
+          "formal_charge": -2,
+          "non_bonding_electrons": 8,
+          "unpaired_electrons": 0,
+          "covalent_bond_order_sum": 0
+        },
+        {
+          "element": "H",
+          "formal_charge": 0,
+          "non_bonding_electrons": 0,
+          "unpaired_electrons": 0,
+          "covalent_bond_order_sum": 1
+        },
+        {
+          "element": "H",
+          "formal_charge": 1,
+          "non_bonding_electrons": 0,
+          "unpaired_electrons": 0,
+          "covalent_bond_order_sum": 0
+        },
+        {
+          "element": "H",
+          "formal_charge": 0,
+          "non_bonding_electrons": 1,
+          "unpaired_electrons": 1,
+          "covalent_bond_order_sum": 0
+        }
+      ],
+      "metallic_domain_states": [
+        {
+          "element": "Mg",
+          "site_formal_charge": 2,
+          "site_local_electrons": 0,
+          "delocalized_electrons_per_site": 2
+        },
+        {
+          "element": "Ca",
+          "site_formal_charge": 2,
+          "site_local_electrons": 0,
+          "delocalized_electrons_per_site": 2
+        },
+        {
+          "element": "Sr",
+          "site_formal_charge": 2,
+          "site_local_electrons": 0,
+          "delocalized_electrons_per_site": 2
+        },
+        {
+          "element": "Ba",
+          "site_formal_charge": 2,
+          "site_local_electrons": 0,
+          "delocalized_electrons_per_site": 2
+        }
+      ]
+    }
+  ],
+  "structures": [
+    {
+      "representation": "ionic",
+      "id": "MagnesiumSteamOxide",
+      "formula": "MgO",
+      "components": [
+        {
+          "label": "metal",
+          "atoms": [
+            {
+              "label": "metal",
+              "element": "Mg",
+              "formal_charge": 2,
+              "non_bonding_electrons": 0,
+              "unpaired_electrons": 0
+            }
+          ],
+          "bonds": [],
+          "groups": []
+        },
+        {
+          "label": "oxide",
+          "atoms": [
+            {
+              "label": "o",
+              "element": "O",
+              "formal_charge": -2,
+              "non_bonding_electrons": 8,
+              "unpaired_electrons": 0
+            }
+          ],
+          "bonds": [],
+          "groups": []
+        }
+      ],
+      "associations": [
+        {
+          "label": "ionic",
+          "components": [
+            "metal",
+            "oxide"
+          ]
+        }
+      ],
+      "premise_id": "premise.structure.magnesium-oxide"
+    }
+  ],
+  "rules": [],
+  "elements": [],
+  "element_categories": [
+    {
+      "id": "Categories.WaterReactiveAlkalineEarth",
+      "subject": "element",
+      "membership": {
+        "kind": "explicit",
+        "members": [
+          "Ba",
+          "Ca",
+          "Sr"
+        ]
+      },
+      "premise_ids": [
+        "premise.rule.alkaline-earth-water.standard-outcome"
+      ]
+    },
+    {
+      "id": "Categories.MagnesiumSteam",
+      "subject": "element",
+      "membership": {
+        "kind": "explicit",
+        "members": [
+          "Mg"
+        ]
+      },
+      "premise_ids": [
+        "premise.rule.magnesium-steam.standard-outcome"
+      ]
+    }
+  ],
+  "structural_traits": [],
+  "structure_templates": [
+    {
+      "representation": "metallic",
+      "id": "Templates.AlkalineEarthWaterMetal",
+      "parameters": {
+        "member": {
+          "kind": "element",
+          "category": "Categories.WaterReactiveAlkalineEarth"
+        }
+      },
+      "sites": [
+        {
+          "label": "metal",
+          "element": {
+            "parameter": "member"
+          },
+          "formal_charge": 2,
+          "non_bonding_electrons": 0,
+          "unpaired_electrons": 0
+        }
+      ],
+      "domains": [
+        {
+          "label": "metallic",
+          "sites": [
+            "metal"
+          ],
+          "delocalized_electrons": 2
+        }
+      ],
+      "premise_ids": [
+        "premise.rule.alkaline-earth-water.standard-outcome",
+        "premise.structure.alkaline-earth-metal"
+      ]
+    },
+    {
+      "representation": "ionic",
+      "id": "Templates.AlkalineEarthWaterHydroxide",
+      "parameters": {
+        "member": {
+          "kind": "element",
+          "category": "Categories.WaterReactiveAlkalineEarth"
+        }
+      },
+      "components": [
+        {
+          "label": "metal",
+          "atoms": [
+            {
+              "label": "metal",
+              "element": {
+                "parameter": "member"
+              },
+              "formal_charge": 2,
+              "non_bonding_electrons": 0,
+              "unpaired_electrons": 0
+            }
+          ],
+          "bonds": [],
+          "groups": []
+        },
+        {
+          "label": "hydroxide1",
+          "atoms": [
+            {
+              "label": "o",
+              "element": "O",
+              "formal_charge": -1,
+              "non_bonding_electrons": 6,
+              "unpaired_electrons": 0
+            },
+            {
+              "label": "h",
+              "element": "H",
+              "formal_charge": 0,
+              "non_bonding_electrons": 0,
+              "unpaired_electrons": 0
+            }
+          ],
+          "bonds": [
+            {
+              "left": "o",
+              "right": "h",
+              "order": "single"
+            }
+          ],
+          "groups": []
+        },
+        {
+          "label": "hydroxide2",
+          "atoms": [
+            {
+              "label": "o",
+              "element": "O",
+              "formal_charge": -1,
+              "non_bonding_electrons": 6,
+              "unpaired_electrons": 0
+            },
+            {
+              "label": "h",
+              "element": "H",
+              "formal_charge": 0,
+              "non_bonding_electrons": 0,
+              "unpaired_electrons": 0
+            }
+          ],
+          "bonds": [
+            {
+              "left": "o",
+              "right": "h",
+              "order": "single"
+            }
+          ],
+          "groups": []
+        }
+      ],
+      "associations": [
+        {
+          "label": "ionic",
+          "components": [
+            "metal",
+            "hydroxide1",
+            "hydroxide2"
+          ]
+        }
+      ],
+      "premise_ids": [
+        "premise.rule.alkaline-earth-water.standard-outcome",
+        "premise.structure.alkaline-earth-metal-hydroxide"
+      ]
+    },
+    {
+      "representation": "metallic",
+      "id": "Templates.MagnesiumSteamMetal",
+      "parameters": {
+        "member": {
+          "kind": "element",
+          "category": "Categories.MagnesiumSteam"
+        }
+      },
+      "sites": [
+        {
+          "label": "metal",
+          "element": {
+            "parameter": "member"
+          },
+          "formal_charge": 2,
+          "non_bonding_electrons": 0,
+          "unpaired_electrons": 0
+        }
+      ],
+      "domains": [
+        {
+          "label": "metallic",
+          "sites": [
+            "metal"
+          ],
+          "delocalized_electrons": 2
+        }
+      ],
+      "premise_ids": [
+        "premise.rule.magnesium-steam.standard-outcome",
+        "premise.structure.alkaline-earth-metal"
+      ]
+    }
+  ],
+  "structure_applications": [
+    {
+      "id": "CalciumWaterMetal",
+      "template": "Templates.AlkalineEarthWaterMetal",
+      "arguments": {
+        "member": "Ca"
+      },
+      "formula": "Ca",
+      "premise_ids": [
+        "premise.rule.alkaline-earth-water.standard-outcome",
+        "premise.structure.alkaline-earth-metal"
+      ]
+    },
+    {
+      "id": "CalciumWaterHydroxide",
+      "template": "Templates.AlkalineEarthWaterHydroxide",
+      "arguments": {
+        "member": "Ca"
+      },
+      "formula": "Ca(OH)2",
+      "premise_ids": [
+        "premise.rule.alkaline-earth-water.standard-outcome",
+        "premise.structure.alkaline-earth-metal-hydroxide"
+      ]
+    },
+    {
+      "id": "StrontiumWaterMetal",
+      "template": "Templates.AlkalineEarthWaterMetal",
+      "arguments": {
+        "member": "Sr"
+      },
+      "formula": "Sr",
+      "premise_ids": [
+        "premise.rule.alkaline-earth-water.standard-outcome",
+        "premise.structure.alkaline-earth-metal"
+      ]
+    },
+    {
+      "id": "StrontiumWaterHydroxide",
+      "template": "Templates.AlkalineEarthWaterHydroxide",
+      "arguments": {
+        "member": "Sr"
+      },
+      "formula": "Sr(OH)2",
+      "premise_ids": [
+        "premise.rule.alkaline-earth-water.standard-outcome",
+        "premise.structure.alkaline-earth-metal-hydroxide"
+      ]
+    },
+    {
+      "id": "BariumWaterMetal",
+      "template": "Templates.AlkalineEarthWaterMetal",
+      "arguments": {
+        "member": "Ba"
+      },
+      "formula": "Ba",
+      "premise_ids": [
+        "premise.rule.alkaline-earth-water.standard-outcome",
+        "premise.structure.alkaline-earth-metal"
+      ]
+    },
+    {
+      "id": "BariumWaterHydroxide",
+      "template": "Templates.AlkalineEarthWaterHydroxide",
+      "arguments": {
+        "member": "Ba"
+      },
+      "formula": "Ba(OH)2",
+      "premise_ids": [
+        "premise.rule.alkaline-earth-water.standard-outcome",
+        "premise.structure.alkaline-earth-metal-hydroxide"
+      ]
+    },
+    {
+      "id": "MagnesiumSteamMetal",
+      "template": "Templates.MagnesiumSteamMetal",
+      "arguments": {
+        "member": "Mg"
+      },
+      "formula": "Mg",
+      "premise_ids": [
+        "premise.rule.magnesium-steam.standard-outcome",
+        "premise.structure.alkaline-earth-metal"
+      ]
+    }
+  ],
+  "graph_patterns": [
+    {
+      "id": "Patterns.AlkalineEarthWaterMetal",
+      "variables": {
+        "metal": {
+          "atom": {
+            "element": {
+              "parameter": "member"
+            }
+          }
+        }
+      },
+      "relationships": [
+        {
+          "kind": "metallic_domain",
+          "domain": "metallic",
+          "sites": [
+            "metal"
+          ],
+          "delocalized_electrons": 2
+        }
+      ],
+      "premise_ids": [
+        "premise.rule.alkaline-earth-water.standard-outcome",
+        "premise.structure.alkaline-earth-metal"
+      ]
+    },
+    {
+      "id": "Patterns.MagnesiumSteamMetal",
+      "variables": {
+        "metal": {
+          "atom": {
+            "element": {
+              "parameter": "member"
+            }
+          }
+        }
+      },
+      "relationships": [
+        {
+          "kind": "metallic_domain",
+          "domain": "metallic",
+          "sites": [
+            "metal"
+          ],
+          "delocalized_electrons": 2
+        }
+      ],
+      "premise_ids": [
+        "premise.rule.magnesium-steam.standard-outcome",
+        "premise.structure.alkaline-earth-metal"
+      ]
+    },
+    {
+      "id": "Patterns.AlkalineEarthWater",
+      "variables": {
+        "h1": {
+          "atom": {
+            "element": "H"
+          }
+        },
+        "h2": {
+          "atom": {
+            "element": "H"
+          }
+        },
+        "o": {
+          "atom": {
+            "element": "O"
+          }
+        }
+      },
+      "relationships": [
+        {
+          "kind": "covalent",
+          "bond": "oh1",
+          "left": "o",
+          "right": "h1",
+          "order": "single"
+        },
+        {
+          "kind": "covalent",
+          "bond": "oh2",
+          "left": "o",
+          "right": "h2",
+          "order": "single"
+        }
+      ],
+      "premise_ids": [
+        "premise.rule.alkaline-earth-water.standard-outcome",
+        "premise.structure.water"
+      ]
+    },
+    {
+      "id": "Patterns.MagnesiumSteamWater",
+      "variables": {
+        "h1": {
+          "atom": {
+            "element": "H"
+          }
+        },
+        "h2": {
+          "atom": {
+            "element": "H"
+          }
+        },
+        "o": {
+          "atom": {
+            "element": "O"
+          }
+        }
+      },
+      "relationships": [
+        {
+          "kind": "covalent",
+          "bond": "oh1",
+          "left": "o",
+          "right": "h1",
+          "order": "single"
+        },
+        {
+          "kind": "covalent",
+          "bond": "oh2",
+          "left": "o",
+          "right": "h2",
+          "order": "single"
+        }
+      ],
+      "premise_ids": [
+        "premise.rule.magnesium-steam.standard-outcome",
+        "premise.structure.water"
+      ]
+    }
+  ],
+  "generalized_rules": [
+    {
+      "id": "Rules.AlkalineEarthMetalWithWater",
+      "parameters": {
+        "member": {
+          "kind": "element",
+          "category": "Categories.WaterReactiveAlkalineEarth"
+        }
+      },
+      "roles": {
+        "gasProduct": {
+          "side": "product",
+          "representation": "molecular",
+          "coefficient": 1
+        },
+        "hydroxide": {
+          "side": "product",
+          "representation": "ionic",
+          "coefficient": 1
+        },
+        "metal": {
+          "side": "reactant",
+          "representation": "metallic",
+          "coefficient": 1
+        },
+        "water": {
+          "side": "reactant",
+          "representation": "molecular",
+          "coefficient": 2
+        }
+      },
+      "reactants": {
+        "metal": {
+          "kind": "template",
+          "template": "Templates.AlkalineEarthWaterMetal",
+          "arguments": {
+            "member": {
+              "parameter": "member"
+            }
+          }
+        },
+        "water": {
+          "kind": "exact",
+          "structure": "Water"
+        }
+      },
+      "cases": [
+        {
+          "status": "supported",
+          "id": "standard",
+          "when": {
+            "kind": "always"
+          },
+          "products": {
+            "gasProduct": {
+              "kind": "exact",
+              "structure": "Hydrogen"
+            },
+            "hydroxide": {
+              "kind": "template",
+              "template": "Templates.AlkalineEarthWaterHydroxide",
+              "arguments": {
+                "member": {
+                  "parameter": "member"
+                }
+              }
+            }
+          },
+          "patterns": {
+            "metal": "Patterns.AlkalineEarthWaterMetal",
+            "water": "Patterns.AlkalineEarthWater"
+          },
+          "correspondence": [
+            {
+              "reactant": "metal[1].metal",
+              "product": "hydroxide[1].metal.metal",
+              "premise_ids": [
+                "premise.rule.alkaline-earth-water.standard-outcome",
+                "premise.structure.alkaline-earth-metal",
+                "premise.structure.alkaline-earth-metal-hydroxide"
+              ]
+            },
+            {
+              "reactant": "water[1].o",
+              "product": "hydroxide[1].hydroxide1.o",
+              "premise_ids": [
+                "premise.rule.alkaline-earth-water.standard-outcome",
+                "premise.structure.alkaline-earth-metal-hydroxide",
+                "premise.structure.water"
+              ]
+            },
+            {
+              "reactant": "water[1].h2",
+              "product": "hydroxide[1].hydroxide1.h",
+              "premise_ids": [
+                "premise.rule.alkaline-earth-water.standard-outcome",
+                "premise.structure.alkaline-earth-metal-hydroxide",
+                "premise.structure.water"
+              ]
+            },
+            {
+              "reactant": "water[1].h1",
+              "product": "gasProduct[1].h1",
+              "premise_ids": [
+                "premise.rule.alkaline-earth-water.standard-outcome",
+                "premise.structure.hydrogen",
+                "premise.structure.water"
+              ]
+            },
+            {
+              "reactant": "water[2].o",
+              "product": "hydroxide[1].hydroxide2.o",
+              "premise_ids": [
+                "premise.rule.alkaline-earth-water.standard-outcome",
+                "premise.structure.alkaline-earth-metal-hydroxide",
+                "premise.structure.water"
+              ]
+            },
+            {
+              "reactant": "water[2].h2",
+              "product": "hydroxide[1].hydroxide2.h",
+              "premise_ids": [
+                "premise.rule.alkaline-earth-water.standard-outcome",
+                "premise.structure.alkaline-earth-metal-hydroxide",
+                "premise.structure.water"
+              ]
+            },
+            {
+              "reactant": "water[2].h1",
+              "product": "gasProduct[1].h2",
+              "premise_ids": [
+                "premise.rule.alkaline-earth-water.standard-outcome",
+                "premise.structure.hydrogen",
+                "premise.structure.water"
+              ]
+            }
+          ],
+          "rewrite": [
+            {
+              "kind": "release_metallic",
+              "premise_ids": [
+                "premise.rule.alkaline-earth-water.standard-outcome",
+                "premise.structure.alkaline-earth-metal",
+                "premise.valence.alkaline-earth-h-o.initial-domain"
+              ],
+              "site": "metal[1].metal",
+              "domain": "metal[1].metallic",
+              "allocation": "retain_electron",
+              "before": {
+                "site": [
+                  2,
+                  0,
+                  0
+                ],
+                "domain_electrons": 2
+              },
+              "after": {
+                "site": [
+                  0,
+                  2,
+                  2
+                ],
+                "domain_electrons": 0
+              }
+            },
+            {
+              "kind": "cleave_covalent",
+              "premise_ids": [
+                "premise.rule.alkaline-earth-water.standard-outcome",
+                "premise.structure.water",
+                "premise.valence.alkaline-earth-h-o.initial-domain"
+              ],
+              "edge": [
+                "water[1].o",
+                "water[1].h1",
+                "single"
+              ],
+              "allocation": {
+                "heterolytic_to": "water[1].o"
+              },
+              "before": {
+                "left": [
+                  0,
+                  4,
+                  0
+                ],
+                "right": [
+                  0,
+                  0,
+                  0
+                ]
+              },
+              "after": {
+                "left": [
+                  -1,
+                  6,
+                  0
+                ],
+                "right": [
+                  1,
+                  0,
+                  0
+                ]
+              }
+            },
+            {
+              "kind": "cleave_covalent",
+              "premise_ids": [
+                "premise.rule.alkaline-earth-water.standard-outcome",
+                "premise.structure.water",
+                "premise.valence.alkaline-earth-h-o.initial-domain"
+              ],
+              "edge": [
+                "water[2].o",
+                "water[2].h1",
+                "single"
+              ],
+              "allocation": {
+                "heterolytic_to": "water[2].o"
+              },
+              "before": {
+                "left": [
+                  0,
+                  4,
+                  0
+                ],
+                "right": [
+                  0,
+                  0,
+                  0
+                ]
+              },
+              "after": {
+                "left": [
+                  -1,
+                  6,
+                  0
+                ],
+                "right": [
+                  1,
+                  0,
+                  0
+                ]
+              }
+            },
+            {
+              "kind": "transfer_electron",
+              "premise_ids": [
+                "premise.rule.alkaline-earth-water.standard-outcome",
+                "premise.structure.alkaline-earth-metal",
+                "premise.structure.water",
+                "premise.valence.alkaline-earth-h-o.initial-domain"
+              ],
+              "count": 1,
+              "donor": "metal[1].metal",
+              "acceptor": "water[1].h1",
+              "before": {
+                "donor": [
+                  0,
+                  2,
+                  2
+                ],
+                "acceptor": [
+                  1,
+                  0,
+                  0
+                ]
+              },
+              "after": {
+                "donor": [
+                  1,
+                  1,
+                  1
+                ],
+                "acceptor": [
+                  0,
+                  1,
+                  1
+                ]
+              }
+            },
+            {
+              "kind": "transfer_electron",
+              "premise_ids": [
+                "premise.rule.alkaline-earth-water.standard-outcome",
+                "premise.structure.alkaline-earth-metal",
+                "premise.structure.water",
+                "premise.valence.alkaline-earth-h-o.initial-domain"
+              ],
+              "count": 1,
+              "donor": "metal[1].metal",
+              "acceptor": "water[2].h1",
+              "before": {
+                "donor": [
+                  1,
+                  1,
+                  1
+                ],
+                "acceptor": [
+                  1,
+                  0,
+                  0
+                ]
+              },
+              "after": {
+                "donor": [
+                  2,
+                  0,
+                  0
+                ],
+                "acceptor": [
+                  0,
+                  1,
+                  1
+                ]
+              }
+            },
+            {
+              "kind": "form_covalent",
+              "premise_ids": [
+                "premise.rule.alkaline-earth-water.standard-outcome",
+                "premise.structure.hydrogen",
+                "premise.structure.water",
+                "premise.valence.alkaline-earth-h-o.initial-domain"
+              ],
+              "edge": [
+                "water[1].h1",
+                "water[2].h1",
+                "single"
+              ],
+              "electron_contribution": {
+                "left": 1,
+                "right": 1
+              },
+              "before": {
+                "left": [
+                  0,
+                  1,
+                  1
+                ],
+                "right": [
+                  0,
+                  1,
+                  1
+                ]
+              },
+              "after": {
+                "left": [
+                  0,
+                  0,
+                  0
+                ],
+                "right": [
+                  0,
+                  0,
+                  0
+                ]
+              }
+            },
+            {
+              "kind": "associate_ionic",
+              "premise_ids": [
+                "premise.rule.alkaline-earth-water.standard-outcome",
+                "premise.structure.alkaline-earth-metal",
+                "premise.structure.alkaline-earth-metal-hydroxide",
+                "premise.structure.water",
+                "premise.valence.alkaline-earth-h-o.initial-domain"
+              ],
+              "label": "ionic.product1",
+              "components": [
+                [
+                  "metal[1].metal"
+                ],
+                [
+                  "water[1].o",
+                  "water[1].h2"
+                ],
+                [
+                  "water[2].o",
+                  "water[2].h2"
+                ]
+              ],
+              "component_charges": [
+                2,
+                -1,
+                -1
+              ]
+            },
+            {
+              "kind": "assign_product",
+              "premise_ids": [
+                "premise.rule.alkaline-earth-water.standard-outcome",
+                "premise.structure.alkaline-earth-metal-hydroxide"
+              ],
+              "atoms": [
+                "metal[1].metal",
+                "water[1].o",
+                "water[1].h2",
+                "water[2].o",
+                "water[2].h2"
+              ],
+              "product": "hydroxide[1]"
+            },
+            {
+              "kind": "assign_product",
+              "premise_ids": [
+                "premise.rule.alkaline-earth-water.standard-outcome",
+                "premise.structure.hydrogen"
+              ],
+              "atoms": [
+                "water[1].h1",
+                "water[2].h1"
+              ],
+              "product": "gasProduct[1]"
+            }
+          ],
+          "observation_compatibility": [
+            {
+              "subject_role": "gasProduct",
+              "predicate": "evolves",
+              "evidence_subject": "hydrogen",
+              "premise_id": "premise.observation.group2-hydrogen-evolves"
+            },
+            {
+              "subject_role": "metal",
+              "predicate": "disappears",
+              "evidence_subject": "alkaline earth metal",
+              "premise_id": "premise.observation.alkaline-earth-metal-disappears"
+            }
+          ],
+          "premise_ids": [
+            "premise.rule.alkaline-earth-water.standard-outcome"
+          ]
+        }
+      ],
+      "applicability": {
+        "premise_id": "premise.rule.alkaline-earth-water.standard-outcome",
+        "request_relation": "contact",
+        "required_context": "ordinary water contact for the reviewed Ca, Sr, and Ba representative outcomes"
+      },
+      "model_assumptions": {
+        "event": "representative",
+        "sequence": "explanatory",
+        "premise_ids": [
+          "premise.rule.alkaline-earth-water.standard-outcome"
+        ]
+      },
+      "premise_ids": [
+        "premise.elements.iupac-periodic-table",
+        "premise.observation.alkaline-earth-metal-disappears",
+        "premise.observation.group2-hydrogen-evolves",
+        "premise.rule.alkaline-earth-water.standard-outcome",
+        "premise.structure.alkaline-earth-metal",
+        "premise.structure.alkaline-earth-metal-hydroxide",
+        "premise.structure.hydrogen",
+        "premise.structure.water",
+        "premise.valence.alkaline-earth-h-o.initial-domain"
+      ]
+    },
+    {
+      "id": "Rules.MagnesiumWithSteam",
+      "parameters": {
+        "member": {
+          "kind": "element",
+          "category": "Categories.MagnesiumSteam"
+        }
+      },
+      "roles": {
+        "gasProduct": {
+          "side": "product",
+          "representation": "molecular",
+          "coefficient": 1
+        },
+        "oxide": {
+          "side": "product",
+          "representation": "ionic",
+          "coefficient": 1
+        },
+        "metal": {
+          "side": "reactant",
+          "representation": "metallic",
+          "coefficient": 1
+        },
+        "water": {
+          "side": "reactant",
+          "representation": "molecular",
+          "coefficient": 1
+        }
+      },
+      "reactants": {
+        "metal": {
+          "kind": "template",
+          "template": "Templates.MagnesiumSteamMetal",
+          "arguments": {
+            "member": {
+              "parameter": "member"
+            }
+          }
+        },
+        "water": {
+          "kind": "exact",
+          "structure": "Water"
+        }
+      },
+      "cases": [
+        {
+          "status": "supported",
+          "id": "steam",
+          "when": {
+            "kind": "always"
+          },
+          "products": {
+            "gasProduct": {
+              "kind": "exact",
+              "structure": "Hydrogen"
+            },
+            "oxide": {
+              "kind": "exact",
+              "structure": "MagnesiumSteamOxide"
+            }
+          },
+          "patterns": {
+            "metal": "Patterns.MagnesiumSteamMetal",
+            "water": "Patterns.MagnesiumSteamWater"
+          },
+          "correspondence": [
+            {
+              "reactant": "metal[1].metal",
+              "product": "oxide[1].metal.metal",
+              "premise_ids": [
+                "premise.rule.magnesium-steam.standard-outcome",
+                "premise.structure.magnesium-oxide"
+              ]
+            },
+            {
+              "reactant": "water[1].o",
+              "product": "oxide[1].oxide.o",
+              "premise_ids": [
+                "premise.rule.magnesium-steam.standard-outcome",
+                "premise.structure.magnesium-oxide"
+              ]
+            },
+            {
+              "reactant": "water[1].h1",
+              "product": "gasProduct[1].h1",
+              "premise_ids": [
+                "premise.rule.magnesium-steam.standard-outcome",
+                "premise.structure.hydrogen"
+              ]
+            },
+            {
+              "reactant": "water[1].h2",
+              "product": "gasProduct[1].h2",
+              "premise_ids": [
+                "premise.rule.magnesium-steam.standard-outcome",
+                "premise.structure.hydrogen"
+              ]
+            }
+          ],
+          "rewrite": [
+            {
+              "kind": "release_metallic",
+              "premise_ids": [
+                "premise.rule.magnesium-steam.standard-outcome",
+                "premise.structure.alkaline-earth-metal",
+                "premise.structure.water",
+                "premise.valence.alkaline-earth-h-o.initial-domain"
+              ],
+              "site": "metal[1].metal",
+              "domain": "metal[1].metallic",
+              "allocation": "retain_electron",
+              "before": {
+                "site": [
+                  2,
+                  0,
+                  0
+                ],
+                "domain_electrons": 2
+              },
+              "after": {
+                "site": [
+                  0,
+                  2,
+                  2
+                ],
+                "domain_electrons": 0
+              }
+            },
+            {
+              "kind": "cleave_covalent",
+              "premise_ids": [
+                "premise.rule.magnesium-steam.standard-outcome",
+                "premise.structure.alkaline-earth-metal",
+                "premise.structure.water",
+                "premise.valence.alkaline-earth-h-o.initial-domain"
+              ],
+              "edge": [
+                "water[1].o",
+                "water[1].h1",
+                "single"
+              ],
+              "allocation": {
+                "heterolytic_to": "water[1].o"
+              },
+              "before": {
+                "left": [
+                  0,
+                  4,
+                  0
+                ],
+                "right": [
+                  0,
+                  0,
+                  0
+                ]
+              },
+              "after": {
+                "left": [
+                  -1,
+                  6,
+                  0
+                ],
+                "right": [
+                  1,
+                  0,
+                  0
+                ]
+              }
+            },
+            {
+              "kind": "cleave_covalent",
+              "premise_ids": [
+                "premise.rule.magnesium-steam.standard-outcome",
+                "premise.structure.alkaline-earth-metal",
+                "premise.structure.water",
+                "premise.valence.alkaline-earth-h-o.initial-domain"
+              ],
+              "edge": [
+                "water[1].o",
+                "water[1].h2",
+                "single"
+              ],
+              "allocation": {
+                "heterolytic_to": "water[1].o"
+              },
+              "before": {
+                "left": [
+                  -1,
+                  6,
+                  0
+                ],
+                "right": [
+                  0,
+                  0,
+                  0
+                ]
+              },
+              "after": {
+                "left": [
+                  -2,
+                  8,
+                  0
+                ],
+                "right": [
+                  1,
+                  0,
+                  0
+                ]
+              }
+            },
+            {
+              "kind": "transfer_electron",
+              "premise_ids": [
+                "premise.rule.magnesium-steam.standard-outcome",
+                "premise.structure.alkaline-earth-metal",
+                "premise.structure.water",
+                "premise.valence.alkaline-earth-h-o.initial-domain"
+              ],
+              "count": 1,
+              "donor": "metal[1].metal",
+              "acceptor": "water[1].h1",
+              "before": {
+                "donor": [
+                  0,
+                  2,
+                  2
+                ],
+                "acceptor": [
+                  1,
+                  0,
+                  0
+                ]
+              },
+              "after": {
+                "donor": [
+                  1,
+                  1,
+                  1
+                ],
+                "acceptor": [
+                  0,
+                  1,
+                  1
+                ]
+              }
+            },
+            {
+              "kind": "transfer_electron",
+              "premise_ids": [
+                "premise.rule.magnesium-steam.standard-outcome",
+                "premise.structure.alkaline-earth-metal",
+                "premise.structure.water",
+                "premise.valence.alkaline-earth-h-o.initial-domain"
+              ],
+              "count": 1,
+              "donor": "metal[1].metal",
+              "acceptor": "water[1].h2",
+              "before": {
+                "donor": [
+                  1,
+                  1,
+                  1
+                ],
+                "acceptor": [
+                  1,
+                  0,
+                  0
+                ]
+              },
+              "after": {
+                "donor": [
+                  2,
+                  0,
+                  0
+                ],
+                "acceptor": [
+                  0,
+                  1,
+                  1
+                ]
+              }
+            },
+            {
+              "kind": "form_covalent",
+              "premise_ids": [
+                "premise.rule.magnesium-steam.standard-outcome",
+                "premise.structure.alkaline-earth-metal",
+                "premise.structure.water",
+                "premise.valence.alkaline-earth-h-o.initial-domain"
+              ],
+              "edge": [
+                "water[1].h1",
+                "water[1].h2",
+                "single"
+              ],
+              "electron_contribution": {
+                "left": 1,
+                "right": 1
+              },
+              "before": {
+                "left": [
+                  0,
+                  1,
+                  1
+                ],
+                "right": [
+                  0,
+                  1,
+                  1
+                ]
+              },
+              "after": {
+                "left": [
+                  0,
+                  0,
+                  0
+                ],
+                "right": [
+                  0,
+                  0,
+                  0
+                ]
+              }
+            },
+            {
+              "kind": "associate_ionic",
+              "premise_ids": [
+                "premise.rule.magnesium-steam.standard-outcome",
+                "premise.structure.alkaline-earth-metal",
+                "premise.structure.water",
+                "premise.valence.alkaline-earth-h-o.initial-domain",
+                "premise.structure.magnesium-oxide"
+              ],
+              "label": "ionic.product1",
+              "components": [
+                [
+                  "metal[1].metal"
+                ],
+                [
+                  "water[1].o"
+                ]
+              ],
+              "component_charges": [
+                2,
+                -2
+              ]
+            },
+            {
+              "kind": "assign_product",
+              "premise_ids": [
+                "premise.rule.magnesium-steam.standard-outcome",
+                "premise.structure.magnesium-oxide"
+              ],
+              "atoms": [
+                "metal[1].metal",
+                "water[1].o"
+              ],
+              "product": "oxide[1]"
+            },
+            {
+              "kind": "assign_product",
+              "premise_ids": [
+                "premise.rule.magnesium-steam.standard-outcome",
+                "premise.structure.hydrogen"
+              ],
+              "atoms": [
+                "water[1].h1",
+                "water[1].h2"
+              ],
+              "product": "gasProduct[1]"
+            }
+          ],
+          "observation_compatibility": [
+            {
+              "subject_role": "gasProduct",
+              "predicate": "forms",
+              "evidence_subject": "hydrogen",
+              "premise_id": "premise.observation.magnesium-steam-products-form"
+            }
+          ],
+          "premise_ids": [
+            "premise.rule.magnesium-steam.standard-outcome"
+          ]
+        }
+      ],
+      "applicability": {
+        "premise_id": "premise.rule.magnesium-steam.standard-outcome",
+        "request_relation": "contact",
+        "required_context": "steam contact with heated magnesium"
+      },
+      "model_assumptions": {
+        "event": "representative",
+        "sequence": "explanatory",
+        "premise_ids": [
+          "premise.rule.magnesium-steam.standard-outcome"
+        ]
+      },
+      "premise_ids": [
+        "premise.elements.iupac-periodic-table",
+        "premise.rule.magnesium-steam.standard-outcome",
+        "premise.structure.alkaline-earth-metal",
+        "premise.structure.magnesium-oxide",
+        "premise.structure.hydrogen",
+        "premise.structure.water",
+        "premise.valence.alkaline-earth-h-o.initial-domain",
+        "premise.observation.magnesium-steam-products-form"
+      ]
+    }
+  ],
+  "macroscopic_materials": [
+    {
+      "structure": "CalciumWaterMetal",
+      "context": {
+        "kind": "reaction_role",
+        "rule": "Rules.AlkalineEarthMetalWithWater",
+        "role": "metal"
+      },
+      "phase": {
+        "kind": "solid"
+      },
+      "premise_ids": [
+        "premise.material.alkaline-earth-water.presentation"
+      ]
+    },
+    {
+      "structure": "StrontiumWaterMetal",
+      "context": {
+        "kind": "reaction_role",
+        "rule": "Rules.AlkalineEarthMetalWithWater",
+        "role": "metal"
+      },
+      "phase": {
+        "kind": "solid"
+      },
+      "premise_ids": [
+        "premise.material.alkaline-earth-water.presentation"
+      ]
+    },
+    {
+      "structure": "BariumWaterMetal",
+      "context": {
+        "kind": "reaction_role",
+        "rule": "Rules.AlkalineEarthMetalWithWater",
+        "role": "metal"
+      },
+      "phase": {
+        "kind": "solid"
+      },
+      "premise_ids": [
+        "premise.material.alkaline-earth-water.presentation"
+      ]
+    },
+    {
+      "structure": "Water",
+      "context": {
+        "kind": "reaction_role",
+        "rule": "Rules.AlkalineEarthMetalWithWater",
+        "role": "water"
+      },
+      "phase": {
+        "kind": "liquid"
+      },
+      "premise_ids": [
+        "premise.material.alkaline-earth-water.presentation"
+      ]
+    },
+    {
+      "structure": "CalciumWaterHydroxide",
+      "context": {
+        "kind": "reaction_role",
+        "rule": "Rules.AlkalineEarthMetalWithWater",
+        "role": "hydroxide"
+      },
+      "phase": {
+        "kind": "aqueous"
+      },
+      "premise_ids": [
+        "premise.material.alkaline-earth-water.presentation"
+      ]
+    },
+    {
+      "structure": "StrontiumWaterHydroxide",
+      "context": {
+        "kind": "reaction_role",
+        "rule": "Rules.AlkalineEarthMetalWithWater",
+        "role": "hydroxide"
+      },
+      "phase": {
+        "kind": "aqueous"
+      },
+      "premise_ids": [
+        "premise.material.alkaline-earth-water.presentation"
+      ]
+    },
+    {
+      "structure": "BariumWaterHydroxide",
+      "context": {
+        "kind": "reaction_role",
+        "rule": "Rules.AlkalineEarthMetalWithWater",
+        "role": "hydroxide"
+      },
+      "phase": {
+        "kind": "aqueous"
+      },
+      "premise_ids": [
+        "premise.material.alkaline-earth-water.presentation"
+      ]
+    },
+    {
+      "structure": "Hydrogen",
+      "context": {
+        "kind": "reaction_role",
+        "rule": "Rules.AlkalineEarthMetalWithWater",
+        "role": "gasProduct"
+      },
+      "phase": {
+        "kind": "gas"
+      },
+      "premise_ids": [
+        "premise.material.alkaline-earth-water.presentation"
+      ]
+    },
+    {
+      "structure": "MagnesiumSteamMetal",
+      "context": {
+        "kind": "reaction_role",
+        "rule": "Rules.MagnesiumWithSteam",
+        "role": "metal"
+      },
+      "phase": {
+        "kind": "solid"
+      },
+      "premise_ids": [
+        "premise.material.alkaline-earth-water.presentation"
+      ]
+    },
+    {
+      "structure": "Water",
+      "context": {
+        "kind": "reaction_role",
+        "rule": "Rules.MagnesiumWithSteam",
+        "role": "water"
+      },
+      "phase": {
+        "kind": "gas"
+      },
+      "premise_ids": [
+        "premise.material.alkaline-earth-water.presentation"
+      ]
+    },
+    {
+      "structure": "MagnesiumSteamOxide",
+      "context": {
+        "kind": "reaction_role",
+        "rule": "Rules.MagnesiumWithSteam",
+        "role": "oxide"
+      },
+      "phase": {
+        "kind": "solid"
+      },
+      "premise_ids": [
+        "premise.material.alkaline-earth-water.presentation"
+      ]
+    },
+    {
+      "structure": "Hydrogen",
+      "context": {
+        "kind": "reaction_role",
+        "rule": "Rules.MagnesiumWithSteam",
+        "role": "gasProduct"
+      },
+      "phase": {
+        "kind": "gas"
+      },
+      "premise_ids": [
+        "premise.material.alkaline-earth-water.presentation"
+      ]
+    }
+  ]
+}

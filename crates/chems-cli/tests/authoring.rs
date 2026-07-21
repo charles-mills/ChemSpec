@@ -330,6 +330,94 @@ fn physical_candidate_has_all_elements_and_generates_non_promoting_artifacts() {
 }
 
 #[test]
+fn alkaline_earth_water_candidate_executes_the_divalent_calcium_example() {
+    let temporary = temp_root("alkaline-earth-water");
+    fs::create_dir(&temporary).unwrap();
+    let output = temporary.join("output");
+    let base = root().join("catalogue/candidates/periodic-table-and-alkali-water");
+    let group2 = root().join("catalogue/candidates/alkaline-earth-water");
+    let result = run(&[
+        "catalogue",
+        "check",
+        "--out",
+        output.to_str().unwrap(),
+        base.to_str().unwrap(),
+        group2.to_str().unwrap(),
+    ]);
+    assert!(
+        result.status.success(),
+        "{}",
+        String::from_utf8_lossy(&result.stderr)
+    );
+
+    let candidate: Value = serde_json::from_slice(
+        &fs::read(group2.join("candidate.json")).expect("Group 2 candidate is readable"),
+    )
+    .expect("Group 2 candidate is JSON");
+    assert_eq!(
+        candidate["element_categories"][0]["membership"]["members"],
+        json!(["Ba", "Ca", "Sr"])
+    );
+    let rule = &candidate["generalized_rules"][0];
+    assert_eq!(rule["id"], "Rules.AlkalineEarthMetalWithWater");
+    assert_eq!(rule["roles"]["metal"]["coefficient"], 1);
+    assert_eq!(rule["roles"]["water"]["coefficient"], 2);
+    assert_eq!(rule["roles"]["hydroxide"]["coefficient"], 1);
+    let transfers = rule["cases"][0]["rewrite"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .filter(|operation| operation["kind"] == "transfer_electron")
+        .collect::<Vec<_>>();
+    assert_eq!(transfers.len(), 2);
+    assert!(
+        transfers
+            .iter()
+            .all(|operation| operation["donor"] == "metal[1].metal")
+    );
+    let steam_rule = &candidate["generalized_rules"][1];
+    assert_eq!(steam_rule["id"], "Rules.MagnesiumWithSteam");
+    assert_eq!(steam_rule["roles"]["water"]["coefficient"], 1);
+    assert_eq!(steam_rule["roles"]["oxide"]["coefficient"], 1);
+    assert_eq!(
+        candidate["macroscopic_materials"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .find(|material| material["structure"] == "MagnesiumSteamOxide")
+            .unwrap()["phase"]["kind"],
+        "solid"
+    );
+
+    let frames: Value = serde_json::from_slice(
+        &fs::read(output.join("inspections/alkaline-earth-water/frames.json"))
+            .expect("candidate frames are emitted"),
+    )
+    .expect("candidate frames are JSON");
+    assert_eq!(frames["status"], "candidate-inspection-only");
+    assert_eq!(frames["promotable"], false);
+    assert_eq!(frames["value"]["frames"].as_array().unwrap().len(), 10);
+    let final_frame = frames["value"]["frames"]
+        .as_array()
+        .unwrap()
+        .last()
+        .unwrap();
+    assert!(
+        final_frame["product_membership"]
+            .as_object()
+            .unwrap()
+            .contains_key("calciumHydroxide[1]")
+    );
+    assert!(
+        final_frame["product_membership"]
+            .as_object()
+            .unwrap()
+            .contains_key("hydrogen[1]")
+    );
+    fs::remove_dir_all(temporary).unwrap();
+}
+
+#[test]
 fn promote_requires_and_packages_an_exact_external_review() {
     let temporary = temp_root("promotion");
     fs::create_dir(&temporary).unwrap();

@@ -4009,7 +4009,15 @@ fn draw_explanation_label(
         ),
         accent.scale_alpha(alpha),
     );
-    draw_explanation_text(frame, rect, &text_layout, accent, alpha, scale);
+    draw_explanation_text(
+        frame,
+        rect,
+        &text_layout,
+        &label.emphasis,
+        accent,
+        alpha,
+        scale,
+    );
     if label.connector
         && let Some(target) = target
         // A card seated beside its subject needs no leader line.
@@ -4042,6 +4050,7 @@ fn draw_explanation_text(
     frame: &mut canvas::Frame,
     rect: Rectangle,
     layout: &ExplanationTextLayout,
+    emphasis: &[String],
     accent: Color,
     alpha: f32,
     scale: f32,
@@ -4088,20 +4097,72 @@ fn draw_explanation_text(
             TEXT_SOFT
         };
         for (index, line) in layout.body_lines.iter().enumerate() {
-            frame.fill_text(canvas::Text {
-                content: line.clone(),
-                position: Point::new(
-                    rect.x + layout.content_inset,
-                    rect.y + layout.body_top + index as f32 * layout.body_step,
-                ),
-                max_width: layout.content_width,
-                color: body_color.scale_alpha(alpha),
-                size: iced::Pixels(layout.body_size),
-                font: fonts::REGULAR,
-                ..canvas::Text::default()
-            });
+            let position = Point::new(
+                rect.x + layout.content_inset,
+                rect.y + layout.body_top + index as f32 * layout.body_step,
+            );
+            draw_emphasized_line(
+                frame,
+                line,
+                emphasis,
+                position,
+                layout.content_width,
+                layout.body_size,
+                body_color.scale_alpha(alpha),
+            );
         }
     });
+}
+
+fn draw_emphasized_line(
+    frame: &mut canvas::Frame,
+    line: &str,
+    emphasis: &[String],
+    position: Point,
+    max_width: f32,
+    font_size: f32,
+    color: Color,
+) {
+    let Some((before, emphasized, after)) = emphasis_parts(line, emphasis) else {
+        frame.fill_text(canvas::Text {
+            content: line.to_owned(),
+            position,
+            max_width,
+            color,
+            size: iced::Pixels(font_size),
+            font: fonts::REGULAR,
+            ..canvas::Text::default()
+        });
+        return;
+    };
+    let mut x = position.x;
+    for (text, font, width_scale) in [
+        (before, fonts::REGULAR, 1.0),
+        (emphasized, fonts::BOLD, 1.06),
+        (after, fonts::REGULAR, 1.0),
+    ] {
+        if text.is_empty() {
+            continue;
+        }
+        frame.fill_text(canvas::Text {
+            content: text.to_owned(),
+            position: Point::new(x, position.y),
+            max_width: (position.x + max_width - x).max(1.0),
+            color,
+            size: iced::Pixels(font_size),
+            font,
+            ..canvas::Text::default()
+        });
+        x += estimated_text_width(text, font_size) * width_scale;
+    }
+}
+
+fn emphasis_parts<'a>(line: &'a str, emphasis: &[String]) -> Option<(&'a str, &'a str, &'a str)> {
+    emphasis.iter().find_map(|phrase| {
+        let start = line.find(phrase)?;
+        let end = start + phrase.len();
+        Some((&line[..start], &line[start..end], &line[end..]))
+    })
 }
 
 fn explanation_position(
@@ -4225,23 +4286,25 @@ const fn explanation_title(kind: ExplanationLabelKind) -> &'static str {
 
 fn wrap_words(text: &str, max_width: f32, font_size: f32) -> Vec<String> {
     let mut lines = Vec::new();
-    let mut line = String::new();
-    for word in text.split_whitespace() {
-        let candidate = if line.is_empty() {
-            word.to_owned()
-        } else {
-            format!("{line} {word}")
-        };
-        if !line.is_empty() && estimated_text_width(&candidate, font_size) > max_width {
-            lines.push(std::mem::take(&mut line));
+    for paragraph in text.lines() {
+        let mut line = String::new();
+        for word in paragraph.split_whitespace() {
+            let candidate = if line.is_empty() {
+                word.to_owned()
+            } else {
+                format!("{line} {word}")
+            };
+            if !line.is_empty() && estimated_text_width(&candidate, font_size) > max_width {
+                lines.push(std::mem::take(&mut line));
+            }
+            if !line.is_empty() {
+                line.push(' ');
+            }
+            line.push_str(word);
         }
         if !line.is_empty() {
-            line.push(' ');
+            lines.push(line);
         }
-        line.push_str(word);
-    }
-    if !line.is_empty() {
-        lines.push(line);
     }
     lines
 }
@@ -5523,6 +5586,25 @@ mod tests {
         let lines = wrap_words(source, 120.0, 13.5);
         assert_eq!(lines.join(" "), source);
         assert!(lines.len() > 1);
+    }
+
+    #[test]
+    fn explanation_wrapping_keeps_explicit_sentence_breaks() {
+        let source = "Breaking the bond requires energy.\nThis is homolytic fission, meaning the bonding electrons divide equally between the two atoms.";
+        let lines = wrap_words(source, 400.0, 13.5);
+        assert_eq!(lines[0], "Breaking the bond requires energy.");
+        assert!(lines[1].starts_with("This is homolytic fission,"));
+        assert_eq!(lines.join(" "), source.replace('\n', " "));
+    }
+
+    #[test]
+    fn explanation_emphasis_selects_only_the_requested_phrase() {
+        let line = "A requested phrase can still be emphasized.";
+        let emphasis = vec!["requested phrase".to_owned()];
+        assert_eq!(
+            emphasis_parts(line, &emphasis),
+            Some(("A ", "requested phrase", " can still be emphasized."))
+        );
     }
 
     #[test]

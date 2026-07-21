@@ -30,12 +30,14 @@ const CATALOGUE: &[u8] =
     include_bytes!("../../../catalogue/reference/core-chemistry/catalogue.json");
 const CATALOGUE_REVIEW: &[u8] =
     include_bytes!("../../../catalogue/reviews/core-chemistry.review.json");
-const CATALOGUE_DIGEST: &str = "cb51dacb986d35773a487879352a98ca478f9ba55f2755be0401c8d1b5e2d607";
+const CATALOGUE_DIGEST: &str = "14461f254e36d34723815920d393d9df772042a261f9ba90b4e58d5609ac9b1b";
 const CATALOGUE_REVIEW_DIGEST: &str =
-    "3dfac8a80f8567bda87d5d082ad39a7aabc6c6e8e4ced51da86dcaf02d2cab83";
+    "d3ef30867b429befe37bc1e8aa759525b7bbcfa2debbcf9988ec9f05871380c0";
 
 const ALKALI_WATER_EVIDENCE: &[u8] =
     include_bytes!("../../../catalogue/candidates/periodic-table-and-alkali-water/evidence.json");
+const ALKALINE_EARTH_WATER_EVIDENCE: &[u8] =
+    include_bytes!("../../../catalogue/candidates/alkaline-earth-water/evidence.json");
 const PRECIPITATION_EVIDENCE: &[u8] =
     include_bytes!("../../../catalogue/candidates/precipitation-silver-halide/evidence.json");
 const NEUTRALIZATION_EVIDENCE: &[u8] =
@@ -153,6 +155,56 @@ impl HeavyAlkaliMetal {
             Self::Caesium => 55,
             Self::Francium => 87,
         }
+    }
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum AlkalineEarthMetal {
+    Magnesium,
+    Calcium,
+    Strontium,
+    Barium,
+}
+
+impl AlkalineEarthMetal {
+    const fn name(self) -> &'static str {
+        match self {
+            Self::Magnesium => "Magnesium",
+            Self::Calcium => "Calcium",
+            Self::Strontium => "Strontium",
+            Self::Barium => "Barium",
+        }
+    }
+
+    const fn lower_name(self) -> &'static str {
+        match self {
+            Self::Magnesium => "magnesium",
+            Self::Calcium => "calcium",
+            Self::Strontium => "strontium",
+            Self::Barium => "barium",
+        }
+    }
+
+    const fn symbol(self) -> &'static str {
+        match self {
+            Self::Magnesium => "Mg",
+            Self::Calcium => "Ca",
+            Self::Strontium => "Sr",
+            Self::Barium => "Ba",
+        }
+    }
+
+    const fn atomic_number(self) -> u8 {
+        match self {
+            Self::Magnesium => 12,
+            Self::Calcium => 20,
+            Self::Strontium => 38,
+            Self::Barium => 56,
+        }
+    }
+
+    const fn reacts_with_steam(self) -> bool {
+        matches!(self, Self::Magnesium)
     }
 }
 
@@ -460,6 +512,7 @@ impl UnsupportedRequest {
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
 pub enum ReactionFamily {
     AlkaliWater,
+    AlkalineEarthWater,
     SilverHalidePrecipitation,
     AcidBaseNeutralization,
     AcidBicarbonateGasEvolution,
@@ -500,6 +553,9 @@ enum ReactionKind {
     HeavyAlkaliWater {
         metal: HeavyAlkaliMetal,
     },
+    AlkalineEarthWater {
+        metal: AlkalineEarthMetal,
+    },
     SilverHalidePrecipitation {
         halogen: Halogen,
     },
@@ -533,13 +589,17 @@ pub struct ReactionRequest {
 
 impl ReactionRequest {
     pub const DEFAULT: Self = Self::alkali_water(AlkaliMetal::Lithium);
-    pub const ALL: [Self; 39] = [
+    pub const ALL: [Self; 43] = [
         Self::alkali_water(AlkaliMetal::Lithium),
         Self::alkali_water(AlkaliMetal::Sodium),
         Self::alkali_water(AlkaliMetal::Potassium),
         Self::heavy_alkali_water(HeavyAlkaliMetal::Rubidium),
         Self::heavy_alkali_water(HeavyAlkaliMetal::Caesium),
         Self::heavy_alkali_water(HeavyAlkaliMetal::Francium),
+        Self::alkaline_earth_water(AlkalineEarthMetal::Magnesium),
+        Self::alkaline_earth_water(AlkalineEarthMetal::Calcium),
+        Self::alkaline_earth_water(AlkalineEarthMetal::Strontium),
+        Self::alkaline_earth_water(AlkalineEarthMetal::Barium),
         Self::silver_halide_precipitation(Halogen::Chlorine),
         Self::silver_halide_precipitation(Halogen::Bromine),
         Self::silver_halide_precipitation(Halogen::Iodine),
@@ -586,6 +646,13 @@ impl ReactionRequest {
     pub const fn heavy_alkali_water(metal: HeavyAlkaliMetal) -> Self {
         Self {
             kind: ReactionKind::HeavyAlkaliWater { metal },
+        }
+    }
+
+    #[must_use]
+    pub const fn alkaline_earth_water(metal: AlkalineEarthMetal) -> Self {
+        Self {
+            kind: ReactionKind::AlkalineEarthWater { metal },
         }
     }
 
@@ -645,6 +712,7 @@ impl ReactionRequest {
             ReactionKind::AlkaliWater { .. } | ReactionKind::HeavyAlkaliWater { .. } => {
                 ReactionFamily::AlkaliWater
             }
+            ReactionKind::AlkalineEarthWater { .. } => ReactionFamily::AlkalineEarthWater,
             ReactionKind::SilverHalidePrecipitation { .. } => {
                 ReactionFamily::SilverHalidePrecipitation
             }
@@ -668,6 +736,9 @@ impl ReactionRequest {
             }
             ReactionKind::HeavyAlkaliWater { metal } => {
                 format!("alkali-water-{}", metal.lower_name())
+            }
+            ReactionKind::AlkalineEarthWater { metal } => {
+                format!("alkaline-earth-water-{}", metal.lower_name())
             }
             ReactionKind::SilverHalidePrecipitation { halogen } => format!(
                 "silver-halide-precipitation-{}",
@@ -721,6 +792,12 @@ impl ReactionRequest {
             }
             ReactionKind::HeavyAlkaliWater { metal } => {
                 format!("2{} + 2H₂O  →  2{}OH + H₂", metal.symbol(), metal.symbol())
+            }
+            ReactionKind::AlkalineEarthWater { metal } if metal.reacts_with_steam() => {
+                "Mg + H₂O(g)  →  MgO + H₂".to_owned()
+            }
+            ReactionKind::AlkalineEarthWater { metal } => {
+                format!("{} + 2H₂O  →  {}(OH)₂ + H₂", metal.symbol(), metal.symbol())
             }
             ReactionKind::SilverHalidePrecipitation { halogen } => format!(
                 "AgNO₃ + Na{}  →  Ag{} + NaNO₃",
@@ -784,6 +861,7 @@ impl ReactionRequest {
     fn evidence(self) -> &'static [u8] {
         match self.family() {
             ReactionFamily::AlkaliWater => ALKALI_WATER_EVIDENCE,
+            ReactionFamily::AlkalineEarthWater => ALKALINE_EARTH_WATER_EVIDENCE,
             ReactionFamily::SilverHalidePrecipitation => PRECIPITATION_EVIDENCE,
             ReactionFamily::AcidBaseNeutralization => NEUTRALIZATION_EVIDENCE,
             ReactionFamily::AcidBicarbonateGasEvolution
@@ -806,6 +884,10 @@ impl ReactionRequest {
                 DraftParticipant::Composition(CompositionId::Water),
             ]),
             ReactionKind::HeavyAlkaliWater { metal } => Some([
+                DraftParticipant::Atom(metal.atomic_number()),
+                DraftParticipant::Composition(CompositionId::Water),
+            ]),
+            ReactionKind::AlkalineEarthWater { metal } => Some([
                 DraftParticipant::Atom(metal.atomic_number()),
                 DraftParticipant::Composition(CompositionId::Water),
             ]),
@@ -845,6 +927,7 @@ impl ReactionRequest {
             ReactionKind::HeavyAlkaliWater { metal } => {
                 alkali_water_source(metal.name(), metal.symbol())
             }
+            ReactionKind::AlkalineEarthWater { metal } => alkaline_earth_water_source(metal),
             ReactionKind::SilverHalidePrecipitation { halogen } => precipitation_source(halogen),
             ReactionKind::AcidBaseNeutralization { metal, halogen } => {
                 neutralization_source(metal, halogen)
@@ -942,6 +1025,18 @@ pub fn roll_candidates() -> Vec<(ReactionFamily, Vec<[Vec<u8>; 2]>)> {
 fn alkali_water_source(name: &str, symbol: &str) -> String {
     format!(
         "chems 1\nuse catalog ChemSpec.Theoretical@1\nreaction {name}AndWater where\n  reactants\n    metal := 2 of {name}Metal\n    water := 2 of Water\n  products\n    hydroxide := 2 of {name}Hydroxide\n    hydrogen := 1 of Hydrogen\n  equation\n    2 {symbol}[metallic] + 2 H2O[molecular]\n    -> 2 {symbol}OH[ionic] + H2[molecular]\n  model\n    event := representative\n    sequence := explanatory\n  observe from Evidence.AlkaliWater@1\n    gas hydrogen evolves claim R1\n    reactant metal disappears claim R2\n  by\n    apply Rules.AlkaliMetalWithWater\n      metal := metal\n      water := water\n      hydroxide := hydroxide\n      gasProduct := hydrogen\n",
+    )
+}
+
+fn alkaline_earth_water_source(metal: AlkalineEarthMetal) -> String {
+    if metal.reacts_with_steam() {
+        return "chems 1\nuse catalog ChemSpec.Theoretical@1\nreaction MagnesiumAndSteam where\n  reactants\n    metal := 1 of MagnesiumSteamMetal\n    water := 1 of Water\n  products\n    oxide := 1 of MagnesiumSteamOxide\n    hydrogen := 1 of Hydrogen\n  equation\n    Mg[metallic] + H2O[molecular]\n    -> MgO[ionic] + H2[molecular]\n  model\n    event := representative\n    sequence := explanatory\n  observe from Evidence.AlkalineEarthWater@1\n    product hydrogen forms claim R3\n  by\n    apply Rules.MagnesiumWithSteam\n      metal := metal\n      water := water\n      oxide := oxide\n      gasProduct := hydrogen\n"
+            .to_owned();
+    }
+    let name = metal.name();
+    let symbol = metal.symbol();
+    format!(
+        "chems 1\nuse catalog ChemSpec.Theoretical@1\nreaction {name}AndWater where\n  reactants\n    metal := 1 of {name}WaterMetal\n    water := 2 of Water\n  products\n    hydroxide := 1 of {name}WaterHydroxide\n    hydrogen := 1 of Hydrogen\n  equation\n    {symbol}[metallic] + 2 H2O[molecular]\n    -> {symbol}(OH)2[ionic] + H2[molecular]\n  model\n    event := representative\n    sequence := explanatory\n  observe from Evidence.AlkalineEarthWater@1\n    gas hydrogen evolves claim R1\n    reactant metal disappears claim R2\n  by\n    apply Rules.AlkalineEarthMetalWithWater\n      metal := metal\n      water := water\n      hydroxide := hydroxide\n      gasProduct := hydrogen\n",
     )
 }
 
@@ -1406,10 +1501,43 @@ fn classify_catalogue_macroscopic_process(
             chem_domain::Phase::Solid,
         )
     });
-    if expanded.claim().products().len() != 1 {
+    let product_binding = if expanded.claim().products().len() == 1 {
+        expanded.claim().products().keys().next()?
+    } else if expanded.claim().products().len() == 2 {
+        let gas_products = expanded
+            .claim()
+            .products()
+            .keys()
+            .filter(|binding| {
+                material_has_phase(
+                    binding,
+                    MacroscopicMaterialRole::Product,
+                    chem_domain::Phase::Gas,
+                )
+            })
+            .collect::<Vec<_>>();
+        let solid_products = expanded
+            .claim()
+            .products()
+            .keys()
+            .filter(|binding| {
+                material_has_phase(
+                    binding,
+                    MacroscopicMaterialRole::Product,
+                    chem_domain::Phase::Solid,
+                )
+            })
+            .count();
+        let [gas_product] = gas_products.as_slice() else {
+            return None;
+        };
+        if solid_products != 1 {
+            return None;
+        }
+        *gas_product
+    } else {
         return None;
-    }
-    let (product_binding, _) = expanded.claim().products().iter().next()?;
+    };
     let reactant_phase = |binding: &str| {
         materials
             .iter()
@@ -2097,6 +2225,74 @@ pub fn presentation_profile(
                 effects,
             )
         }
+        ReactionKind::AlkalineEarthWater { metal } if !metal.reacts_with_steam() => {
+            let (gas_ordinal, _) = active_observation(frames, ObservationPredicate::Evolves)?;
+            let (disappears_ordinal, _) =
+                active_observation(frames, ObservationPredicate::Disappears)?;
+            (
+                vec![
+                    vessel(AssetProfile::ReactiveMetalWaterAssembly),
+                    contents("water", "water", AppearanceProfile::Water),
+                    PresentationObject {
+                        id: metal.lower_name().to_owned(),
+                        asset: AssetProfile::MetalChunk,
+                        semantic_identity: format!("{} metal", metal.lower_name()),
+                        appearance: AppearanceProfile::AlkaliMetal,
+                        role: SceneRole::Reactant,
+                        transform: transform([0, 610, 0], [650, 650, 650]),
+                        visible_from_ordinal: 0,
+                        observation: None,
+                        colour_transition: None,
+                    },
+                    PresentationObject {
+                        id: "hydrogen".to_owned(),
+                        asset: AssetProfile::GasCloud,
+                        semantic_identity: "hydrogen gas".to_owned(),
+                        appearance: AppearanceProfile::AqueousColourless,
+                        role: SceneRole::Product,
+                        transform: transform([180, 930, 0], [600, 600, 600]),
+                        visible_from_ordinal: gas_ordinal,
+                        observation: Some(ObjectObservationBinding {
+                            predicate: ObservationPredicate::Evolves,
+                            value: None,
+                        }),
+                        colour_transition: None,
+                    },
+                ],
+                vec![
+                    effect(
+                        EffectProfile::BubbleEmitter,
+                        ObservationPredicate::Evolves,
+                        gas_ordinal,
+                        EffectIntensity::Moderate,
+                    ),
+                    effect(
+                        EffectProfile::GasRelease,
+                        ObservationPredicate::Evolves,
+                        gas_ordinal,
+                        EffectIntensity::Moderate,
+                    ),
+                    effect(
+                        EffectProfile::SurfaceDisturbance,
+                        ObservationPredicate::Disappears,
+                        disappears_ordinal,
+                        EffectIntensity::Moderate,
+                    ),
+                    effect(
+                        EffectProfile::ObjectShrinkage,
+                        ObservationPredicate::Disappears,
+                        disappears_ordinal,
+                        EffectIntensity::Moderate,
+                    ),
+                ],
+            )
+        }
+        ReactionKind::AlkalineEarthWater { .. } => {
+            return Err(
+                "magnesium steam presentation requires current reviewed macroscopic material facts"
+                    .to_owned(),
+            );
+        }
         ReactionKind::SilverHalidePrecipitation { halogen } => {
             let (forms_ordinal, _) = active_observation(frames, ObservationPredicate::Forms)?;
             let (colour_ordinal, colour) =
@@ -2319,7 +2515,13 @@ pub fn presentation_profile_with_catalogue(
     frames: &SimulationFrames,
     macroscopic: Option<&MacroscopicReaction>,
 ) -> Result<PresentationProfile, String> {
-    let profile = if let Some(reaction) = macroscopic {
+    let uses_reviewed_water_assembly = matches!(
+        request.kind,
+        ReactionKind::AlkalineEarthWater { metal } if !metal.reacts_with_steam()
+    );
+    let profile = if uses_reviewed_water_assembly {
+        presentation_profile(request, frames)?
+    } else if let Some(reaction) = macroscopic {
         compile_phase_driven_profile(frames, reaction).map_err(|error| error.to_string())?
     } else {
         presentation_profile(request, frames)?
@@ -3140,8 +3342,9 @@ mod tests {
                 chem_kernel::ValidationResult::ValidatedWithAssumptions
             );
         }
-        assert_eq!(ids.len(), 208);
+        assert_eq!(ids.len(), 212);
         assert_eq!(families[&ReactionFamily::AlkaliWater], 6);
+        assert_eq!(families[&ReactionFamily::AlkalineEarthWater], 4);
         assert_eq!(families[&ReactionFamily::SilverHalidePrecipitation], 3);
         assert_eq!(families[&ReactionFamily::AcidBaseNeutralization], 9);
         assert_eq!(families[&ReactionFamily::AcidBicarbonateGasEvolution], 9);
@@ -3584,7 +3787,43 @@ mod tests {
                 assert_eq!(binding.value, value);
             }
         }
-        assert_eq!(profile_ids.len(), 208);
+        assert_eq!(profile_ids.len(), 212);
+    }
+
+    #[test]
+    fn reviewed_alkaline_earth_water_requests_select_the_requested_assemblies() {
+        for metal in [
+            AlkalineEarthMetal::Calcium,
+            AlkalineEarthMetal::Strontium,
+            AlkalineEarthMetal::Barium,
+        ] {
+            let request = ReactionRequest::alkaline_earth_water(metal);
+            let run = run(request).expect("reviewed liquid-water reaction validates");
+            let profile =
+                presentation_profile_with_catalogue(request, run.frames(), run.macroscopic())
+                    .expect("reviewed water-contact profile");
+            assert!(profile.objects.iter().any(|object| {
+                object.role == SceneRole::Vessel
+                    && object.asset == AssetProfile::ReactiveMetalWaterAssembly
+            }));
+            assert!(profile.effects.iter().any(|effect| {
+                effect.effect == EffectProfile::BubbleEmitter
+                    && effect.trigger == ObservationPredicate::Evolves
+            }));
+        }
+
+        let request = ReactionRequest::alkaline_earth_water(AlkalineEarthMetal::Magnesium);
+        let run = run(request).expect("reviewed magnesium-steam reaction validates");
+        assert_eq!(
+            run.macroscopic().and_then(|reaction| reaction.process),
+            Some(MacroscopicProcess::SolidGasSynthesis)
+        );
+        let profile = presentation_profile_with_catalogue(request, run.frames(), run.macroscopic())
+            .expect("reviewed solid-gas profile");
+        assert!(profile.objects.iter().any(|object| {
+            object.role == SceneRole::Vessel
+                && object.asset == AssetProfile::SolidGasSynthesisAssembly
+        }));
     }
 
     #[test]

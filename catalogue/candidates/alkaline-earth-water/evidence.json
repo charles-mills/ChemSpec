@@ -1,0 +1,25 @@
+{
+  "schema_version": 1,
+  "id": "Evidence.AlkalineEarthWater@1",
+  "claims": [
+    {"id": "R1", "subject_role": "gas", "subject": "hydrogen", "predicate": "evolves", "sources": ["S1"]},
+    {"id": "R2", "subject_role": "reactant", "subject": "alkaline earth metal", "predicate": "disappears", "sources": ["S1"]},
+    {"id": "R3", "subject_role": "product", "subject": "hydrogen", "predicate": "forms", "sources": ["S2"]}
+  ],
+  "sources": [
+    {
+      "id": "S1",
+      "title": "Chemistry 2e — 18.1 Periodicity",
+      "publisher": "OpenStax",
+      "url": "https://openstax.org/books/chemistry-2e/pages/18-1-periodicity",
+      "supports": ["R1", "R2"]
+    },
+    {
+      "id": "S2",
+      "title": "The reaction of magnesium with steam",
+      "publisher": "Royal Society of Chemistry",
+      "url": "https://edu.rsc.org/exhibition-chemistry/the-reaction-of-magnesium-with-steam/4012602.article",
+      "supports": ["R3"]
+    }
+  ]
+}
