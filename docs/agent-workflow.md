@@ -28,11 +28,15 @@ chemistry or catalogue content. The application labels its authority
 fallback on every failure.
 
 The final product record may also request a presentation-only reaction context
-note. Codex receives the validated display equation and answers only
-the temperature and pressure conditions in which the reaction usually occurs,
-mentions a catalyst only when one is commonly used, and explains the reaction's
-practical real-life application or relevance without forcing an industrial or
-environmental classification. The answer is limited to two or three short
+note. The chat presents this guide as **Prof. Codex**, with a warm,
+conversational professor voice that remains concise and age-appropriate. Each
+starter chip sends its own learner question on the first activation, appends it
+to the transcript immediately, and gives Codex that question alongside the
+validated display equation. Prof. Codex answers the selected focus directly;
+condition questions stay high-level about temperature, pressure, and any
+commonly used catalyst, while application questions explain practical uses or
+relevance without forcing an industrial or environmental classification. The
+answer is limited to two or three short
 paragraphs and is explicitly prohibited from supplying a step-by-step
 procedure, quantities, apparatus, optimization, procurement, purification,
 collection, or safety-control bypasses. This note is not chemistry authority
@@ -41,6 +45,20 @@ the first answer, the learner may ask follow-up questions through a bounded,
 typed transcript. Each follow-up retains the same educational safety limits,
 is independently generation-scoped, and remains presentation-only. Local mode
 never invokes either request.
+
+While the first answer is pending, the conversation body stays free of a large
+loading notice. The disabled input carries the active-only Prof. Codex thinking
+indicator, cycling from one to three dots; its timer subscription is absent as
+soon as the request stops or the learner leaves the screen.
+
+Unlike chemistry-bearing provider contracts, reaction chat is bounded plain
+text rather than JSON. It runs through an ephemeral, read-only Codex app-server
+thread and streams only final-answer text deltas; commentary, reasoning, tools,
+and other provider events are discarded. The completed agent-message item is
+authoritative and must still pass the local non-empty, 2,400-character, and
+paragraph-count checks before it enters the retained transcript. Cancelling,
+leaving the owning screen, or replacing the reaction interrupts the active
+generation, and late deltas are rejected by request ID.
 
 ## Progressive result path
 
@@ -84,10 +102,12 @@ Preflight locates `codex`/`codex.exe`, checks `codex --version`, reads
 `codex login status`, and capability-probes `codex exec --help`. ChemSpec never
 reads credential files.
 
-Each invocation is ephemeral, read-only, ignores repository/user rules and
-configuration, runs in an isolated temporary directory, and uses a strict
-output schema. Live search is disabled for the initial claim and enabled only
-for source-location calls. Mechanism proposals and repairs never browse.
+Each chemistry-bearing invocation is ephemeral, read-only, ignores
+repository/user rules and configuration, runs in an isolated temporary
+directory, and uses a strict output schema. Live search is disabled for the
+initial claim and enabled only for source-location calls. Mechanism proposals
+and repairs never browse. Presentation chat uses the separate app-server
+boundary above because it needs incremental final-answer events.
 
 The release path fixes:
 
@@ -103,10 +123,12 @@ The release path fixes:
 different release-default model slug is a deliberate decision backed by
 benchmark evidence, not an ambient configuration change.
 
-Codex JSONL is normalized to closed product events: started, working, searching
-sources, completed, and failed, each with elapsed time. Model text and hidden
-reasoning are discarded. Failure, timeout, and authentication states never
-become chemistry results.
+Chemistry-bearing `codex exec` JSONL is normalized to closed product events:
+started, working, searching sources, completed, and failed, each with elapsed
+time. Model text and hidden reasoning are discarded. The presentation-only
+Prof. Codex chat instead consumes app-server final-answer deltas as described
+above; it cannot produce chemistry capabilities. Failure, timeout, and
+authentication states never become chemistry results.
 
 ## Compact claim contract
 
