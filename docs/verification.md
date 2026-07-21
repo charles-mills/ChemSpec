@@ -588,6 +588,12 @@ through the current catalogue before presentation.
 ## Cross-platform verification
 
 CI should compile and test supported targets for macOS, Windows, and Linux.
+All automatically detected repository text is stored and checked out with LF
+line endings through `.gitattributes`, including on Windows. Snapshot and
+conformance fixtures may compare exact bytes and therefore must not depend on a
+developer's `core.autocrlf` or platform-default checkout behavior. Binary files
+remain auto-detected and are not line-ending normalized.
+
 Platform-specific smoke checks cover:
 
 - Codex binary discovery;

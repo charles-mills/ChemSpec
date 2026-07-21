@@ -1,3 +1,8 @@
-# ChemSpec source fixtures are byte-sensitive and canonically use LF newlines.
+# Keep every automatically detected text file canonical across Linux, macOS,
+# and Windows. Binary assets remain untouched by `text=auto`.
+* text=auto eol=lf
+
+# ChemSpec source and snapshot fixtures are byte-sensitive and explicitly text.
 *.chems text eol=lf
+*.snapshot text eol=lf
 conformance/expansion/*.txt text eol=lf
