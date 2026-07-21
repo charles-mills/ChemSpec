@@ -331,13 +331,18 @@ impl<Message> Program<Message> for Scene {
             .pressure_impulse
             .max(post_process.boiling * 0.5)
             .min(1.0);
-        // The detonation adds a much harder, faster kick on top — scaled by
-        // the blast envelope and the metal's intensity, gone with the blast.
-        let blast_kick = explosion::blast_camera_shake(&self.plan, self.moment).min(2.0);
+        // The detonation adds a sharp one-way recoil at contact followed by a
+        // shorter high-frequency rattle. Both are deterministic functions of
+        // the playhead, so scrubbing reproduces the same camera response.
+        let blast_response = explosion::blast_visual_response(&self.plan, self.moment);
+        let blast_kick = blast_response.shake.min(2.4);
+        let blast_recoil = blast_response.recoil.min(2.6);
         let shake_yaw = (time_seconds * 23.7).sin() * (time_seconds * 5.9).cos() * 0.0035 * shake
-            + (time_seconds * 61.3).sin() * (time_seconds * 13.7).cos() * 0.0075 * blast_kick;
+            + (time_seconds * 61.3).sin() * (time_seconds * 13.7).cos() * 0.0075 * blast_kick
+            + blast_recoil * 0.0065;
         let shake_pitch = (time_seconds * 19.1).sin() * 0.0028 * shake
-            + (time_seconds * 53.9).sin() * 0.0060 * blast_kick;
+            + (time_seconds * 53.9).sin() * 0.0060 * blast_kick
+            - blast_recoil * 0.0085;
         let yaw = camera.yaw + cue.yaw_offset + shake_yaw + orbit.0;
         let pitch = (camera.pitch + cue.pitch_offset + shake_pitch + orbit.1).clamp(-1.35, -0.12);
         let focus_target = layout
@@ -359,7 +364,8 @@ impl<Message> Program<Message> for Scene {
         let heat_strength = inputs
             .heat_output
             .max(inputs.flame_rate * 0.85)
-            .max(post_process.flame * 0.9);
+            .max(post_process.flame * 0.9)
+            .max(blast_response.heat);
         let heat_centre = layout.reaction_point + Vec3::Y * 0.6;
         ScenePrimitive {
             vertices,
@@ -376,11 +382,15 @@ impl<Message> Program<Message> for Scene {
             caustic_tint,
             heat: [heat_centre.x, heat_centre.y, heat_centre.z, heat_strength],
             focus_strength: cue.focus,
-            flame_exposure: inputs.flame_rate.max(post_process.flame),
+            flame_exposure: inputs
+                .flame_rate
+                .max(post_process.flame)
+                .max(blast_response.exposure),
             fog_strength: inputs
                 .gas_generation_rate
                 .max(inputs.vapour_generation_rate)
-                .max(post_process.vapour),
+                .max(post_process.vapour)
+                .max(blast_response.fog),
             endcard: closing_hero_blend(&self.plan, self.moment),
         }
     }
@@ -4765,8 +4775,9 @@ fn add_surface_bursts(
 }
 
 /// A ring of clinging foam bubbles at the liquid/glass contact line —
-/// gas-producing or agitated liquids collect a bubble collar there. Bubble
-/// membership, size, and slow drift are seeded; density follows intensity.
+/// gas-producing or agitated liquids collect a bubble collar there. A fixed
+/// seeded population changes size and opacity with intensity, preserving scene
+/// topology while still making denser activity read as a fuller collar.
 fn add_foam_ring(
     mesh: &mut Mesh,
     surface_centre: Vec3,
@@ -4776,13 +4787,8 @@ fn add_foam_ring(
     seed: u64,
 ) {
     const BUBBLES: u32 = 42;
-    if intensity <= 0.03 {
-        return;
-    }
     for bubble in 0..BUBBLES {
-        if seeded_unit(seed, bubble, 230) > intensity {
-            continue;
-        }
+        let reveal = smooth01((intensity - seeded_unit(seed, bubble, 230) * 0.92) / 0.16);
         let drift = (phase * (0.05 + seeded_unit(seed, bubble, 231) * 0.04))
             * if bubble % 2 == 0 { 1.0 } else { -1.0 };
         let angle = seeded_unit(seed, bubble, 232) * std::f32::consts::TAU + drift;
@@ -4798,8 +4804,8 @@ fn add_foam_ring(
                     0.006 + seeded_unit(seed, bubble, 236) * 0.008,
                     angle.sin() * radius * inset,
                 ),
-            size * breathe,
-            [0.90, 0.95, 0.97, 0.34],
+            (size * breathe * reveal).max(0.000_5),
+            [0.90, 0.95, 0.97, 0.34 * reveal],
             4,
             6,
         );
@@ -5028,8 +5034,8 @@ fn add_dissolution_wisps(mesh: &mut Mesh, source: Vec3, reach: f32, phase: f32, 
     }
 }
 
-/// Condensation on the inner glass above the liquid: seeded droplets whose
-/// visible population and size follow the vapour amount.
+/// Condensation on the inner glass above the liquid: a fixed seeded population
+/// whose size and opacity follow the vapour amount without changing topology.
 fn add_glass_condensation(
     mesh: &mut Mesh,
     surface_centre: Vec3,
@@ -5039,18 +5045,14 @@ fn add_glass_condensation(
     seed: u64,
 ) {
     const DROPLETS: u32 = 46;
-    let head_room = rim_y - surface_centre.y;
-    if vapour <= 0.05 || head_room <= 0.08 {
-        return;
-    }
+    let head_room = (rim_y - surface_centre.y).max(0.09);
+    let presence = smooth01((vapour - 0.025) / 0.12);
     for droplet in 0..DROPLETS {
-        if seeded_unit(seed, droplet, 270) > vapour {
-            continue;
-        }
         let angle = seeded_unit(seed, droplet, 271) * std::f32::consts::TAU;
         let height = surface_centre.y
             + 0.05
             + seeded_unit(seed, droplet, 272) * (head_room - 0.09).max(0.01);
+        let reveal = smooth01((vapour - seeded_unit(seed, droplet, 270) * 0.82) / 0.16);
         add_sphere(
             mesh,
             Vec3::new(
@@ -5058,8 +5060,9 @@ fn add_glass_condensation(
                 height,
                 surface_centre.z + angle.sin() * wall_radius,
             ),
-            (0.005 + seeded_unit(seed, droplet, 273) * 0.007) * (0.6 + vapour * 0.4),
-            [0.88, 0.94, 0.97, 0.38],
+            ((0.005 + seeded_unit(seed, droplet, 273) * 0.007) * (0.6 + vapour * 0.4) * reveal)
+                .max(0.000_5),
+            [0.88, 0.94, 0.97, 0.38 * presence * reveal],
             3,
             5,
         );
@@ -9951,9 +9954,38 @@ mod tests {
             .timeline
             .locate(plan.timeline.duration_ms() / 2)
             .expect("midpoint is on the timeline");
+        let topology_at = |moment: RealWorldPosition| {
+            let mut meshes = SceneMeshes::default();
+            explosion::add_explosive_metal_water_assembly(
+                &mut meshes,
+                &plan,
+                SceneLayout::resolve(&plan),
+                plan.timeline.normalized_progress_at(moment),
+                moment.ordinal,
+                moment.ordinal_progress,
+            );
+            [
+                meshes.opaque.vertices.len(),
+                meshes.translucent.vertices.len(),
+                meshes.glass.vertices.len(),
+                meshes.emissive.vertices.len(),
+            ]
+        };
+        let early_topology = topology_at(early);
+        let later_topology = topology_at(later);
+        for (label, early_count, later_count) in [
+            ("opaque", early_topology[0], later_topology[0]),
+            ("translucent", early_topology[1], later_topology[1]),
+            ("glass", early_topology[2], later_topology[2]),
+            ("emissive", early_topology[3], later_topology[3]),
+        ] {
+            assert_eq!(early_count, later_count, "{label} topology changed");
+        }
         let first = build_scene_at(&plan, early, (0.0, 0.0));
-        let _later = build_scene_at(&plan, later, (0.0, 0.0));
+        let later = build_scene_at(&plan, later, (0.0, 0.0));
         let replay = build_scene_at(&plan, early, (0.0, 0.0));
+        assert_eq!(first.0.len(), later.0.len());
+        assert_eq!(first.1.len(), later.1.len());
         assert_eq!(
             bytemuck::cast_slice::<GpuVertex, u8>(&first.0),
             bytemuck::cast_slice::<GpuVertex, u8>(&replay.0)

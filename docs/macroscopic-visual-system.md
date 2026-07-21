@@ -230,6 +230,28 @@ reactant base toward the product target at the validated product/colour ordinal,
 while opacity remains phase-owned. The adjacent authored-asset metadata records
 source hashes, runtime hashes, source material aliases, and licensing status.
 
+The 3D detonation choreography resolves each typed variant into independent
+flash, fireball, pressure, spray, bulk-liquid ejection, debris, steam,
+vessel-damage, bench-damage, environment-response, and camera controls. Contact
+uses one short white-hot pulse and a one-way camera recoil; the coloured
+fireball expands through tapered asymmetric bodies rather than a uniform sphere
+cluster. A faint pressure volume and its surface intersections escape the
+vessel. The water first leaves as a coherent stretching sheet, then tears into
+the crown and ballistic droplets, while the final contained level reflects the
+authored ejected fraction.
+
+The explosive beaker is built from fixed wall and rim panels. Selected panels
+follow deterministic ballistic paths after contact, leaving real holes without
+changing topology. Their absolute-playhead trajectory includes gravity, solved
+bench impact, damped bounce, frictional skid, and a stable resting orientation;
+rim fragments and smaller glass chips use the same collision model rather than
+clamping mid-flight. Local bench fissures, lifted surface fragments, a radial
+dust front, wet spread, settled glass, steam, and the drained vessel persist
+after the flame has gone. The environment response remains a bounded
+catastrophic tabletop presentation; it does not claim untyped room or building
+failure. These are renderer-owned presentation differences only and do not
+alter process classification or validated chemistry.
+
 Combustion is a closed chemistry-process classification. It is established
 before presentation only when the validated equation contains one molecular
 carbon/hydrogen fuel (which may also contain oxygen) and dioxygen. Gaseous
