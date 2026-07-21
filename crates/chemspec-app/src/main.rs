@@ -1476,7 +1476,7 @@ enum Message {
         event: iced::keyboard::Event,
         status: iced::event::Status,
     },
-    PointerPressed,
+    PointerReleased,
     BuilderInputFocusChecked {
         reactant: reactant_composer::ActiveReactant,
         focused: bool,
@@ -1817,6 +1817,16 @@ fn screen_keyboard_message(
     }
 }
 
+fn input_event_message(event: iced::Event, status: iced::event::Status) -> Option<Message> {
+    match event {
+        iced::Event::Keyboard(event) => Some(Message::KeyboardEvent { event, status }),
+        iced::Event::Mouse(iced::mouse::Event::ButtonReleased(iced::mouse::Button::Left)) => {
+            Some(Message::PointerReleased)
+        }
+        _ => None,
+    }
+}
+
 type RenderableFrames = chem_kernel::SimulationFrames;
 
 #[derive(Debug, Clone, Default)]
@@ -1915,7 +1925,8 @@ struct StructuralAnimation {
 struct App {
     screen: Screen,
     /// Keyboard-only selection and shortcut hints stay hidden until a
-    /// recognized key is used, then disappear on the next pointer press.
+    /// recognized key is used, then disappear when the next pointer gesture
+    /// completes.
     keyboard_navigation_active: bool,
     keyboard_outcome_index: Option<usize>,
     smoke_mode: Option<SmokeMode>,
@@ -2639,7 +2650,7 @@ impl App {
             | Message::ExportCaptured(..)
             | Message::Noop
             | Message::KeyboardEvent { .. }
-            | Message::PointerPressed
+            | Message::PointerReleased
             | Message::BuilderInputFocusChecked { .. }) => {
                 return self.update_input_message(message);
             }
@@ -2947,7 +2958,7 @@ impl App {
                     return self.update_with_task(routed);
                 }
             }
-            Message::PointerPressed => {
+            Message::PointerReleased => {
                 self.keyboard_navigation_active = false;
                 self.keyboard_outcome_index = None;
                 let Some(reactant) = reactant_composer::editing(&self.reactant_composer) else {
@@ -4033,13 +4044,8 @@ impl App {
             Subscription::none()
         };
 
-        let input = iced::event::listen_with(|event, status, _window| match event {
-            iced::Event::Keyboard(event) => Some(Message::KeyboardEvent { event, status }),
-            iced::Event::Mouse(iced::mouse::Event::ButtonPressed(iced::mouse::Button::Left)) => {
-                Some(Message::PointerPressed)
-            }
-            _ => None,
-        });
+        let input =
+            iced::event::listen_with(|event, status, _window| input_event_message(event, status));
 
         let dynamic_theatre = if self.screen == Screen::Builder
             && self.dynamic.static_outcome.is_some()
@@ -8319,9 +8325,29 @@ mod tests {
         assert!(app.keyboard_navigation_active);
         assert_eq!(app.provider, Some(AppMode::Local));
 
-        app.update(Message::PointerPressed);
+        app.update(Message::PointerReleased);
         assert!(!app.keyboard_navigation_active);
         assert_eq!(app.keyboard_outcome_index, None);
+    }
+
+    #[test]
+    fn captured_button_press_does_not_schedule_an_interstitial_app_update() {
+        let pressed = input_event_message(
+            iced::Event::Mouse(iced::mouse::Event::ButtonPressed(iced::mouse::Button::Left)),
+            iced::event::Status::Captured,
+        );
+        let released = input_event_message(
+            iced::Event::Mouse(iced::mouse::Event::ButtonReleased(
+                iced::mouse::Button::Left,
+            )),
+            iced::event::Status::Captured,
+        );
+
+        assert!(
+            pressed.is_none(),
+            "a button owns its press/release gesture; rebuilding the app between them can discard it"
+        );
+        assert!(matches!(released, Some(Message::PointerReleased)));
     }
 
     #[test]
