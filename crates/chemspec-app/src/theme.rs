@@ -451,14 +451,21 @@ pub fn summary_more_info_panel(_: &Theme) -> container::Style {
         ))
 }
 
-pub fn summary_badge(_: &Theme) -> container::Style {
+#[must_use]
+pub fn summary_chat_message(is_user: bool) -> container::Style {
+    let background = if is_user {
+        color::ACCENT_FAINT.scale_alpha(0.58)
+    } else {
+        color::SURFACE.scale_alpha(0.82)
+    };
+    let border = if is_user {
+        color::ACCENT.scale_alpha(0.30)
+    } else {
+        color::LINE.scale_alpha(0.82)
+    };
     container::Style::default()
-        .background(color::SUCCESS.scale_alpha(0.10))
-        .border(border_style(
-            color::SUCCESS.scale_alpha(0.42),
-            1.0,
-            radius::PILL,
-        ))
+        .background(background)
+        .border(border_style(border, 1.0, radius::CONTROL))
 }
 
 pub fn timeline_slider(_: &Theme, status: slider::Status) -> slider::Style {

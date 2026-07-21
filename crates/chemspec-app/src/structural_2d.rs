@@ -677,8 +677,12 @@ pub fn world_spec(
     let mut add_bonds = |frame: &RenderFrame, weight: f32| {
         for bond in &frame.covalent_bonds {
             let key = sorted_pair(&bond.left, &bond.right);
+            let effective_order = bond.effective_order.map_or_else(
+                || f32::from(bond.order),
+                |(numerator, denominator)| f32::from(numerator) / f32::from(denominator.max(1)),
+            );
             let rest = radius_of(&bond.left) + radius_of(&bond.right) + 22.0
-                - 3.0 * f32::from(bond.order.saturating_sub(1));
+                - 3.0 * (effective_order - 1.0).max(0.0);
             let entry = springs.entry(key.clone()).or_insert(Spring {
                 a: key.0,
                 b: key.1,
@@ -696,13 +700,8 @@ pub fn world_spec(
     // springs hold the giant ionic structure together.
     let mut add_ionic = |frame: &RenderFrame, weight: f32| {
         for group in lattice_groups(frame) {
-            for (left, right) in &group.pairs {
-                let (Some(anchor_left), Some(anchor_right)) = (
-                    ionic_anchor_id(member_component(frame, group.members[*left]), frame),
-                    ionic_anchor_id(member_component(frame, group.members[*right]), frame),
-                ) else {
-                    continue;
-                };
+            for anchors in lattice_anchor_pairs(frame, &group) {
+                let (anchor_left, anchor_right) = (anchors.left, anchors.right);
                 let key = sorted_pair(anchor_left, anchor_right);
                 let rest = radius_of(anchor_left) + radius_of(anchor_right) + 34.0;
                 let entry = springs.entry(key.clone()).or_insert(Spring {
@@ -2210,7 +2209,7 @@ fn draw_relationship_transition(
             *left,
             *right,
             (clearance(left_id), clearance(right_id)),
-            *order,
+            displayed_bond_order(*order, *effective_order),
             reveal,
             alpha * opacity,
             in_before == in_after,
@@ -2247,40 +2246,29 @@ fn draw_relationship_transition(
         (false, false) => 0.0,
     };
     for group in lattice_groups(&union_frame) {
-        for (left, right) in &group.pairs {
-            let left = group.members[*left];
-            let right = group.members[*right];
+        for anchors in lattice_anchor_pairs(&union_frame, &group) {
+            let left = anchors.left_member;
+            let right = anchors.right_member;
             let reveal = reveal_of(&union_frame.ionic_associations[left.0].id)
                 .min(reveal_of(&union_frame.ionic_associations[right.0].id));
             if reveal <= 0.0 {
                 continue;
             }
-            let ion_clearance = |member: (usize, usize)| {
-                let component = member_component(&union_frame, member);
-                ionic_anchor_id(component, &union_frame)
-                    .and_then(|anchor| atom(&union_frame, anchor))
-                    .map_or(24.0, |state| atom_visual_radius(&state.element))
+            let ion_clearance = |anchor: &str| {
+                atom(&union_frame, anchor).map_or(24.0, |state| atom_visual_radius(&state.element))
                     + 8.0
             };
-            let (left_clearance, right_clearance) = (ion_clearance(left), ion_clearance(right));
-            let (Some(left), Some(right)) = (
-                ionic_component_position(
-                    member_component(&union_frame, left),
-                    &union_frame,
-                    positions,
-                ),
-                ionic_component_position(
-                    member_component(&union_frame, right),
-                    &union_frame,
-                    positions,
-                ),
-            ) else {
+            let (left_clearance, right_clearance) =
+                (ion_clearance(anchors.left), ion_clearance(anchors.right));
+            let (Some(left), Some(right)) =
+                (positions.get(anchors.left), positions.get(anchors.right))
+            else {
                 continue;
             };
             draw_ionic(
                 frame,
-                left,
-                right,
+                *left,
+                *right,
                 (left_clearance, right_clearance),
                 reveal,
                 opacity,
@@ -2328,13 +2316,8 @@ fn link_ionic(frame: &StructuralFrame, link: &mut impl FnMut(&str, &str)) {
         }
     }
     for group in lattice_groups(frame) {
-        for (left, right) in &group.pairs {
-            if let (Some(left), Some(right)) = (
-                ionic_anchor_id(member_component(frame, group.members[*left]), frame),
-                ionic_anchor_id(member_component(frame, group.members[*right]), frame),
-            ) {
-                link(left, right);
-            }
+        for anchors in lattice_anchor_pairs(frame, &group) {
+            link(anchors.left, anchors.right);
         }
     }
 }
@@ -2354,6 +2337,14 @@ struct LatticeGroup {
     columns: usize,
     /// Opposite-charge grid-neighbour pairs, as indices into `members`.
     pairs: Vec<(usize, usize)>,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+struct LatticeAnchorPair<'a> {
+    left_member: (usize, usize),
+    right_member: (usize, usize),
+    left: &'a str,
+    right: &'a str,
 }
 
 fn lattice_cell(index: usize, columns: usize) -> (usize, usize) {
@@ -2393,6 +2384,43 @@ fn attach_unpaired_lattice_members(signs: &[i64], columns: usize, pairs: &mut Ve
 
 fn member_component(frame: &StructuralFrame, member: (usize, usize)) -> &RenderIonicComponent {
     &frame.ionic_associations[member.0].components[member.1]
+}
+
+/// Assigns each lattice edge to a charge-bearing atom rather than collapsing
+/// a polyatomic ion to one anchor. Slots are consumed round-robin per ionic
+/// component, so a peroxide dianion with two O⁻ centres connects its two Na⁺
+/// neighbours to different oxygens. Larger formal-charge magnitudes add later
+/// slots only after every matching charged atom has received one.
+fn lattice_anchor_pairs<'a>(
+    frame: &'a StructuralFrame,
+    group: &LatticeGroup,
+) -> Vec<LatticeAnchorPair<'a>> {
+    let mut usage = BTreeMap::<(usize, usize), usize>::new();
+    group
+        .pairs
+        .iter()
+        .filter_map(|(left_index, right_index)| {
+            let left_member = group.members[*left_index];
+            let right_member = group.members[*right_index];
+            let left_slots = ionic_anchor_slots(member_component(frame, left_member), frame);
+            let right_slots = ionic_anchor_slots(member_component(frame, right_member), frame);
+            if left_slots.is_empty() || right_slots.is_empty() {
+                return None;
+            }
+            let left_usage = usage.entry(left_member).or_default();
+            let left = left_slots[*left_usage % left_slots.len()];
+            *left_usage += 1;
+            let right_usage = usage.entry(right_member).or_default();
+            let right = right_slots[*right_usage % right_slots.len()];
+            *right_usage += 1;
+            Some(LatticeAnchorPair {
+                left_member,
+                right_member,
+                left,
+                right,
+            })
+        })
+        .collect()
 }
 
 #[allow(clippy::cast_precision_loss, clippy::cast_possible_truncation)]
@@ -2497,14 +2525,38 @@ fn lattice_groups(frame: &StructuralFrame) -> Vec<LatticeGroup> {
         .collect()
 }
 
-fn ionic_component_position(
-    component: &RenderIonicComponent,
-    frame: &StructuralFrame,
-    positions: &BTreeMap<String, Point>,
-) -> Option<Point> {
-    ionic_anchor_id(component, frame)
-        .and_then(|anchor| positions.get(anchor).copied())
-        .or_else(|| average_position(component.atoms.iter().map(String::as_str), positions))
+fn ionic_anchor_slots<'a>(
+    component: &'a RenderIonicComponent,
+    frame: &'a StructuralFrame,
+) -> Vec<&'a str> {
+    let sign = component.charge.signum();
+    let mut charged = component
+        .atoms
+        .iter()
+        .filter_map(|id| {
+            let charge = atom(frame, id)?.formal_charge;
+            (i64::from(charge.signum()) == sign && charge != 0)
+                .then_some((id.as_str(), charge.unsigned_abs()))
+        })
+        .collect::<Vec<_>>();
+    charged.sort_unstable_by_key(|(id, _)| *id);
+    let maximum = charged
+        .iter()
+        .map(|(_, magnitude)| *magnitude)
+        .max()
+        .unwrap_or(0);
+    let mut slots = Vec::new();
+    for level in 0..maximum {
+        for (id, magnitude) in &charged {
+            if *magnitude > level {
+                slots.push(*id);
+            }
+        }
+    }
+    if slots.is_empty() {
+        slots.extend(ionic_anchor_id(component, frame));
+    }
+    slots
 }
 
 fn ionic_anchor_id<'a>(
@@ -2532,6 +2584,15 @@ fn sorted_pair(left: &str, right: &str) -> (String, String) {
     } else {
         (right.to_owned(), left.to_owned())
     }
+}
+
+/// Delocalized bonds share one effective order across the whole domain. Draw
+/// the same integral base on every member and reserve the dotted overlay for
+/// the fractional part, rather than exposing an arbitrary Kekule assignment.
+fn displayed_bond_order(localized_order: u8, effective_order: Option<(u8, u8)>) -> u8 {
+    effective_order.map_or(localized_order, |(numerator, denominator)| {
+        numerator.checked_div(denominator).unwrap_or(1).max(1)
+    })
 }
 
 fn draw_delocalized_overlay(
@@ -3765,7 +3826,11 @@ fn draw_covalent_electron_motion(
                 let midpoint = lerp_point(source, target, 0.5);
                 let toward_other = other - midpoint;
                 let side = perpendicular.x * toward_other.x + perpendicular.y * toward_other.y;
-                let magnitude = if index.is_multiple_of(2) { 8.0 } else { 15.0 };
+                // Both electrons in one shared pair follow the same guide;
+                // only additional pairs receive a separate track. Two
+                // electron trails must not look like a second covalent bond.
+                let pair = u8::try_from(index / 2).unwrap_or(u8::MAX);
+                let magnitude = 8.0 + 7.0 * f32::from(pair);
                 if side > 0.0 { -magnitude } else { magnitude }
             },
         );
@@ -4419,6 +4484,14 @@ fn vector_magnitude(vector: Vector) -> f32 {
 mod tests {
     use super::*;
 
+    #[test]
+    fn delocalized_domains_hide_arbitrary_localized_bond_asymmetry() {
+        assert_eq!(displayed_bond_order(1, Some((3, 2))), 1);
+        assert_eq!(displayed_bond_order(2, Some((3, 2))), 1);
+        assert_eq!(displayed_bond_order(2, Some((5, 2))), 2);
+        assert_eq!(displayed_bond_order(2, None), 2);
+    }
+
     fn atom_state(id: &str, non_bonding_electrons: u8, unpaired_electrons: u8) -> AtomState {
         AtomState {
             id: id.to_owned(),
@@ -4729,6 +4802,53 @@ mod tests {
                 "each potassium ion must have an ionic connector"
             );
         }
+    }
+
+    #[test]
+    fn sodium_peroxide_distributes_ionic_links_across_both_charged_oxygens() {
+        let request = crate::chemistry::ReactionRequest::from_id("oxygen-sodium-oxygen")
+            .expect("sodium oxygen reaction is reviewed");
+        let run = crate::chemistry::run(request).expect("sodium peroxide reaction validates");
+        let frame = RenderFrame::from(
+            run.frames()
+                .frames()
+                .last()
+                .expect("validated reaction has a final frame"),
+        );
+
+        let charged_oxygens = frame
+            .atoms
+            .iter()
+            .filter(|atom| atom.element == "O" && atom.formal_charge == -1)
+            .map(|atom| atom.id.as_str())
+            .collect::<BTreeSet<_>>();
+        let sodium_ions = frame
+            .atoms
+            .iter()
+            .filter(|atom| atom.element == "Na" && atom.formal_charge == 1)
+            .map(|atom| atom.id.as_str())
+            .collect::<BTreeSet<_>>();
+        assert_eq!(charged_oxygens.len(), 2);
+        assert_eq!(sodium_ions.len(), 2);
+
+        let group = lattice_groups(&frame)
+            .into_iter()
+            .find(|group| group.members.len() == 3)
+            .expect("Na2O2 has one peroxide component and two sodium components");
+        let anchors = lattice_anchor_pairs(&frame, &group);
+        let oxygen_hits = anchors
+            .iter()
+            .flat_map(|pair| [pair.left, pair.right])
+            .filter(|anchor| charged_oxygens.contains(anchor))
+            .collect::<BTreeSet<_>>();
+        let sodium_hits = anchors
+            .iter()
+            .flat_map(|pair| [pair.left, pair.right])
+            .filter(|anchor| sodium_ions.contains(anchor))
+            .collect::<BTreeSet<_>>();
+
+        assert_eq!(oxygen_hits, charged_oxygens);
+        assert_eq!(sodium_hits, sodium_ions);
     }
 
     #[test]
