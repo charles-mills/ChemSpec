@@ -102,7 +102,12 @@ isolation because its domain-owned delocalized electrons balance that core;
 the renderer continues to show the metallic halo and electron domain instead.
 Once a site leaves the metallic domain, its genuine formal charge is eligible
 for the ordinary charge badge. Controls expose pause, restart, return, and a
-gated transition into the macroscopic view.
+gated transition into the macroscopic view. An information control sits at the
+top right directly beneath that transition. Opening it displays the educational
+model disclosure without changing playback or validated chemistry: the sequence,
+order, timing, spacing, motion, crystal structures, and ionic lattices are
+illustrative, and exact mechanisms, intermediates, geometry, scale, and
+three-dimensional solid arrangements may differ.
 
 The structural renderer does not apply the main-group Lewis-dot layout to
 transition metals. It keeps their metallic-domain halo but omits stationary
@@ -119,6 +124,10 @@ formal charges. Charge-alternating grid neighbours are preferred; any excess
 ions are connected to their nearest opposite-charge lattice neighbour for
 presentation, so no ion becomes a detached layout island. These connectors
 express many-body ionic membership, not covalent bonds or discrete molecules.
+For a covalently connected ion with several same-sign formal-charge centres,
+connectors are distributed across those atoms before an anchor is reused. This
+keeps multi-centre ions such as peroxide from visually collapsing every cation
+onto one charged atom without claiming discrete ion pairs in the real lattice.
 
 The subsequent 3D page is a separate illustrative scale. It consumes a scene
 plan containing reusable visual assets and observation-gated effects, not the
@@ -140,15 +149,19 @@ or progressively revealed. All values remain deterministic local presentation
 data compiled from final-frame membership and bundled element metadata.
 
 The result record also offers **More info** for a brief presentation-only Codex
-note about required temperature, pressure, catalysts, and industrial or
-environmental occurrence. Local mode keeps the action visible and answers
-immediately that the feature is unavailable. Codex output is bounded to two or
-three short paragraphs, is labelled as reaction context, and cannot alter the
-validated reaction, catalogue, or frames.
+note about the temperature and pressure in which the reaction usually occurs,
+any catalyst commonly used, and its practical real-life application or
+relevance. Local mode keeps the action visible and answers immediately that the
+feature is unavailable. The first Codex output is bounded to two or three short
+paragraphs. Once it arrives, a follow-up input opens beneath the conversation;
+learner questions and Codex replies append in order so the input stays below the
+newest reply. Follow-ups use a bounded typed transcript, remain labelled as
+reaction context, and cannot alter the validated reaction, catalogue, or frames.
+The same educational safety limits apply to the first answer and every follow-up.
 
 The result screen keeps the established instrument language: nested near-black
 surfaces, one-pixel borders, compact uppercase eyebrows, restrained green and
-blue accents, broad model whitespace, and explicit validation wording. Below
+blue accents, broad model whitespace, and clear product context. Below
 1080 pixels the model and properties stack in the same information order inside
 one vertical scroll region. Property rows switch to a vertical label-value
 composition, and the desktop record uses height-aware density plus its own
@@ -210,8 +223,8 @@ focus, selected, and disabled feedback requires no unconditional
 subscription.
 
 The product record is static and owns no continuous tick subscription. Product
-disclosures change only in response to user intent, and the finite More info
-request returns through a generation-scoped completion message.
+disclosures change only in response to user intent, and each finite More info or
+follow-up request returns through a generation-scoped completion message.
 
 ## Responsive composition
 

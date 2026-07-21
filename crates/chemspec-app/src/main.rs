@@ -48,9 +48,10 @@ use agent::{
     ClaimDisposition, ClaimMode, CodexProgressEvent, CodexProgressStage, CodexProvider,
     CodexProviderConfig, DynamicCachePresentation, DynamicPresentationOutcome, LatencyMilestones,
     MacroscopicProcess as AgentMacroscopicProcess, OutcomeProvenance, OutcomeSpecies,
-    OxideAppearanceRequest, ReactantInput, ReactionBuildRequest, RequestIdentityResolution,
-    ValidatedOxideAppearance, ValidatedStaticOutcome, baseline_oxide_colour_family,
-    enrich_static_outcome, load_oxide_appearance_cache, resolve_request_identities_with_catalogue,
+    OxideAppearanceRequest, ReactantInput, ReactionBuildRequest, ReactionMoreInfoSpeaker,
+    ReactionMoreInfoTurn, RequestIdentityResolution, ValidatedOxideAppearance,
+    ValidatedStaticOutcome, baseline_oxide_colour_family, enrich_static_outcome,
+    load_oxide_appearance_cache, resolve_request_identities_with_catalogue,
     reviewed_species_registry, store_dynamic_cache, store_oxide_appearance_cache,
 };
 use agent::{CompiledClaimOutcome, ProviderClaim, compile_claim_outcome};
@@ -64,7 +65,7 @@ use chem_presentation::{
 };
 use iced::widget::{
     button, canvas, column, container, mouse_area, responsive, row, rule, scrollable, slider,
-    space, stack, text, tooltip,
+    space, stack, text, text_input, tooltip,
 };
 use iced::{Center, Element, Fill, FillPortion, Length, Padding, Size, Subscription, Task, Theme};
 
@@ -226,6 +227,16 @@ fn format_media_time(milliseconds: u64) -> String {
     format!("{}:{:02}", seconds / 60, seconds % 60)
 }
 
+const STRUCTURAL_MODEL_DISCLAIMER: &str = "This animation presents the reaction as a simplified sequence for clarity. The displayed order and timing may not represent the exact molecular mechanism; some events may occur simultaneously, through unshown intermediates, or by a different pathway. Molecular spacing and motion are illustrative and not to scale. Crystal structures and ionic lattices are also illustrative and may not show the exact geometry or three-dimensional arrangement of the solid.";
+const STRUCTURAL_HEADER_HEIGHT: f32 = 44.0;
+
+#[derive(Clone, Copy)]
+struct MoreInfoView<'a> {
+    state: &'a MoreInfoState,
+    messages: &'a [ReactionMoreInfoTurn],
+    draft: &'a str,
+}
+
 #[allow(clippy::too_many_lines)]
 fn product_properties_view(
     summary: &product_summary::SummaryData,
@@ -233,7 +244,7 @@ fn product_properties_view(
     compact: bool,
     dense: bool,
     open_products: &std::collections::BTreeSet<usize>,
-    more_info: &MoreInfoState,
+    more_info: MoreInfoView<'_>,
 ) -> Element<'static, Message> {
     let panel_spacing = if dense { spacing::XS } else { spacing::SM };
     let row_padding = if dense {
@@ -242,27 +253,15 @@ fn product_properties_view(
         [spacing::XS, spacing::SM]
     };
     let mut content = column![
-        row![
-            column![
-                text("MOLECULAR PROPERTIES")
-                    .size(type_scale::MICRO)
-                    .color(color::ACCENT),
-                text("Validated product record")
-                    .size(if dense {
-                        type_scale::BODY_LARGE
-                    } else {
-                        type_scale::TITLE
-                    })
-                    .font(fonts::SEMIBOLD)
-                    .color(color::TEXT),
-            ]
-            .spacing(spacing::XXS),
-        ]
-        .align_y(Center),
+        text("Molecular properties")
+            .size(if dense {
+                type_scale::BODY_LARGE
+            } else {
+                type_scale::TITLE
+            })
+            .font(fonts::SEMIBOLD)
+            .color(color::TEXT),
         rule::horizontal(1).style(theme::soft_rule),
-        text("Properties are compiled locally from the validated final frame and bundled element metadata.")
-            .size(type_scale::CAPTION)
-            .color(color::TEXT_SOFT),
     ]
     .spacing(panel_spacing);
     for (index, product) in summary.products.iter().enumerate() {
@@ -336,69 +335,123 @@ fn product_properties_view(
             content = content.push(row);
         }
     }
-    let more_info_button = button(text(match more_info {
-        MoreInfoState::Loading { .. } => "Asking Codex…",
-        MoreInfoState::Ready(_) => "Refresh more info",
-        MoreInfoState::Idle | MoreInfoState::Unavailable(_) | MoreInfoState::Failed(_) => {
+    let more_info_button = button(text(
+        if matches!(more_info.state, MoreInfoState::Loading { .. }) {
+            "Asking Codex…"
+        } else {
             "More info"
-        }
-    }))
+        },
+    ))
     .on_press_maybe(
-        (!matches!(more_info, MoreInfoState::Loading { .. }))
+        (!matches!(more_info.state, MoreInfoState::Loading { .. }))
             .then_some(Message::ReactionMoreInfoRequested),
     )
     .padding([spacing::XS, spacing::SM])
     .style(theme::primary_button);
-    let more_info_status: Element<'static, Message> = match more_info {
-        MoreInfoState::Idle => {
-            text("Ask Codex about required conditions and where this reaction occurs.")
+    let more_info_status: Option<Element<'static, Message>> = match more_info.state {
+        MoreInfoState::Idle => Some(
+            text("Click More info to ask Codex.")
                 .size(type_scale::CAPTION)
                 .color(color::TEXT_SOFT)
-                .into()
-        }
-        MoreInfoState::Loading { .. } => text("Codex is preparing a brief explanation…")
-            .size(type_scale::CAPTION)
-            .color(color::ACCENT)
-            .into(),
-        MoreInfoState::Ready(answer) => text(answer.clone())
-            .size(type_scale::BODY)
-            .color(color::TEXT)
-            .width(Fill)
-            .into(),
-        MoreInfoState::Unavailable(message) | MoreInfoState::Failed(message) => {
+                .width(Fill)
+                .into(),
+        ),
+        MoreInfoState::Loading { .. } => Some(
+            text("Codex is preparing a brief explanation…")
+                .size(type_scale::CAPTION)
+                .color(color::ACCENT)
+                .width(Fill)
+                .align_x(Center)
+                .into(),
+        ),
+        MoreInfoState::Ready => None,
+        MoreInfoState::Unavailable(message) | MoreInfoState::Failed(message) => Some(
             text(message.clone())
                 .size(type_scale::CAPTION)
                 .color(color::WARNING)
                 .width(Fill)
-                .into()
-        }
+                .into(),
+        ),
     };
+    let mut conversation = column![].spacing(spacing::XS).width(Fill);
+    for turn in more_info.messages {
+        let is_user = turn.speaker == ReactionMoreInfoSpeaker::Learner;
+        conversation = conversation.push(
+            container(
+                column![
+                    text(if is_user { "YOU" } else { "CODEX" })
+                        .size(type_scale::MICRO)
+                        .color(if is_user {
+                            color::TEXT_SOFT
+                        } else {
+                            color::ACCENT
+                        }),
+                    text(turn.text.clone())
+                        .size(type_scale::BODY)
+                        .color(color::TEXT)
+                        .width(Fill),
+                ]
+                .spacing(spacing::XXS),
+            )
+            .style(move |_| theme::summary_chat_message(is_user))
+            .padding([spacing::XS, spacing::SM])
+            .width(Fill),
+        );
+    }
+    let can_submit = !more_info.draft.trim().is_empty()
+        && !matches!(more_info.state, MoreInfoState::Loading { .. });
+    let follow_up_input = row![
+        text_input("Ask a follow-up question…", more_info.draft)
+            .on_input(Message::ReactionMoreInfoDraftChanged)
+            .on_submit(Message::ReactionMoreInfoFollowUpSubmitted)
+            .style(theme::request_input)
+            .padding([spacing::XS, spacing::SM])
+            .width(Fill),
+        button(text("Send"))
+            .on_press_maybe(can_submit.then_some(Message::ReactionMoreInfoFollowUpSubmitted))
+            .style(theme::primary_button)
+            .padding([spacing::XS, spacing::SM]),
+    ]
+    .spacing(spacing::XS)
+    .align_y(Center)
+    .width(Fill);
+    let mut more_info_content = column![
+        column![
+            text("CODEX · REACTION CONTEXT")
+                .size(type_scale::MICRO)
+                .color(color::ACCENT),
+            text("Find out more about this reaction")
+                .size(type_scale::BODY_LARGE)
+                .font(fonts::SEMIBOLD)
+                .color(color::TEXT),
+            text("Explore the conditions under which this reaction usually occurs, along with its applications in industry and nature.")
+                .size(type_scale::CAPTION)
+                .color(color::TEXT_SOFT),
+        ]
+        .spacing(spacing::XXS)
+        .width(Fill),
+    ]
+    .spacing(spacing::SM);
+    if !more_info.messages.is_empty() {
+        more_info_content = more_info_content.push(conversation);
+    }
+    if let Some(status) = more_info_status {
+        more_info_content = more_info_content.push(status);
+    }
+    if more_info.messages.is_empty() {
+        more_info_content =
+            more_info_content.push(container(more_info_button).width(Fill).align_x(Center));
+    } else if matches!(
+        more_info.state,
+        MoreInfoState::Ready | MoreInfoState::Failed(_)
+    ) {
+        more_info_content = more_info_content.push(follow_up_input);
+    }
     content = content.push(rule::horizontal(1).style(theme::soft_rule));
     content = content.push(
-        container(
-            column![
-                row![
-                    column![
-                        text("CODEX · REACTION CONTEXT")
-                            .size(type_scale::MICRO)
-                            .color(color::ACCENT),
-                        text("Conditions and real-world occurrence")
-                            .size(type_scale::BODY_LARGE)
-                            .font(fonts::SEMIBOLD)
-                            .color(color::TEXT),
-                    ]
-                    .spacing(spacing::XXS),
-                    space().width(Fill),
-                    more_info_button,
-                ]
-                .spacing(spacing::SM)
-                .align_y(Center),
-                more_info_status,
-            ]
-            .spacing(spacing::SM),
-        )
-        .style(theme::summary_more_info_panel)
-        .padding(row_padding),
+        container(more_info_content)
+            .style(theme::summary_more_info_panel)
+            .padding(row_padding),
     );
     let content: Element<'static, Message> = if compact {
         content.into()
@@ -884,6 +937,7 @@ fn smoke_playhead(duration_ms: u64) -> u64 {
         .min(duration_ms)
 }
 
+#[allow(clippy::too_many_lines)]
 fn launch_state() -> App {
     let mut app = App {
         dump_frame_path: std::env::args()
@@ -1290,6 +1344,8 @@ enum Message {
     RetryOxideAppearance,
     ProductDetailsToggled(usize),
     ReactionMoreInfoRequested,
+    ReactionMoreInfoDraftChanged(String),
+    ReactionMoreInfoFollowUpSubmitted,
     ReactionMoreInfoFinished {
         request_id: u64,
         result: Result<String, String>,
@@ -1303,6 +1359,7 @@ enum Message {
     StructuralChapterChanged(i8),
     StructuralSkipRequested(i8),
     StructuralRestarted,
+    StructuralInfoToggled,
     StructuralTick,
     StructuralDrag(structural_2d::DragEvent),
     ContinueTo3d,
@@ -1593,7 +1650,7 @@ enum MoreInfoState {
     Loading {
         request_id: u64,
     },
-    Ready(String),
+    Ready,
     Failed(String),
 }
 
@@ -1664,9 +1721,12 @@ struct App {
     next_oxide_appearance_run_id: u64,
     open_product_details: std::collections::BTreeSet<usize>,
     reaction_more_info: MoreInfoState,
+    reaction_more_info_messages: Vec<ReactionMoreInfoTurn>,
+    reaction_more_info_draft: String,
     next_more_info_request_id: u64,
     structural_animation: Option<StructuralAnimation>,
     structural_error: Option<String>,
+    structural_info_open: bool,
     /// A structural destination settles through animation time before keyboard
     /// playback becomes active. Pointer playback can explicitly arm it sooner.
     structural_shortcut_state: StructuralShortcutState,
@@ -1715,9 +1775,12 @@ impl Default for App {
             next_oxide_appearance_run_id: 1,
             open_product_details: std::collections::BTreeSet::new(),
             reaction_more_info: MoreInfoState::Idle,
+            reaction_more_info_messages: Vec::new(),
+            reaction_more_info_draft: String::new(),
             next_more_info_request_id: 1,
             structural_animation: None,
             structural_error: None,
+            structural_info_open: false,
             structural_shortcut_state: StructuralShortcutState::Inactive,
             ui_zoom: 1.0,
             dump_frame_path: None,
@@ -1838,7 +1901,7 @@ impl App {
                     self.cancel_dynamic_work();
                     self.next_more_info_request_id =
                         self.next_more_info_request_id.saturating_add(1);
-                    self.reaction_more_info = MoreInfoState::Idle;
+                    self.reset_reaction_more_info();
                 }
                 self.settings = settings;
                 self.provider = Some(settings.app_mode);
@@ -1904,6 +1967,8 @@ impl App {
         );
         let request_id = self.next_more_info_request_id;
         self.next_more_info_request_id = self.next_more_info_request_id.saturating_add(1);
+        self.reaction_more_info_messages.clear();
+        self.reaction_more_info_draft.clear();
         self.reaction_more_info = MoreInfoState::Loading { request_id };
         let config = CodexProviderConfig::from_environment();
         Task::perform(
@@ -1916,6 +1981,75 @@ impl App {
         )
     }
 
+    fn request_reaction_more_info_follow_up(&mut self) -> Task<Message> {
+        if !matches!(
+            self.reaction_more_info,
+            MoreInfoState::Ready | MoreInfoState::Failed(_)
+        ) || self.reaction_more_info_messages.is_empty()
+        {
+            return Task::none();
+        }
+        let question = self.reaction_more_info_draft.trim().to_owned();
+        if question.is_empty() || question.chars().count() > 1_000 {
+            return Task::none();
+        }
+        if self.local_mode() {
+            self.reaction_more_info = MoreInfoState::Unavailable(
+                "Follow-up questions aren’t available in Local mode. Switch to Codex mode in Settings to continue."
+                    .to_owned(),
+            );
+            return Task::none();
+        }
+        if self.provider != Some(AppMode::CodexBinary) || !self.codex_available {
+            self.reaction_more_info = MoreInfoState::Unavailable(
+                "Follow-up questions aren’t available because Codex is not installed and authenticated."
+                    .to_owned(),
+            );
+            return Task::none();
+        }
+        let Some(animation) = &self.structural_animation else {
+            self.reaction_more_info = MoreInfoState::Failed(
+                "The validated reaction is unavailable for this request.".to_owned(),
+            );
+            return Task::none();
+        };
+        let reaction = nomenclature::display_declaration(
+            &animation.declaration,
+            self.settings.chemical_labels,
+        );
+        let mut conversation: Vec<_> = self
+            .reaction_more_info_messages
+            .iter()
+            .rev()
+            .take(19)
+            .cloned()
+            .collect();
+        conversation.reverse();
+        self.reaction_more_info_messages.push(ReactionMoreInfoTurn {
+            speaker: ReactionMoreInfoSpeaker::Learner,
+            text: question.clone(),
+        });
+        self.reaction_more_info_draft.clear();
+        let request_id = self.next_more_info_request_id;
+        self.next_more_info_request_id = self.next_more_info_request_id.saturating_add(1);
+        self.reaction_more_info = MoreInfoState::Loading { request_id };
+        let config = CodexProviderConfig::from_environment();
+        Task::perform(
+            blocking::run(move || {
+                CodexProvider::new(config)
+                    .reaction_more_info_follow_up(&reaction, &conversation, &question)
+                    .map_err(|error| error.to_string())
+            }),
+            move |result| Message::ReactionMoreInfoFinished { request_id, result },
+        )
+    }
+
+    fn reset_reaction_more_info(&mut self) {
+        self.reaction_more_info = MoreInfoState::Idle;
+        self.reaction_more_info_messages.clear();
+        self.reaction_more_info_draft.clear();
+    }
+
     /// The only runtime boundary for changing product screens. It reconciles
     /// screen-owned transient state before the next view or subscription can
     /// observe the destination.
@@ -1924,6 +2058,9 @@ impl App {
         self.screen = screen;
         self.keyboard_outcome_index = None;
         self.builder_panel = None;
+        if screen != Screen::Structural2d {
+            self.structural_info_open = false;
+        }
         if resuming_builder {
             reactant_composer::restart_prompt_reveal(&mut self.reactant_composer);
         }
@@ -1955,7 +2092,7 @@ impl App {
         self.structural_animation = None;
         self.structural_error = None;
         self.open_product_details.clear();
-        self.reaction_more_info = MoreInfoState::Idle;
+        self.reset_reaction_more_info();
         self.structural_shortcut_state = StructuralShortcutState::Inactive;
         self.keyboard_navigation_active = false;
         self.enter_screen(Screen::Builder);
@@ -2092,6 +2229,7 @@ impl App {
         Some(format!("{reactants}; {state}"))
     }
 
+    #[allow(clippy::too_many_lines)]
     fn update_with_task(&mut self, message: Message) -> Task<Message> {
         match message {
             Message::Dynamic(message) => return dynamic_reaction::update(self, message),
@@ -2123,13 +2261,14 @@ impl App {
             Message::RetryOxideAppearance => {
                 self.cancel_oxide_appearance_enrichment();
                 let enrichment = self.start_oxide_appearance_enrichment();
-                // A synchronous cache or baseline hit produces no finish
-                // message, so fold it into the live plan here.
+                // Fold a synchronous cache or baseline hit into the live plan.
                 self.refresh_real_world_plan();
                 return enrichment;
             }
             message @ (Message::ProductDetailsToggled(_)
             | Message::ReactionMoreInfoRequested
+            | Message::ReactionMoreInfoDraftChanged(_)
+            | Message::ReactionMoreInfoFollowUpSubmitted
             | Message::ReactionMoreInfoFinished { .. }) => {
                 return self.update_product_summary_message(message);
             }
@@ -2165,8 +2304,7 @@ impl App {
             Message::DemoRepoLinkOpened => {
                 const REPO_URL: &str = "https://github.com/charles-mills/ChemSpec";
                 if let Some(window) = web_sys::window() {
-                    // Popup blockers may reject the new tab (returns None);
-                    // fall back to navigating in place so the link always works.
+                    // Fall back to same-page navigation when a popup is rejected.
                     let opened = window
                         .open_with_url_and_target(REPO_URL, "_blank")
                         .ok()
@@ -2185,6 +2323,7 @@ impl App {
             | Message::StructuralChapterChanged(_)
             | Message::StructuralSkipRequested(_)
             | Message::StructuralRestarted
+            | Message::StructuralInfoToggled
             | Message::StructuralTick
             | Message::StructuralDrag(_)
             | Message::ContinueTo3d
@@ -2205,6 +2344,12 @@ impl App {
                 }
             }
             Message::ReactionMoreInfoRequested => return self.request_reaction_more_info(),
+            Message::ReactionMoreInfoDraftChanged(value) => {
+                self.reaction_more_info_draft = value.chars().take(1_000).collect();
+            }
+            Message::ReactionMoreInfoFollowUpSubmitted => {
+                return self.request_reaction_more_info_follow_up();
+            }
             Message::ReactionMoreInfoFinished { request_id, result } => {
                 if !matches!(
                     self.reaction_more_info,
@@ -2215,7 +2360,13 @@ impl App {
                     return Task::none();
                 }
                 self.reaction_more_info = match result {
-                    Ok(answer) => MoreInfoState::Ready(answer),
+                    Ok(answer) => {
+                        self.reaction_more_info_messages.push(ReactionMoreInfoTurn {
+                            speaker: ReactionMoreInfoSpeaker::Codex,
+                            text: answer,
+                        });
+                        MoreInfoState::Ready
+                    }
                     Err(error) => MoreInfoState::Failed(format!(
                         "More info could not be loaded from Codex: {error}"
                     )),
@@ -2534,6 +2685,12 @@ impl App {
             | Message::StructuralChapterChanged(_)
             | Message::StructuralSkipRequested(_)
             | Message::StructuralRestarted) => self.update_playback_message(&message),
+            Message::StructuralInfoToggled => {
+                if self.screen == Screen::Structural2d {
+                    self.structural_info_open = !self.structural_info_open;
+                }
+                Task::none()
+            }
             message @ (Message::StructuralTick | Message::StructuralDrag(_)) => {
                 self.update_structural_effect(message)
             }
@@ -2718,7 +2875,7 @@ impl App {
                 };
                 animation.playing = false;
                 self.open_product_details.clear();
-                self.reaction_more_info = MoreInfoState::Idle;
+                self.reset_reaction_more_info();
                 self.enter_screen(Screen::ProductSummary);
             }
             Message::ReturnTo2d => self.enter_screen(Screen::Structural2d),
@@ -4336,18 +4493,84 @@ impl App {
             .center_x(Fill)
             .center_y(Fill),
         ]
-        .width(Fill);
+        .width(Fill)
+        .height(Length::Fixed(STRUCTURAL_HEADER_HEIGHT));
 
-        container(
+        let info_selected = self.structural_info_open;
+        let info_toggle = Self::toolbar_tooltip(
+            button(icons::info(
+                BUILDER_TOOLBAR_ICON_SIZE,
+                if info_selected {
+                    color::CANVAS
+                } else {
+                    color::TEXT_SOFT
+                },
+            ))
+            .on_press(Message::StructuralInfoToggled)
+            .padding(spacing::XS)
+            .style(if info_selected {
+                theme::primary_button
+            } else {
+                theme::secondary_button
+            }),
+            "About this molecular model",
+        );
+        let info_panel: Element<'_, Message> = if info_selected {
+            container(
+                column![
+                    text("About this molecular model")
+                        .size(type_scale::BODY_LARGE)
+                        .font(fonts::SEMIBOLD)
+                        .color(color::TEXT),
+                    text(STRUCTURAL_MODEL_DISCLAIMER)
+                        .size(type_scale::CAPTION)
+                        .color(color::TEXT_SOFT),
+                ]
+                .spacing(spacing::XS),
+            )
+            .padding(spacing::SM)
+            .width(Fill)
+            .max_width(if compact { 320.0 } else { 420.0 })
+            .style(|_| theme::tooltip_surface(1.0))
+            .into()
+        } else {
+            space().height(Length::Shrink).into()
+        };
+        let info_overlay = container(
+            column![
+                container(info_toggle).width(Fill).align_x(iced::Right),
+                container(info_panel).width(Fill).align_x(iced::Right),
+            ]
+            .spacing(spacing::XS),
+        )
+        .padding(Padding {
+            // Clear the fixed header and its gap so the control begins inside
+            // the molecular canvas, directly below the 3D arrow button.
+            top: STRUCTURAL_HEADER_HEIGHT + 2.0 * spacing::XS,
+            right: 0.0,
+            bottom: 0.0,
+            left: 0.0,
+        })
+        .width(Fill)
+        .height(Fill)
+        .align_x(iced::Right)
+        .align_y(iced::Top);
+
+        let structural_stage = stack![
             column![header, diagram, controls]
                 .spacing(spacing::XS)
                 .height(Fill),
-        )
-        .style(theme::app_background)
-        .padding(chromeless_page_padding(spacing::SM, spacing::LG))
+            info_overlay,
+        ]
         .width(Fill)
-        .height(Fill)
-        .into()
+        .height(Fill);
+
+        container(structural_stage)
+            .style(theme::app_background)
+            .padding(chromeless_page_padding(spacing::SM, spacing::LG))
+            .width(Fill)
+            .height(Fill)
+            .into()
     }
 
     fn structural_unavailable_view(message: &'static str) -> Element<'static, Message> {
@@ -5480,49 +5703,32 @@ impl App {
             .on_press(Message::StartNewReaction)
             .padding([spacing::XS, spacing::SM])
             .style(theme::secondary_button);
+        let equation = nomenclature::display_declaration(
+            &animation.declaration,
+            self.settings.chemical_labels,
+        );
         let header = row![
-            back,
-            column![
-                row![
-                    text("VALIDATED PRODUCT RECORD")
-                        .size(type_scale::MICRO)
-                        .color(color::ACCENT),
-                    container(text("FINAL").size(type_scale::MICRO).color(color::SUCCESS))
-                        .style(theme::summary_badge)
-                        .padding([spacing::XXS, spacing::XS]),
-                ]
-                .spacing(spacing::XS)
-                .align_y(Center),
-                text("What the reaction produced")
+            container(back).width(FillPortion(1)).align_x(iced::Left),
+            container(
+                text(equation.clone())
                     .size(if compact {
                         type_scale::TITLE
                     } else {
                         type_scale::DISPLAY
                     })
                     .font(fonts::SEMIBOLD)
-                    .color(color::TEXT),
-            ]
-            .spacing(spacing::XXS),
-            space().width(Fill),
-            if compact {
-                text("").size(type_scale::MICRO)
-            } else {
-                text(nomenclature::display_declaration(
-                    &animation.declaration,
-                    self.settings.chemical_labels,
-                ))
-                .size(type_scale::CAPTION)
-                .color(color::TEXT_SOFT)
-            },
-            new_reaction,
+                    .color(color::TEXT)
+                    .align_x(Center)
+            )
+            .width(FillPortion(2))
+            .align_x(Center),
+            container(new_reaction)
+                .width(FillPortion(1))
+                .align_x(iced::Right),
         ]
         .spacing(spacing::SM)
         .align_y(Center);
 
-        let equation = nomenclature::display_declaration(
-            &animation.declaration,
-            self.settings.chemical_labels,
-        );
         let product_diagram = structural_2d::Diagram::new(
             final_frame,
             final_frame,
@@ -5550,24 +5756,11 @@ impl App {
         let two_dimensional = container(
             column![
                 row![
-                    column![
-                        text("FINAL MOLECULAR VIEW")
-                            .size(type_scale::MICRO)
-                            .color(color::SELECTION),
-                        text("Products in structural 2D")
-                            .size(type_scale::BODY_LARGE)
-                            .font(fonts::SEMIBOLD)
-                            .color(color::TEXT),
-                    ]
-                    .spacing(spacing::XXS),
+                    text("Products in structural 2D")
+                        .size(type_scale::BODY_LARGE)
+                        .font(fonts::SEMIBOLD)
+                        .color(color::TEXT),
                     space().width(Fill),
-                    row![
-                        text("●").size(type_scale::MICRO).color(color::ACCENT),
-                        text("VALIDATED FINAL FRAME")
-                            .size(type_scale::MICRO)
-                            .color(color::TEXT_SOFT),
-                    ]
-                    .spacing(spacing::XXS),
                 ]
                 .align_y(Center),
                 product_canvas,
@@ -5585,7 +5778,11 @@ impl App {
             compact,
             dense,
             &self.open_product_details,
-            &self.reaction_more_info,
+            MoreInfoView {
+                state: &self.reaction_more_info,
+                messages: &self.reaction_more_info_messages,
+                draft: &self.reaction_more_info_draft,
+            },
         );
         let body: Element<'_, Message> = if compact {
             scrollable(column![two_dimensional, properties].spacing(spacing::SM))
@@ -5603,39 +5800,21 @@ impl App {
             .height(Fill)
             .into()
         };
-        let footer_help = if self.keyboard_navigation_active {
-            "Esc / ← macroscopic view · N build another reaction"
-        } else {
-            "Structural 2D uses the validated final frame from the molecular simulation"
-        };
+        let mut page = column![header, body].spacing(spacing::SM).height(Fill);
+        if self.keyboard_navigation_active {
+            page = page.push(
+                text("Esc / ← macroscopic view · N build another reaction")
+                    .size(type_scale::MICRO)
+                    .color(color::ACCENT),
+            );
+        }
 
-        container(
-            column![
-                header,
-                body,
-                row![
-                    text(footer_help).size(type_scale::MICRO).color(
-                        if self.keyboard_navigation_active {
-                            color::ACCENT
-                        } else {
-                            color::TEXT_SOFT
-                        }
-                    ),
-                    space().width(Fill),
-                    text("SOURCE · CURRENT .CHEMS + VALIDATED FRAME + ELEMENT REFERENCE")
-                        .size(type_scale::MICRO)
-                        .color(color::ACCENT),
-                ]
-                .align_y(Center),
-            ]
-            .spacing(spacing::SM)
-            .height(Fill),
-        )
-        .style(theme::app_background)
-        .padding(chromeless_page_padding(spacing::SM, spacing::LG))
-        .width(Fill)
-        .height(Fill)
-        .into()
+        container(page)
+            .style(theme::app_background)
+            .padding(chromeless_page_padding(spacing::SM, spacing::LG))
+            .width(Fill)
+            .height(Fill)
+            .into()
     }
 
     /// Stage 1: the question sentence above the full periodic table, with no
@@ -9115,6 +9294,23 @@ mod tests {
     }
 
     #[test]
+    fn structural_model_information_toggles_only_on_the_2d_screen() {
+        let mut app = App::default();
+        app.enter_screen(Screen::Structural2d);
+
+        app.update(Message::StructuralInfoToggled);
+        assert!(app.structural_info_open);
+        app.update(Message::StructuralInfoToggled);
+        assert!(!app.structural_info_open);
+
+        app.update(Message::StructuralInfoToggled);
+        app.enter_screen(Screen::Structural3d);
+        assert!(!app.structural_info_open);
+        app.update(Message::StructuralInfoToggled);
+        assert!(!app.structural_info_open);
+    }
+
+    #[test]
     fn product_more_info_explains_that_local_mode_is_unavailable() {
         let mut app = App::default();
         app.open_structural_animation();
@@ -9148,10 +9344,45 @@ mod tests {
             request_id: 8,
             result: Ok("Current answer".to_owned()),
         });
-        assert!(matches!(
-            app.reaction_more_info,
-            MoreInfoState::Ready(ref answer) if answer == "Current answer"
-        ));
+        assert!(matches!(app.reaction_more_info, MoreInfoState::Ready));
+        assert_eq!(
+            app.reaction_more_info_messages,
+            vec![ReactionMoreInfoTurn {
+                speaker: ReactionMoreInfoSpeaker::Codex,
+                text: "Current answer".to_owned(),
+            }]
+        );
+    }
+
+    #[test]
+    fn product_more_info_draft_is_bounded_and_matching_replies_append() {
+        let mut app = App {
+            reaction_more_info: MoreInfoState::Ready,
+            reaction_more_info_messages: vec![ReactionMoreInfoTurn {
+                speaker: ReactionMoreInfoSpeaker::Codex,
+                text: "Initial answer".to_owned(),
+            }],
+            ..App::default()
+        };
+
+        app.update(Message::ReactionMoreInfoDraftChanged("x".repeat(1_005)));
+        assert_eq!(app.reaction_more_info_draft.chars().count(), 1_000);
+
+        app.reaction_more_info = MoreInfoState::Loading { request_id: 11 };
+        app.update(Message::ReactionMoreInfoFinished {
+            request_id: 11,
+            result: Ok("Follow-up answer".to_owned()),
+        });
+
+        assert!(matches!(app.reaction_more_info, MoreInfoState::Ready));
+        assert_eq!(app.reaction_more_info_messages.len(), 2);
+        assert_eq!(
+            app.reaction_more_info_messages[1],
+            ReactionMoreInfoTurn {
+                speaker: ReactionMoreInfoSpeaker::Codex,
+                text: "Follow-up answer".to_owned(),
+            }
+        );
     }
 
     #[test]

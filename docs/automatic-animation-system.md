@@ -98,6 +98,13 @@ triple formation describes one, two, or three shared electron pairs respectively
 then identifies electrostatic attraction between both nuclei and the shared
 electrons as the bonding interaction.
 
+For a validated delocalized domain, every equivalent edge is drawn with the
+same integral base order and the fractional effective order is shown by the
+dotted delocalization overlay. The renderer must not expose the unequal
+localized single/double assignment used internally to account for integral
+electrons. The paired electron trail for one forming shared pair also follows
+one visual route so it cannot be mistaken for a second covalent bond.
+
 Proton transfer is a derived, typed educational event rather than a reaction-
 family caption. The planner recognizes it only when the trusted sequence proves
 that the same H loses one single-bonded heavy partner and gains another, and
@@ -190,8 +197,11 @@ covalent bonds, full charged components of ionic associations, and
 metallic-domain membership. An ionic association is never collapsed to an
 arbitrary atom pair. A validated component that aggregates multiple disconnected
 charged ions is first expanded into its covalently connected charged fragments;
-each fragment's visual anchor is the formal-charge-bearing atom when one is
-present, with a component-centre fallback. Stable
+each lattice edge uses a formal-charge-bearing atom when one is present, with a
+component-anchor fallback. When a covalently connected ion has several
+same-sign charged atoms, its lattice edges are distributed deterministically
+across those atoms before reusing one; larger atom-local charge magnitudes add
+later capacity slots. Stable
 component slots prevent unrelated molecules from reshuffling when a local
 operation changes. Before/after relations are rendered together: new bonds and
 associations trace in, removed ones retract, and metallic domains morph without

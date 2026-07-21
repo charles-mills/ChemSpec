@@ -6,10 +6,15 @@ Reaction:
 
 Answer these questions:
 
-1. What conditions are required for the reaction to occur (temperature,
-   pressure, and catalysts)?
-2. Where does this reaction occur (industry or the environment)? If it occurs
-   in industry, briefly explain why it is used there.
+1. What conditions does this reaction usually occur under? Describe the
+   typical temperature and pressure at a high level. Mention a catalyst only
+   when one is commonly used for this reaction; otherwise do not discuss
+   catalysts.
+2. How is this reaction applied in real life? Describe its practical uses,
+   relevance, or the familiar products, processes, technologies, biological
+   systems, or everyday phenomena it helps explain. Focus on what the reaction
+   enables or why it matters rather than classifying it as industrial or
+   environmental.
 
 Return 2–3 short paragraphs, no more. Be concise. Do not provide step-by-step
 laboratory instructions, quantities, apparatus, optimization, procurement,

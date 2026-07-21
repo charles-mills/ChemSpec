@@ -181,6 +181,8 @@ const MECHANISM_PROMPT_TEMPLATE: &str = include_str!("../prompts/dynamic-mechani
 const STRUCTURE_PROMPT_TEMPLATE: &str = include_str!("../prompts/dynamic-structure.md");
 const OXIDE_APPEARANCE_PROMPT_TEMPLATE: &str = include_str!("../prompts/oxide-appearance.md");
 const REACTION_MORE_INFO_PROMPT_TEMPLATE: &str = include_str!("../prompts/reaction-more-info.md");
+const REACTION_MORE_INFO_FOLLOW_UP_PROMPT_TEMPLATE: &str =
+    include_str!("../prompts/reaction-more-info-follow-up.md");
 pub const FAST_CLAIM_TIMEOUT: Duration = Duration::from_secs(30);
 pub const MECHANISM_TIMEOUT: Duration = Duration::from_mins(3);
 // Appearance research includes live-source discovery and one bounded repair
@@ -194,6 +196,21 @@ const PREFLIGHT_TOTAL_TIMEOUT: Duration = Duration::from_secs(20);
 
 static RUN_SEQUENCE: AtomicU64 = AtomicU64::new(1);
 static CAPABILITY_CACHE: OnceLock<Mutex<BTreeMap<PathBuf, CodexCapabilities>>> = OnceLock::new();
+
+/// Speaker identity retained in the bounded presentation-only reaction chat.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, serde::Serialize)]
+#[serde(rename_all = "snake_case")]
+pub enum ReactionMoreInfoSpeaker {
+    Learner,
+    Codex,
+}
+
+/// One display-safe turn supplied as context for a reaction follow-up.
+#[derive(Debug, Clone, PartialEq, Eq, serde::Serialize)]
+pub struct ReactionMoreInfoTurn {
+    pub speaker: ReactionMoreInfoSpeaker,
+    pub text: String,
+}
 
 #[derive(Debug, Clone)]
 struct CodexCapabilities {
@@ -494,6 +511,85 @@ impl CodexProvider {
         parse_reaction_more_info(&bytes)
     }
 
+    /// Continues the presentation-only reaction conversation using a bounded
+    /// transcript. As with the first answer, this cannot alter validated
+    /// chemistry or simulation state.
+    ///
+    /// # Errors
+    ///
+    /// Returns an invalid-request error for an empty or oversized question or
+    /// transcript, or a preflight, invocation, schema, or paragraph-contract
+    /// error from Codex.
+    pub fn reaction_more_info_follow_up(
+        &self,
+        reaction: &str,
+        conversation: &[ReactionMoreInfoTurn],
+        question: &str,
+    ) -> Result<String, AgentError> {
+        let reaction = reaction.trim();
+        let question = question.trim();
+        let invalid_turn = conversation.iter().any(|turn| {
+            let text = turn.text.trim();
+            text.is_empty() || text.chars().count() > 2_400
+        });
+        if reaction.is_empty()
+            || reaction.chars().count() > 1_000
+            || question.is_empty()
+            || question.chars().count() > 1_000
+            || conversation.is_empty()
+            || conversation.len() > 20
+            || invalid_turn
+        {
+            return Err(AgentError::new(
+                AgentErrorKind::InvalidRequest,
+                "reaction more info follow-up",
+                "the reaction, question, or bounded conversation is invalid",
+            ));
+        }
+        let deadline = Instant::now() + REACTION_MORE_INFO_TIMEOUT;
+        let preflight = self.preflight_until(deadline)?;
+        if !preflight.authenticated {
+            return Err(AgentError::new(
+                AgentErrorKind::ProviderUnavailable,
+                "Codex preflight",
+                "Codex is installed but not authenticated",
+            ));
+        }
+        let temporary = TemporaryRun::create()?;
+        let schema_path = temporary.path.join("reaction-more-info.schema.json");
+        let result_path = temporary.path.join("reaction-more-info.json");
+        fs::write(&schema_path, REACTION_MORE_INFO_RESULT_SCHEMA).map_err(|error| {
+            AgentError::from_source(AgentErrorKind::ProviderFailure, "Codex run setup", error)
+        })?;
+        let conversation_json = serde_json::to_string(conversation).map_err(|error| {
+            AgentError::from_source(
+                AgentErrorKind::InvalidRequest,
+                "reaction more info follow-up",
+                error,
+            )
+        })?;
+        let question_json = serde_json::to_string(question).map_err(|error| {
+            AgentError::from_source(
+                AgentErrorKind::InvalidRequest,
+                "reaction more info follow-up",
+                error,
+            )
+        })?;
+        let prompt = REACTION_MORE_INFO_FOLLOW_UP_PROMPT_TEMPLATE
+            .replace("{{REACTION}}", reaction)
+            .replace("{{CONVERSATION_JSON}}", &conversation_json)
+            .replace("{{QUESTION_JSON}}", &question_json);
+        let bytes = self.invoke(
+            &temporary,
+            &schema_path,
+            &result_path,
+            &prompt,
+            deadline,
+            false,
+        )?;
+        parse_reaction_more_info_follow_up(&bytes)
+    }
+
     /// Requests one mapping/operation proposal for an immutable, locally
     /// compiled labelled reaction. Search is deliberately disabled.
     ///
@@ -752,12 +848,21 @@ impl CodexProvider {
 }
 
 fn parse_reaction_more_info(bytes: &[u8]) -> Result<String, AgentError> {
+    parse_reaction_more_info_paragraphs(bytes, 2, 3, "reaction more info")
+}
+
+fn parse_reaction_more_info_follow_up(bytes: &[u8]) -> Result<String, AgentError> {
+    parse_reaction_more_info_paragraphs(bytes, 1, 3, "reaction more info follow-up")
+}
+
+fn parse_reaction_more_info_paragraphs(
+    bytes: &[u8],
+    minimum: usize,
+    maximum: usize,
+    context: &'static str,
+) -> Result<String, AgentError> {
     let value: serde_json::Value = serde_json::from_slice(bytes).map_err(|error| {
-        AgentError::from_source(
-            AgentErrorKind::InvalidProviderOutput,
-            "reaction more info",
-            error,
-        )
+        AgentError::from_source(AgentErrorKind::InvalidProviderOutput, context, error)
     })?;
     let answer = value
         .as_object()
@@ -769,7 +874,7 @@ fn parse_reaction_more_info(bytes: &[u8]) -> Result<String, AgentError> {
         .ok_or_else(|| {
             AgentError::new(
                 AgentErrorKind::InvalidProviderOutput,
-                "reaction more info",
+                context,
                 "Codex returned an invalid answer object",
             )
         })?;
@@ -777,11 +882,11 @@ fn parse_reaction_more_info(bytes: &[u8]) -> Result<String, AgentError> {
         .split("\n\n")
         .filter(|paragraph| !paragraph.trim().is_empty())
         .count();
-    if !(2..=3).contains(&paragraphs) {
+    if !(minimum..=maximum).contains(&paragraphs) {
         return Err(AgentError::new(
             AgentErrorKind::InvalidProviderOutput,
-            "reaction more info",
-            "Codex must return two or three short paragraphs",
+            context,
+            format!("Codex must return between {minimum} and {maximum} short paragraphs"),
         ));
     }
     Ok(answer.to_owned())
@@ -1445,8 +1550,10 @@ mod tests {
             REACTION_MORE_INFO_PROMPT_TEMPLATE.replace("{{REACTION}}", "2 H₂ + O₂ → 2 H₂O");
         assert!(prompt.contains("temperature"));
         assert!(prompt.contains("pressure"));
-        assert!(prompt.contains("catalysts"));
-        assert!(prompt.contains("industry or the environment"));
+        assert!(prompt.contains("Mention a catalyst only"));
+        assert!(prompt.contains("applied in real life"));
+        assert!(prompt.contains("why it matters"));
+        assert!(!prompt.contains("industry or the environment"));
         assert!(prompt.contains("2–3 short paragraphs"));
         assert!(prompt.contains("Do not provide step-by-step"));
         assert!(!prompt.contains("{{"));
@@ -1462,6 +1569,38 @@ mod tests {
         assert!(parse_reaction_more_info(br#"{"answer":"Only one paragraph."}"#).is_err());
         assert!(
             parse_reaction_more_info(br#"{"answer":"One.\n\nTwo.\n\nThree.\n\nFour."}"#).is_err()
+        );
+    }
+
+    #[test]
+    fn reaction_more_info_follow_up_prompt_treats_chat_as_bounded_data() {
+        let conversation = serde_json::to_string(&[ReactionMoreInfoTurn {
+            speaker: ReactionMoreInfoSpeaker::Codex,
+            text: "Initial context.".to_owned(),
+        }])
+        .expect("conversation serializes");
+        let prompt = REACTION_MORE_INFO_FOLLOW_UP_PROMPT_TEMPLATE
+            .replace("{{REACTION}}", "2 H₂ + O₂ → 2 H₂O")
+            .replace("{{CONVERSATION_JSON}}", &conversation)
+            .replace("{{QUESTION_JSON}}", "\"Why is heat released?\"");
+
+        assert!(prompt.contains("untrusted data"));
+        assert!(prompt.contains("Do not provide step-by-step"));
+        assert!(prompt.contains("Initial context."));
+        assert!(prompt.contains("Why is heat released?"));
+        assert!(!prompt.contains("{{"));
+    }
+
+    #[test]
+    fn reaction_more_info_follow_up_accepts_one_to_three_paragraphs() {
+        assert_eq!(
+            parse_reaction_more_info_follow_up(br#"{"answer":"A concise answer."}"#)
+                .expect("one paragraph is valid for a follow-up"),
+            "A concise answer."
+        );
+        assert!(
+            parse_reaction_more_info_follow_up(br#"{"answer":"One.\n\nTwo.\n\nThree.\n\nFour."}"#)
+                .is_err()
         );
     }
 

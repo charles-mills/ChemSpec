@@ -92,6 +92,14 @@ reviewed rule to declared source names. The engine deterministically expands:
 Every derived value records its source or catalogue origin. Equivalent source
 declaration order produces equivalent canonical HIR after semantic ordering.
 
+Formula-only covalent structure generation enumerates exact electron-ledger
+states before selecting a graph. Neutral period-three-or-later group-14 centres
+include both the ordinary tetravalent state and the divalent singlet state with
+one lone pair; this prevents species such as SiCl2 from being forced into an
+artificial single/double-bond resonance graph. The period-two carbon rules
+remain octet-bound. If more than one best graph remains, generation declines
+rather than choosing a drawing arbitrarily.
+
 ## Structural operation semantics
 
 Every operation is a pure transition from one immutable graph state to the

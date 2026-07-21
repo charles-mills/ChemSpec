@@ -48,6 +48,7 @@ pub use claim::{
 pub use codex::{
     CodexPreflight, CodexProgressEvent, CodexProgressStage, CodexProvider, CodexProviderConfig,
     FAST_CLAIM_TIMEOUT, MECHANISM_TIMEOUT, OXIDE_APPEARANCE_TIMEOUT, REACTION_MORE_INFO_TIMEOUT,
+    ReactionMoreInfoSpeaker, ReactionMoreInfoTurn,
 };
 pub use family::{
     FamilyMatchOutcome, ReviewedAnimationOutcome, ReviewedFamilyMatch, compile_reviewed_animation,

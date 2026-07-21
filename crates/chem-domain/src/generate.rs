@@ -113,6 +113,21 @@ struct Slot {
 }
 
 impl Slot {
+    /// The ordinary closed-shell bond-order sum used as the boundary above
+    /// which a period-three-or-later atom is expanding its octet.
+    fn octet_bond_sum(&self) -> Option<u8> {
+        if self.symbol == "H" {
+            return (self.formal_charge == 0).then_some(1);
+        }
+        if self.facts.valence == 8 || self.symbol == "He" {
+            return (self.formal_charge == 0).then_some(0);
+        }
+        if self.symbol == "B" && self.formal_charge == 0 {
+            return Some(3);
+        }
+        u8::try_from(8 - i16::from(self.facts.valence) + self.formal_charge).ok()
+    }
+
     /// Ledger-valid bond-order sums for this atom at its formal charge.
     fn bond_sum_options(&self) -> Vec<u8> {
         let valence = i16::from(self.facts.valence);
@@ -139,7 +154,14 @@ impl Slot {
         let Ok(max) = u8::try_from((valence + charge).clamp(0, 7)) else {
             return Vec::new();
         };
-        (base..=max).step_by(2).collect()
+        let mut options = (base..=max).step_by(2).collect::<Vec<_>>();
+        // Neutral heavier group-14 atoms can also be divalent singlet
+        // species: two bonds and one lone pair (for example SiCl2). Carbon
+        // deliberately remains octet-only in this closed-shell generator.
+        if charge == 0 && self.facts.period >= 3 && self.facts.valence == 4 && base > 2 {
+            options.insert(0, 2);
+        }
+        options
     }
 
     /// Non-bonding electrons left after `bond_sum`, or None when invalid.
@@ -225,8 +247,8 @@ fn consider(
     // Octet expansion is only physical toward more electronegative
     // partners (S→O, I→F); anything else is a ledger-valid abomination.
     for (index, (slot, target)) in slots.iter().zip(targets).enumerate() {
-        let minimum = slot.bond_sum_options().first().copied().unwrap_or(0);
-        if *target <= minimum {
+        let octet = slot.octet_bond_sum().unwrap_or(0);
+        if *target <= octet {
             continue;
         }
         let expansion_is_physical = bonds
@@ -1668,6 +1690,27 @@ mod tests {
         let water = structure(&[("H", 2), ("O", 1)]).expect("water");
         assert_eq!(water.representation(), RepresentationKind::Molecular);
         assert_eq!(water.graph().covalent_bonds().len(), 2);
+    }
+
+    #[test]
+    fn neutral_heavier_group_fourteen_dihalides_use_two_equivalent_single_bonds() {
+        let dichlorosilylene = structure(&[("Si", 1), ("Cl", 2)]).expect("SiCl2");
+        let graph = dichlorosilylene.graph();
+        let silicon = graph
+            .atoms()
+            .values()
+            .find(|atom| atom.element().as_str() == "Si")
+            .expect("silicon");
+
+        assert_eq!(silicon.electrons().formal_charge(), 0);
+        assert_eq!(silicon.electrons().non_bonding_electrons(), 2);
+        assert_eq!(graph.covalent_bond_order_sum(silicon.id()), Some(2));
+        assert_eq!(graph.covalent_bonds().len(), 2);
+        assert!(
+            graph.covalent_bonds().values().all(|bond| {
+                bond.order() == BondOrder::Single && bond.delocalization().is_none()
+            })
+        );
     }
 
     #[test]

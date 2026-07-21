@@ -94,8 +94,9 @@ ordinary workspace tests:
 - confident no-reaction tests: noble gases, metal pairs, identical
   closed-shell reactants, and displacement reversals answer instantly;
 - generator tests: structures derive from element multisets alone, resonance
-  systems delocalize (nitrate 4/3, benzene 3/2), and genuinely ambiguous
-  formulas decline rather than guess;
+  systems delocalize (nitrate 4/3, benzene 3/2), neutral heavier group-14
+  dihalides retain their divalent lone-pair state with two equivalent single
+  bonds, and genuinely ambiguous formulas decline rather than guess;
 - end-to-end animation tests: each solved family drives structure
   generation, graph-diff mechanism derivation, kernel validation, and frame
   projection while asserting **zero model calls**;
@@ -205,7 +206,10 @@ inference is forbidden.
 Non-1:1 ionic layout tests additionally prove that every covalently connected
 charged fragment receives an opposite-charge lattice neighbour and remains in
 the same rendered product cluster, including catalogue components that aggregate
-multiple disconnected same-charge ions.
+multiple disconnected same-charge ions. Multi-centre polyatomic ions also prove
+that lattice edges are distributed across distinct same-sign formal-charge atoms
+before an anchor is reused; the reviewed sodium-peroxide path specifically
+guards both O⁻ centres and both Na⁺ centres.
 Composer tests prove that manual element-entry order cannot change a displayed
 formula: unambiguous structures supply their canonical formula and unresolved
 inventories use deterministic Hill order.
