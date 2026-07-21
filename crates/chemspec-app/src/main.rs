@@ -4585,32 +4585,6 @@ impl App {
             .style(theme::media_bar)
             .padding([spacing::XS, spacing::SM]);
 
-        // The buttons form the stack's base layer: a stack sizes itself to
-        // its first child, so the row must set the height or the buttons get
-        // squeezed and their labels overflow off-centre.
-        let header = stack![
-            row![exit, regenerate, space().width(Fill), continue_3d]
-                .spacing(spacing::XS)
-                .align_y(Center),
-            container(
-                text(
-                    equation
-                        .clone()
-                        .unwrap_or_else(|| "Reviewed equation unavailable".to_owned())
-                )
-                .size(if compact {
-                    type_scale::BODY_LARGE
-                } else {
-                    type_scale::TITLE
-                })
-                .color(color::TEXT),
-            )
-            .center_x(Fill)
-            .center_y(Fill),
-        ]
-        .width(Fill)
-        .height(Length::Fixed(STRUCTURAL_HEADER_HEIGHT));
-
         let info_selected = self.structural_info_open;
         let info_toggle = Self::toolbar_tooltip(
             button(icons::info(
@@ -4630,6 +4604,39 @@ impl App {
             }),
             "About this molecular model",
         );
+
+        // The buttons form the stack's base layer: a stack sizes itself to
+        // its first child, so the row must set the height or the buttons get
+        // squeezed and their labels overflow off-centre.
+        let header = stack![
+            row![
+                exit,
+                regenerate,
+                space().width(Fill),
+                info_toggle,
+                continue_3d
+            ]
+            .spacing(spacing::XS)
+            .align_y(Center),
+            container(
+                text(
+                    equation
+                        .clone()
+                        .unwrap_or_else(|| "Reviewed equation unavailable".to_owned())
+                )
+                .size(if compact {
+                    type_scale::BODY_LARGE
+                } else {
+                    type_scale::TITLE
+                })
+                .color(color::TEXT),
+            )
+            .center_x(Fill)
+            .center_y(Fill),
+        ]
+        .width(Fill)
+        .height(Length::Fixed(STRUCTURAL_HEADER_HEIGHT));
+
         let info_panel: Element<'_, Message> = if info_selected {
             container(
                 column![
@@ -4651,25 +4658,19 @@ impl App {
         } else {
             space().height(Length::Shrink).into()
         };
-        let info_overlay = container(
-            column![
-                container(info_toggle).width(Fill).align_x(iced::Right),
-                container(info_panel).width(Fill).align_x(iced::Right),
-            ]
-            .spacing(spacing::XS),
-        )
-        .padding(Padding {
-            // Clear the fixed header and its gap so the control begins inside
-            // the molecular canvas, directly below the 3D arrow button.
-            top: STRUCTURAL_HEADER_HEIGHT + 2.0 * spacing::XS,
-            right: 0.0,
-            bottom: 0.0,
-            left: 0.0,
-        })
-        .width(Fill)
-        .height(Fill)
-        .align_x(iced::Right)
-        .align_y(iced::Top);
+        let info_overlay = container(info_panel)
+            .padding(Padding {
+                // Clear the fixed header and its gap so the panel drops down
+                // just below the info toggle button in the header.
+                top: STRUCTURAL_HEADER_HEIGHT + spacing::XS,
+                right: 0.0,
+                bottom: 0.0,
+                left: 0.0,
+            })
+            .width(Fill)
+            .height(Fill)
+            .align_x(iced::Right)
+            .align_y(iced::Top);
 
         let structural_stage = stack![
             column![header, diagram, controls]
