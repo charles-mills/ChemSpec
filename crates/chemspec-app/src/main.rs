@@ -229,6 +229,10 @@ fn format_media_time(milliseconds: u64) -> String {
 
 const STRUCTURAL_MODEL_DISCLAIMER: &str = "This animation presents the reaction as a simplified sequence for clarity. The displayed order and timing may not represent the exact molecular mechanism; some events may occur simultaneously, through unshown intermediates, or by a different pathway. Molecular spacing and motion are illustrative and not to scale. Crystal structures and ionic lattices are also illustrative and may not show the exact geometry or three-dimensional arrangement of the solid.";
 const STRUCTURAL_HEADER_HEIGHT: f32 = 44.0;
+const PRODUCT_SUMMARY_HEADER_HEIGHT: f32 = 56.0;
+const REACTION_NAV_PANEL_WIDTH: f32 = 200.0;
+const RETURN_LABEL: &str = "← Return";
+const MACROSCOPIC_VIEW_LABEL: &str = "← Macroscopic view";
 
 #[derive(Clone, Copy)]
 struct MoreInfoView<'a> {
@@ -465,7 +469,11 @@ fn reaction_context_view(
             let author = text(if is_user { "You" } else { "Codex" })
                 .size(type_scale::MICRO)
                 .font(fonts::SEMIBOLD)
-                .color(if is_user { color::SELECTION } else { color::ACCENT });
+                .color(if is_user {
+                    color::SELECTION
+                } else {
+                    color::ACCENT
+                });
             let bubble = container(
                 text(turn.text.clone())
                     .size(type_scale::BODY)
@@ -1456,6 +1464,7 @@ enum Message {
     StructuralSkipRequested(i8),
     StructuralRestarted,
     StructuralInfoToggled,
+    ReactionNavToggled,
     StructuralTick,
     StructuralDrag(structural_2d::DragEvent),
     ContinueTo3d,
@@ -1769,6 +1778,10 @@ struct StructuralAnimation {
     frame_index: usize,
     real_world_playhead_ms: u64,
     playing: bool,
+    /// Set the first time the 3D view is entered, so that first arrival can
+    /// force autoplay while every later visit preserves the playhead and
+    /// play/pause state exactly as the viewer left them.
+    real_world_entered: bool,
     playback_speed: PlaybackSpeed,
     physics: structural_physics::Simulation,
     /// Smoothed 2D camera rectangle, in virtual world coordinates.
@@ -1824,6 +1837,7 @@ struct App {
     structural_animation: Option<StructuralAnimation>,
     structural_error: Option<String>,
     structural_info_open: bool,
+    reaction_nav_open: bool,
     /// A structural destination settles through animation time before keyboard
     /// playback becomes active. Pointer playback can explicitly arm it sooner.
     structural_shortcut_state: StructuralShortcutState,
@@ -1881,6 +1895,7 @@ impl Default for App {
             structural_animation: None,
             structural_error: None,
             structural_info_open: false,
+            reaction_nav_open: false,
             structural_shortcut_state: StructuralShortcutState::Inactive,
             ui_zoom: 1.0,
             dump_frame_path: None,
@@ -2163,9 +2178,29 @@ impl App {
     /// observe the destination.
     fn enter_screen(&mut self, screen: Screen) {
         let resuming_builder = self.screen != Screen::Builder && screen == Screen::Builder;
+        // Leaving the 3D view pauses playback rather than resetting it, so a
+        // later return (via Return, the nav menu, or the forward button)
+        // resumes exactly where the viewer left off.
+        if self.screen == Screen::Structural3d
+            && screen != Screen::Structural3d
+            && let Some(animation) = &mut self.structural_animation
+        {
+            animation.playing = false;
+        }
+        // First-ever arrival at the 3D view starts it playing, whichever
+        // path brought the viewer there; every later arrival leaves the
+        // playhead and play/pause state untouched.
+        if screen == Screen::Structural3d
+            && let Some(animation) = &mut self.structural_animation
+            && !animation.real_world_entered
+        {
+            animation.real_world_entered = true;
+            animation.playing = true;
+        }
         self.screen = screen;
         self.keyboard_outcome_index = None;
         self.builder_panel = None;
+        self.reaction_nav_open = false;
         if screen != Screen::Structural2d {
             self.structural_info_open = false;
         }
@@ -2433,6 +2468,7 @@ impl App {
             | Message::StructuralSkipRequested(_)
             | Message::StructuralRestarted
             | Message::StructuralInfoToggled
+            | Message::ReactionNavToggled
             | Message::StructuralTick
             | Message::StructuralDrag(_)
             | Message::ContinueTo3d
@@ -2803,6 +2839,15 @@ impl App {
                 }
                 Task::none()
             }
+            Message::ReactionNavToggled => {
+                if matches!(
+                    self.screen,
+                    Screen::Structural2d | Screen::Structural3d | Screen::ProductSummary
+                ) {
+                    self.reaction_nav_open = !self.reaction_nav_open;
+                }
+                Task::none()
+            }
             message @ (Message::StructuralTick | Message::StructuralDrag(_)) => {
                 self.update_structural_effect(message)
             }
@@ -2972,29 +3017,16 @@ impl App {
                 self.open_structural_animation();
                 return enrichment;
             }
-            Message::ContinueTo3d => {
-                let Some(animation) = &mut self.structural_animation else {
-                    return Task::none();
-                };
-                animation.frame_index = 0;
-                animation.real_world_playhead_ms = 0;
-                animation.playing = true;
-                self.enter_screen(Screen::Structural3d);
-            }
             Message::ContinueToSummary => {
                 if self.structural_animation.is_none() {
                     return Task::none();
                 }
-                self.reset_product_summary_panes();
-                self.open_product_details.clear();
-                self.reset_reaction_more_info();
-                if let Some(animation) = &mut self.structural_animation {
-                    animation.playing = false;
-                }
                 self.enter_screen(Screen::ProductSummary);
             }
             Message::ReturnTo2d => self.enter_screen(Screen::Structural2d),
-            Message::ReturnTo3d => self.enter_screen(Screen::Structural3d),
+            Message::ContinueTo3d | Message::ReturnTo3d => {
+                self.enter_screen(Screen::Structural3d);
+            }
             Message::OutcomeChoiceMoved(delta) => {
                 if self.pending_requests.is_empty() {
                     return Task::none();
@@ -4129,6 +4161,7 @@ impl App {
                 frame_index: 0,
                 real_world_playhead_ms: 0,
                 playing: true,
+                real_world_entered: false,
                 playback_speed: PlaybackSpeed::Normal,
                 physics: structural_physics::Simulation::default(),
                 camera: structural_2d::default_camera(),
@@ -4141,6 +4174,13 @@ impl App {
             Ok(animation) => {
                 self.structural_animation = Some(animation);
                 self.structural_error = None;
+                // A (re)built reaction is a fresh subject: the product
+                // screen's panes, expanded details, and chat history belong
+                // to the previous animation and reset here, once, rather
+                // than on every visit to that screen.
+                self.reset_product_summary_panes();
+                self.open_product_details.clear();
+                self.reset_reaction_more_info();
                 // Seed the simulation so the first paint has settled-ish
                 // positions instead of an empty canvas.
                 for _ in 0..24 {
@@ -4434,7 +4474,7 @@ impl App {
             .on_press(Message::StructuralSpeedChanged)
             .padding([spacing::XS, spacing::SM])
             .style(theme::secondary_button);
-        let exit = button(text("← Return"))
+        let exit = button(text(RETURN_LABEL))
             .on_press(Message::ReturnToBuilder)
             .padding([spacing::XS, spacing::SM])
             .style(theme::secondary_button);
@@ -4450,7 +4490,7 @@ impl App {
             } else {
                 space().width(Length::Shrink).into()
             };
-        let continue_3d = button(text("View 3D model  →"))
+        let continue_3d = button(text("3D Model  →"))
             .on_press(Message::ContinueTo3d)
             .padding([spacing::XS, spacing::SM])
             .style(theme::secondary_button);
@@ -4605,12 +4645,15 @@ impl App {
             "About this molecular model",
         );
 
+        let reaction_nav_toggle = self.reaction_nav_toggle();
+
         // The buttons form the stack's base layer: a stack sizes itself to
         // its first child, so the row must set the height or the buttons get
         // squeezed and their labels overflow off-centre.
         let header = stack![
             row![
                 exit,
+                reaction_nav_toggle,
                 regenerate,
                 space().width(Fill),
                 info_toggle,
@@ -4637,8 +4680,8 @@ impl App {
         .width(Fill)
         .height(Length::Fixed(STRUCTURAL_HEADER_HEIGHT));
 
-        let info_panel: Element<'_, Message> = if info_selected {
-            container(
+        let info_overlay: Element<'_, Message> = if info_selected {
+            let panel = container(
                 column![
                     text("About this molecular model")
                         .size(type_scale::BODY_LARGE)
@@ -4653,30 +4696,23 @@ impl App {
             .padding(spacing::SM)
             .width(Fill)
             .max_width(if compact { 320.0 } else { 420.0 })
-            .style(|_| theme::tooltip_surface(1.0))
-            .into()
+            .style(|_| theme::tooltip_surface(1.0));
+            Self::dismissible_overlay(
+                panel.into(),
+                Message::StructuralInfoToggled,
+                STRUCTURAL_HEADER_HEIGHT + spacing::XS,
+                iced::Right,
+            )
         } else {
-            space().height(Length::Shrink).into()
+            space().into()
         };
-        let info_overlay = container(info_panel)
-            .padding(Padding {
-                // Clear the fixed header and its gap so the panel drops down
-                // just below the info toggle button in the header.
-                top: STRUCTURAL_HEADER_HEIGHT + spacing::XS,
-                right: 0.0,
-                bottom: 0.0,
-                left: 0.0,
-            })
-            .width(Fill)
-            .height(Fill)
-            .align_x(iced::Right)
-            .align_y(iced::Top);
 
         let structural_stage = stack![
             column![header, diagram, controls]
                 .spacing(spacing::XS)
                 .height(Fill),
             info_overlay,
+            self.reaction_nav_overlay(STRUCTURAL_HEADER_HEIGHT, RETURN_LABEL),
         ]
         .width(Fill)
         .height(Fill);
@@ -4722,7 +4758,7 @@ impl App {
         else {
             return Self::structural_unavailable_view("The macroscopic timeline is unavailable");
         };
-        let back = button(text("← Return"))
+        let back = button(text(RETURN_LABEL))
             .on_press(Message::ReturnTo2d)
             .padding([spacing::XS, spacing::SM])
             .style(theme::secondary_button);
@@ -4751,14 +4787,10 @@ impl App {
             .padding([spacing::XS, spacing::SM])
             .style(theme::secondary_button);
         let at_end = animation.real_world_playhead_ms == real_world_plan.timeline.duration_ms();
-        let review_products = button(text(if at_end {
-            "Review products  →"
-        } else {
-            "Complete simulation to review"
-        }))
-        .on_press_maybe(at_end.then_some(Message::ContinueToSummary))
-        .padding([spacing::XS, spacing::SM])
-        .style(theme::primary_button);
+        let review_products = button(text("Review and Ask  →"))
+            .on_press(Message::ContinueToSummary)
+            .padding([spacing::XS, spacing::SM])
+            .style(theme::primary_button);
         let process_annotation = match moment.stage {
             MacroscopicStage::Reaction => None,
             MacroscopicStage::HeatingPreparation => Some((
@@ -4981,12 +5013,19 @@ impl App {
         let controls = container(transport)
             .style(theme::media_bar)
             .padding([spacing::XS, spacing::SM]);
+        let reaction_nav_toggle = self.reaction_nav_toggle();
         // Buttons first: the stack sizes itself to its base layer, so the
         // row must set the height (see the 2D header).
         let header = stack![
-            row![back, regenerate, space().width(Fill), review_products]
-                .spacing(spacing::XS)
-                .align_y(Center),
+            row![
+                back,
+                reaction_nav_toggle,
+                regenerate,
+                space().width(Fill),
+                review_products
+            ]
+            .spacing(spacing::XS)
+            .align_y(Center),
             container(
                 text(nomenclature::display_declaration(
                     &animation.declaration,
@@ -5002,17 +5041,22 @@ impl App {
             .center_x(Fill)
             .center_y(Fill),
         ]
-        .width(Fill);
-        container(
+        .width(Fill)
+        .height(Length::Fixed(STRUCTURAL_HEADER_HEIGHT));
+        let structural_stage = stack![
             column![header, scene, controls]
                 .spacing(spacing::XS)
                 .height(Fill),
-        )
-        .style(theme::app_background)
-        .padding(chromeless_page_padding(spacing::SM, spacing::LG))
+            self.reaction_nav_overlay(STRUCTURAL_HEADER_HEIGHT, RETURN_LABEL),
+        ]
         .width(Fill)
-        .height(Fill)
-        .into()
+        .height(Fill);
+        container(structural_stage)
+            .style(theme::app_background)
+            .padding(chromeless_page_padding(spacing::SM, spacing::LG))
+            .width(Fill)
+            .height(Fill)
+            .into()
     }
 
     /// Provenance chip for the current dynamic outcome.
@@ -5560,6 +5604,127 @@ impl App {
         .into()
     }
 
+    /// The reaction nav menu button, placed beside Return on the 2D, 3D, and
+    /// Review and Ask screens.
+    fn reaction_nav_toggle(&self) -> Element<'_, Message> {
+        let open = self.reaction_nav_open;
+        button(text("Screens"))
+            .on_press(Message::ReactionNavToggled)
+            .padding([spacing::XS, spacing::SM])
+            .style(if open {
+                theme::primary_button
+            } else {
+                theme::secondary_button
+            })
+            .into()
+    }
+
+    /// The reaction nav menu's dropdown contents: the four reaction screens.
+    /// The current one stays clickable (re-navigating to it is a harmless
+    /// no-op that still dismisses the menu) so it keeps the same active,
+    /// legible button styling as the others instead of a disabled one.
+    fn reaction_nav_panel(&self) -> Element<'_, Message> {
+        let entry =
+            |label: &'static str, screen: Screen, message: Message| -> Element<'_, Message> {
+                let active = self.screen == screen;
+                button(text(label).size(type_scale::BODY))
+                    .on_press(message)
+                    .padding([spacing::XS, spacing::SM])
+                    .width(Fill)
+                    .style(if active {
+                        theme::primary_button
+                    } else {
+                        theme::secondary_button
+                    })
+                    .into()
+            };
+        container(
+            column![
+                entry("Builder", Screen::Builder, Message::ReturnToBuilder),
+                entry("2D View", Screen::Structural2d, Message::ReturnTo2d),
+                entry("3D View", Screen::Structural3d, Message::ReturnTo3d),
+                entry(
+                    "Review and Ask",
+                    Screen::ProductSummary,
+                    Message::ContinueToSummary
+                ),
+            ]
+            .spacing(spacing::XXS),
+        )
+        .padding(spacing::XS)
+        .width(Length::Fixed(REACTION_NAV_PANEL_WIDTH))
+        .style(|_| theme::tooltip_surface(1.0))
+        .into()
+    }
+
+    /// Positions the nav dropdown panel below the toggle button, which lives
+    /// `header_height` pixels tall in the page's fixed-height header. The
+    /// toggle sits right after that page's Return/back button, whose
+    /// rendered width varies with its label ("Return" vs. "Macroscopic
+    /// view"), so an invisible clone of that same button reserves identical
+    /// space ahead of the panel rather than assuming a fixed offset. Empty
+    /// (and click-through) while the menu is closed.
+    fn reaction_nav_overlay(
+        &self,
+        header_height: f32,
+        back_label: &'static str,
+    ) -> Element<'_, Message> {
+        if !self.reaction_nav_open {
+            return space().into();
+        }
+        let width_spacer = button(text(back_label))
+            .padding([spacing::XS, spacing::SM])
+            .style(|_theme, _status| button::Style {
+                text_color: iced::Color::TRANSPARENT,
+                ..button::Style::default()
+            });
+        let catcher = mouse_area(container(space()).width(Fill).height(Fill))
+            .on_press(Message::ReactionNavToggled);
+        let anchored = container(
+            row![
+                width_spacer,
+                mouse_area(self.reaction_nav_panel()).on_press(Message::Noop)
+            ]
+            .spacing(spacing::XS),
+        )
+        .padding(Padding {
+            top: header_height + spacing::XS,
+            right: 0.0,
+            bottom: 0.0,
+            left: 0.0,
+        })
+        .width(Fill)
+        .height(Fill)
+        .align_x(iced::Left)
+        .align_y(iced::Top);
+        stack![catcher, anchored].width(Fill).height(Fill).into()
+    }
+
+    /// Wraps `panel` with click-outside-to-close behaviour: an invisible
+    /// catcher spanning the whole page sends `close` on any press, while the
+    /// panel itself swallows its own clicks so using it doesn't also trigger
+    /// the catcher underneath.
+    fn dismissible_overlay(
+        panel: Element<'_, Message>,
+        close: Message,
+        top_padding: f32,
+        horizontal: iced::alignment::Horizontal,
+    ) -> Element<'_, Message> {
+        let catcher = mouse_area(container(space()).width(Fill).height(Fill)).on_press(close);
+        let anchored = container(mouse_area(panel).on_press(Message::Noop))
+            .padding(Padding {
+                top: top_padding,
+                right: 0.0,
+                bottom: 0.0,
+                left: 0.0,
+            })
+            .width(Fill)
+            .height(Fill)
+            .align_x(horizontal)
+            .align_y(iced::Top);
+        stack![catcher, anchored].width(Fill).height(Fill).into()
+    }
+
     #[allow(clippy::too_many_lines)]
     fn builder_toolbar(&self, conditions_enabled: bool) -> Element<'_, Message> {
         // The die tumbles through its faces while a roll spins; idle it rests
@@ -5811,7 +5976,7 @@ impl App {
         let Some(final_homes) = animation.home_timeline.last() else {
             return Self::structural_unavailable_view("The final product layout is unavailable");
         };
-        let back = button(text("← Macroscopic view"))
+        let back = button(text(MACROSCOPIC_VIEW_LABEL))
             .on_press(Message::ReturnTo3d)
             .padding([spacing::XS, spacing::SM])
             .style(theme::secondary_button);
@@ -5823,8 +5988,15 @@ impl App {
             &animation.declaration,
             self.settings.chemical_labels,
         );
+        let reaction_nav_toggle = self.reaction_nav_toggle();
         let header = row![
-            container(back).width(FillPortion(1)).align_x(iced::Left),
+            container(
+                row![back, reaction_nav_toggle]
+                    .spacing(spacing::XS)
+                    .align_y(Center)
+            )
+            .width(FillPortion(1))
+            .align_x(iced::Left),
             container(
                 text(equation.clone())
                     .size(if compact {
@@ -5843,7 +6015,8 @@ impl App {
                 .align_x(iced::Right),
         ]
         .spacing(spacing::SM)
-        .align_y(Center);
+        .align_y(Center)
+        .height(Length::Fixed(PRODUCT_SUMMARY_HEADER_HEIGHT));
 
         let product_diagram = structural_2d::Diagram::new(
             final_frame,
@@ -5929,8 +6102,14 @@ impl App {
                     .color(color::ACCENT),
             );
         }
+        let stage = stack![
+            page,
+            self.reaction_nav_overlay(PRODUCT_SUMMARY_HEADER_HEIGHT, MACROSCOPIC_VIEW_LABEL),
+        ]
+        .width(Fill)
+        .height(Fill);
 
-        container(page)
+        container(stage)
             .style(theme::app_background)
             .padding(chromeless_page_padding(spacing::SM, spacing::LG))
             .width(Fill)
@@ -9429,6 +9608,138 @@ mod tests {
         assert!(!app.structural_info_open);
         app.update(Message::StructuralInfoToggled);
         assert!(!app.structural_info_open);
+    }
+
+    #[test]
+    fn reaction_nav_toggles_only_on_the_three_reaction_screens() {
+        let mut app = App::default();
+        app.enter_screen(Screen::Builder);
+        app.update(Message::ReactionNavToggled);
+        assert!(!app.reaction_nav_open, "the builder has no nav menu");
+
+        for screen in [
+            Screen::Structural2d,
+            Screen::Structural3d,
+            Screen::ProductSummary,
+        ] {
+            app.enter_screen(screen);
+            app.update(Message::ReactionNavToggled);
+            assert!(app.reaction_nav_open);
+            app.update(Message::ReactionNavToggled);
+            assert!(!app.reaction_nav_open);
+        }
+    }
+
+    #[test]
+    fn reaction_nav_selecting_a_screen_closes_the_menu_and_navigates() {
+        let mut app = App::default();
+        app.open_structural_animation();
+        app.enter_screen(Screen::Structural2d);
+
+        app.update(Message::ReactionNavToggled);
+        assert!(app.reaction_nav_open);
+        app.update(Message::ContinueToSummary);
+        assert_eq!(app.screen, Screen::ProductSummary);
+        assert!(!app.reaction_nav_open, "any screen change closes the menu");
+    }
+
+    #[test]
+    fn review_and_ask_is_reachable_before_the_3d_animation_finishes() {
+        let mut app = App::default();
+        app.open_structural_animation();
+        app.enter_screen(Screen::Structural3d);
+        app.seek_real_world_timeline(0);
+        let duration = app
+            .structural_animation
+            .as_ref()
+            .expect("animation exists")
+            .real_world_plan
+            .timeline
+            .duration_ms();
+        assert!(duration > 0, "fixture reaction has a real timeline");
+
+        app.update(Message::ContinueToSummary);
+        assert_eq!(
+            app.screen,
+            Screen::ProductSummary,
+            "Review and Ask is reachable without finishing the simulation"
+        );
+    }
+
+    #[test]
+    fn structural_3d_persists_playhead_and_pause_state_across_navigation() {
+        let mut app = App::default();
+        app.open_structural_animation();
+        app.enter_screen(Screen::Structural3d);
+        assert!(
+            app.structural_animation
+                .as_ref()
+                .expect("animation exists")
+                .playing,
+            "the first arrival at the 3D view autoplays"
+        );
+
+        app.seek_real_world_timeline(2_000);
+        app.update(Message::StructuralPlaybackToggled);
+        let animation = app.structural_animation.as_ref().expect("animation exists");
+        assert_eq!(animation.real_world_playhead_ms, 2_000);
+        assert!(!animation.playing);
+
+        app.update(Message::ReturnTo2d);
+        app.update(Message::ContinueTo3d);
+        let animation = app.structural_animation.as_ref().expect("animation exists");
+        assert_eq!(
+            animation.real_world_playhead_ms, 2_000,
+            "returning to 3D preserves the playhead instead of restarting"
+        );
+        assert!(
+            !animation.playing,
+            "returning to 3D preserves the paused state"
+        );
+    }
+
+    #[test]
+    fn leaving_the_3d_view_pauses_playback_without_resetting_the_playhead() {
+        let mut app = App::default();
+        app.open_structural_animation();
+        app.enter_screen(Screen::Structural3d);
+        app.seek_real_world_timeline(3_000);
+        assert!(
+            app.structural_animation
+                .as_ref()
+                .expect("animation exists")
+                .playing
+        );
+
+        app.update(Message::ContinueToSummary);
+        let animation = app.structural_animation.as_ref().expect("animation exists");
+        assert_eq!(animation.real_world_playhead_ms, 3_000);
+        assert!(
+            !animation.playing,
+            "leaving 3D pauses it rather than losing state"
+        );
+    }
+
+    #[test]
+    fn product_summary_state_persists_until_a_new_reaction_is_built() {
+        let mut app = App::default();
+        app.open_structural_animation();
+        app.enter_screen(Screen::ProductSummary);
+        app.update(Message::ProductDetailsToggled(0));
+        assert!(app.open_product_details.contains(&0));
+
+        app.update(Message::ReturnTo3d);
+        app.update(Message::ContinueToSummary);
+        assert!(
+            app.open_product_details.contains(&0),
+            "revisiting Review and Ask keeps the previously opened detail"
+        );
+
+        app.open_structural_animation();
+        assert!(
+            app.open_product_details.is_empty(),
+            "a freshly (re)built reaction clears the previous product state"
+        );
     }
 
     #[test]

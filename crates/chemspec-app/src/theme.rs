@@ -450,7 +450,10 @@ pub fn summary_property_row(started: bool, active: bool) -> container::Style {
 pub fn summary_chat_message(is_user: bool) -> container::Style {
     const TAIL_CORNER: f32 = 4.0;
     let (background, border) = if is_user {
-        (color::SELECTION.scale_alpha(0.14), color::SELECTION.scale_alpha(0.32))
+        (
+            color::SELECTION.scale_alpha(0.14),
+            color::SELECTION.scale_alpha(0.32),
+        )
     } else {
         (color::SURFACE, color::LINE)
     };
