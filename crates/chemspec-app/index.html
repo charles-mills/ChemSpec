@@ -113,6 +113,15 @@
           if (text.indexOf("control flow") !== -1) return;
           crashed(text || "unknown error");
         });
+        // winit listens for keyboard events on the canvas, not the window,
+        // so the canvas needs focus before spacebar and friends register.
+        new MutationObserver(function (_, observer) {
+          var canvas = document.querySelector("canvas");
+          if (canvas) {
+            canvas.focus();
+            observer.disconnect();
+          }
+        }).observe(document.body, { childList: true });
       })();
     </script>
   </body>
