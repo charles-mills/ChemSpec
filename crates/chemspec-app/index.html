@@ -79,40 +79,145 @@
           message.textContent = text;
           boot.appendChild(message);
         }
-        var unsupported =
-          "ChemSpec needs WebGPU, which this browser or device does not " +
-          "provide. Please use a current Chrome, Edge, Safari, or Firefox.";
+        var ua = navigator.userAgent;
+        // iPadOS reports itself as a Mac; the touch check catches it.
+        var isIOS =
+          /iPhone|iPad|iPod/.test(ua) ||
+          (navigator.platform === "Macintosh" && navigator.maxTouchPoints > 1) ||
+          (navigator.platform === "MacIntel" && navigator.maxTouchPoints > 1);
+        var isAndroid = /Android/.test(ua);
+        function noWebGpuMessage() {
+          if (!window.isSecureContext) {
+            return (
+              "ChemSpec needs WebGPU, and browsers only enable WebGPU on " +
+              "pages served over HTTPS (or from localhost). This page was " +
+              "loaded over an insecure connection."
+            );
+          }
+          if (isIOS) {
+            return (
+              "ChemSpec needs WebGPU, which iPhones and iPads only provide " +
+              "from iOS 26 onwards. Every browser on iOS uses the same " +
+              "engine, so switching browsers will not help; update iOS, or " +
+              "use a desktop browser."
+            );
+          }
+          if (isAndroid) {
+            return (
+              "ChemSpec needs WebGPU, which this browser does not provide. " +
+              "On Android that needs Chrome 121 or later on a supported " +
+              "device; older phones and non-Chrome browsers may not offer " +
+              "it. A desktop browser is the reliable fallback."
+            );
+          }
+          return (
+            "ChemSpec needs WebGPU, which this browser does not provide. " +
+            "Please use a current Chrome, Edge, Safari, or Firefox."
+          );
+        }
+        function noAdapterMessage() {
+          var base =
+            "This browser supports WebGPU, but it reports no usable GPU " +
+            "for this device, so ChemSpec cannot start. ";
+          if (isIOS || isAndroid) {
+            return (
+              base +
+              "The browser has likely blocklisted this phone or tablet's " +
+              "GPU. Please try a desktop browser instead."
+            );
+          }
+          return (
+            base +
+            "This usually means the GPU or its driver is blocklisted; " +
+            "updating the browser and graphics drivers may help."
+          );
+        }
         if (!navigator.gpu) {
-          bootFail(unsupported);
+          bootFail(noWebGpuMessage());
           return;
         }
         // navigator.gpu existing does not mean a usable GPU: Chrome on
         // Linux and blocklisted hardware return a null adapter.
         navigator.gpu.requestAdapter().then(
           function (adapter) {
-            if (!adapter) bootFail(unsupported);
+            if (!adapter) bootFail(noAdapterMessage());
           },
           function () {
-            bootFail(unsupported);
+            bootFail(noAdapterMessage());
           },
         );
-        function crashed(detail) {
-          bootFail(
-            "ChemSpec hit an unexpected error and stopped. Reloading may " +
-              "help. Details: " + detail,
-          );
-        }
-        addEventListener("error", function (event) {
-          var text = String((event.error && event.error.message) || event.message || "");
+        function crashed(reason) {
+          var text = String((reason && reason.message) || reason || "");
+          var name = String((reason && reason.name) || "");
           // winit "exits" its wasm event loop via a deliberate exception.
           if (text.indexOf("control flow") !== -1) return;
-          crashed(text || "unknown error");
+          if (name === "CompileError" || /CompileError|wasm validation/i.test(text)) {
+            bootFail(
+              "This browser's WebAssembly support is too old to run this " +
+                "build of ChemSpec. Updating the browser (or the OS, on " +
+                "phones and tablets) should fix it. Details: " + text,
+            );
+          } else if (/out of memory|allocation failed|Out of bounds memory/i.test(text) ||
+              (name === "RangeError" && /memory/i.test(text))) {
+            bootFail(
+              "The browser ran out of memory while starting ChemSpec. " +
+                "Closing other tabs and reloading may help; phones and " +
+                "tablets with little free memory may not be able to run " +
+                "the demo. Details: " + text,
+            );
+          } else if (/Failed to fetch|Load failed|NetworkError|Importing a module script failed/i.test(text)) {
+            bootFail(
+              "Part of ChemSpec failed to download. Check your internet " +
+                "connection and reload the page. Details: " + text,
+            );
+          } else if (name === "RuntimeError" || /unreachable/i.test(text)) {
+            bootFail(
+              "ChemSpec crashed while running. Reloading may help; if it " +
+                "keeps happening, the browser console has the full error. " +
+                "Details: " + (text || "wasm panic"),
+            );
+          } else {
+            bootFail(
+              "ChemSpec hit an unexpected error and stopped. Reloading may " +
+                "help. Details: " + (text || "unknown error"),
+            );
+          }
+        }
+        addEventListener("error", function (event) {
+          crashed(event.error || event.message);
         });
         addEventListener("unhandledrejection", function (event) {
-          var text = String((event.reason && event.reason.message) || event.reason || "");
-          if (text.indexOf("control flow") !== -1) return;
-          crashed(text || "unknown error");
+          crashed(event.reason);
         });
+        // Resource load failures (the wasm module or its JS glue not
+        // downloading) never reach the bubble-phase handler above.
+        addEventListener(
+          "error",
+          function (event) {
+            var target = event.target;
+            if (!target || target === window || !target.tagName) return;
+            var tag = target.tagName.toUpperCase();
+            if (tag !== "SCRIPT" && tag !== "LINK") return;
+            bootFail(
+              "Part of ChemSpec failed to download (" +
+                (target.src || target.href || "unknown file") +
+                "). Check your internet connection and reload the page.",
+            );
+          },
+          true,
+        );
+        // The wasm bundle is a multi-megabyte download; on a slow
+        // connection the spinner is real progress, not a hang. Say so
+        // instead of leaving it silent.
+        setTimeout(function () {
+          if (failed || document.querySelector("canvas")) return;
+          var message = document.getElementById("chemspec-boot-message");
+          if (message) {
+            message.textContent =
+              "Still loading. ChemSpec is a large download, so a slow " +
+              "connection can take a minute…";
+          }
+        }, 15000);
         // winit listens for keyboard events on the canvas, not the window,
         // so the canvas needs focus before spacebar and friends register.
         new MutationObserver(function (_, observer) {

@@ -1008,9 +1008,10 @@ fn registry_participant_atoms(participant: ExperienceParticipantDefinition) -> V
 }
 
 /// Reactant atom inventories for every supported request, grouped by
-/// family. The dice roll samples a family first so one large family
-/// (the registry's ion pairs alone outnumber every showcase reaction)
-/// cannot drown out the visibly dramatic chemistry.
+/// family. The dice roll deals every reaction once per cycle and uses the
+/// family grouping to spread each family evenly through the deck, so one
+/// large family (the registry's ion pairs alone outnumber every showcase
+/// reaction) cannot bunch up and drown out the visibly dramatic chemistry.
 pub fn roll_candidates() -> Vec<(ReactionFamily, Vec<[Vec<u8>; 2]>)> {
     let mut by_family = BTreeMap::<ReactionFamily, Vec<[Vec<u8>; 2]>>::new();
     for request in requests() {
