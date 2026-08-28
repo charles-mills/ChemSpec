@@ -170,8 +170,12 @@ pub struct State {
     prompt_target: PromptTarget,
     prompt_reveal: f32,
     roll: Option<RollState>,
-    /// The previous roll's reactant pair, so consecutive rolls avoid landing
-    /// on the exact same question.
+    /// Reactant pairs still waiting their turn in the current roll cycle.
+    /// Every distinct supported reaction appears exactly once per cycle, so
+    /// no reaction repeats until the whole deck has been dealt.
+    roll_deck: Vec<[Vec<u8>; 2]>,
+    /// The previous roll's reactant pair, so the reshuffle at the end of a
+    /// cycle cannot deal the same question twice in a row.
     last_roll: Option<[Vec<u8>; 2]>,
 }
 
@@ -194,6 +198,7 @@ impl Default for State {
             prompt_target: PromptTarget::Hidden,
             prompt_reveal: 0.0,
             roll: None,
+            roll_deck: Vec::new(),
             last_roll: None,
         }
     }
@@ -367,37 +372,65 @@ fn animation_tick(state: &mut State) {
     }
 }
 
-/// Rolls the dice: picks a supported reaction at random and starts the
-/// slot-machine spin that will settle both slots on it. Sampling is
-/// family-first so the showcase chemistry (alkali metals in water, silver
-/// halide precipitation, gas evolution) keeps its share of rolls against
-/// the registry's far more numerous ion-pair permutations.
-fn start_roll(state: &mut State) {
-    let mut pool = chemistry::roll_candidates();
-    for (_, members) in &mut pool {
-        members.retain(|pair| {
-            pair.iter()
+/// Builds a fresh roll cycle: every distinct supported reaction pair, each
+/// appearing exactly once. Each family's members are spread evenly through
+/// the deck so the showcase chemistry (alkali metals in water, silver halide
+/// precipitation, gas evolution) surfaces steadily instead of the registry's
+/// far more numerous ion-pair permutations bunching together.
+#[allow(clippy::cast_precision_loss)]
+fn build_roll_deck() -> Vec<[Vec<u8>; 2]> {
+    let mut keyed: Vec<(f32, [Vec<u8>; 2])> = Vec::new();
+    // A few pairs answer to more than one family; the first family to claim
+    // one keeps it so the deck holds each reaction exactly once.
+    let mut claimed = std::collections::BTreeSet::new();
+    for (_, members) in chemistry::roll_candidates() {
+        let mut distinct: Vec<[Vec<u8>; 2]> = Vec::new();
+        for pair in members {
+            if !pair
+                .iter()
                 .all(|atoms| atoms.len() <= MAX_ATOMS_PER_REACTANT)
-        });
-    }
-    pool.retain(|(_, members)| !members.is_empty());
-    if pool.is_empty() {
-        return;
-    }
-
-    let pick = || {
-        let (_, members) = &pool[fastrand::usize(..pool.len())];
-        members[fastrand::usize(..members.len())]
-            .clone()
-            .map(|atoms| chemistry::standardize_elemental_draft(&atoms))
-    };
-    let mut pair = pick();
-    for _ in 0..8 {
-        if state.last_roll.as_ref() != Some(&pair) {
-            break;
+            {
+                continue;
+            }
+            let pair = pair.map(|atoms| chemistry::standardize_elemental_draft(&atoms));
+            if claimed.insert(pair.clone()) {
+                distinct.push(pair);
+            }
         }
-        pair = pick();
+        if distinct.is_empty() {
+            continue;
+        }
+        fastrand::shuffle(&mut distinct);
+        // Stratified placement: member `index` of a family with `share`
+        // members lands somewhere in the deck's `index`-th share-sized band,
+        // so a three-member family spans the whole cycle instead of landing
+        // in three consecutive rolls.
+        let share = distinct.len() as f32;
+        for (index, pair) in distinct.into_iter().enumerate() {
+            keyed.push(((index as f32 + fastrand::f32()) / share, pair));
+        }
     }
+    keyed.sort_by(|left, right| left.0.total_cmp(&right.0));
+    keyed.into_iter().map(|(_, pair)| pair).collect()
+}
+
+/// Rolls the dice: deals the next reaction from the current cycle's deck and
+/// starts the slot-machine spin that will settle both slots on it. The deck
+/// holds every distinct supported reaction once, so nothing repeats until a
+/// full cycle has been dealt; a fresh deck is shuffled when it runs out.
+fn start_roll(state: &mut State) {
+    if state.roll_deck.is_empty() {
+        state.roll_deck = build_roll_deck();
+        // Rolls are dealt from the back; keep the reshuffle from repeating
+        // the pair the previous cycle ended on.
+        if state.roll_deck.len() > 1 && state.roll_deck.last() == state.last_roll.as_ref() {
+            let end = state.roll_deck.len() - 1;
+            state.roll_deck.swap(0, end);
+        }
+    }
+    let Some(pair) = state.roll_deck.pop() else {
+        return;
+    };
     state.last_roll = Some(pair.clone());
 
     let [first, second] = pair.map(|atoms| {
@@ -1672,6 +1705,33 @@ mod tests {
         run_roll_to_completion(&mut state);
         let (first, second) = reactants(&state);
         assert_ne!(previous, [first.to_vec(), second.to_vec()]);
+    }
+
+    #[test]
+    fn rolls_deal_every_reaction_before_any_repeat() {
+        fastrand::seed(11);
+        let cycle = build_roll_deck().len();
+        assert!(cycle > 100, "the roll deck covers the supported catalogue");
+
+        let mut state = State::default();
+        let mut seen = std::collections::BTreeSet::new();
+        let mut cycle_end = None;
+        for _ in 0..cycle {
+            update(&mut state, Message::RollRequested);
+            run_roll_to_completion(&mut state);
+            let (first, second) = reactants(&state);
+            cycle_end = Some([first.to_vec(), second.to_vec()]);
+            assert!(
+                seen.insert([first.to_vec(), second.to_vec()]),
+                "a reaction repeated before the cycle finished"
+            );
+        }
+
+        // The next cycle reshuffles rather than repeating the last question.
+        update(&mut state, Message::RollRequested);
+        run_roll_to_completion(&mut state);
+        let (first, second) = reactants(&state);
+        assert_ne!(cycle_end, Some([first.to_vec(), second.to_vec()]));
     }
 
     #[test]
